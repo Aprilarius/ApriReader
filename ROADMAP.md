@@ -15,7 +15,10 @@
 - [x] Stage 8 — Steam adapter and offline achievement synchronization.
 - [ ] Stage 9 — release hardening, accessibility, security and closed beta.
       Engineering hardening and candidate gates are implemented; completion
-      awaits Windows 10/11 closed-beta and protected Steamworks evidence.
+      awaits the remaining Windows 10/11 closed-beta and protected Steamworks
+      evidence. The product owner reported a successful beta.4 manual smoke
+      pass on 2026-07-29; the scoped HOLD decision is recorded in
+      `docs/release/BETA4_RELEASE_DECISION.md`.
 
 ## Library navigation completion
 
