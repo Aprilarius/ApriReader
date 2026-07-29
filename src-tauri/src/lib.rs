@@ -107,6 +107,11 @@ fn list_books(state: State<'_, LibraryState>) -> Result<Vec<BookRecord>, String>
 }
 
 #[tauri::command]
+fn remove_books(book_ids: Vec<i64>, state: State<'_, LibraryState>) -> Result<usize, String> {
+    with_database(&state, |database| database.remove_books(&book_ids))
+}
+
+#[tauri::command]
 fn import_reader_font(path: String, app: tauri::AppHandle) -> Result<ImportedReaderFont, String> {
     let destination = app
         .path()
@@ -389,6 +394,7 @@ pub fn run() {
             get_startup_health,
             import_reader_font,
             list_books,
+            remove_books,
             import_books,
             add_watched_folder,
             list_watched_folders,

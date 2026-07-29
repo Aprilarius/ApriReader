@@ -19,6 +19,9 @@
 
 ## Library navigation completion
 
+- [x] Library removal — confirmed single-book and batch removal while source
+      files remain untouched.
+
 - [x] Reading Now — unfinished opened books ordered by the last successful
       reading time, with direct resume actions and truthful unavailable-source
       states.

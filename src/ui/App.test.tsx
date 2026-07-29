@@ -69,6 +69,13 @@ describe("App", () => {
         );
         return Promise.resolve(updated);
       }
+      if (command === "remove_books") {
+        const args = invokeArgs as { bookIds: number[] } | undefined;
+        const ids = new Set(args?.bookIds ?? []);
+        const previousLength = mockBooks.length;
+        mockBooks = mockBooks.filter((book) => !ids.has(book.id));
+        return Promise.resolve(previousLength - mockBooks.length);
+      }
       return Promise.reject(new Error(`Unavailable in unit test: ${command}`));
     });
   });
@@ -181,6 +188,63 @@ describe("App", () => {
     expect(
       await screen.findByRole("heading", { name: "No favorite books yet" }),
     ).toBeInTheDocument();
+  });
+
+  it("removes one book from details while preserving the source-file policy", async () => {
+    localStorage.setItem("aprireader.locale", "en");
+    mockBooks = [bookFixture({ id: 31, title: "Remove one" })];
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Remove one/ }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Remove from library" }),
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "Your library is empty" }),
+    ).toBeInTheDocument();
+    expect(confirm).toHaveBeenCalledWith(
+      "Remove “Remove one” from the library? The source file will remain on disk.",
+    );
+    expect(invokeMock).toHaveBeenCalledWith("remove_books", {
+      bookIds: [31],
+    });
+    confirm.mockRestore();
+  });
+
+  it("selects and removes several books as one batch", async () => {
+    localStorage.setItem("aprireader.locale", "en");
+    mockBooks = [
+      bookFixture({ id: 41, title: "Keep me" }),
+      bookFixture({ id: 42, title: "Batch one" }),
+      bookFixture({ id: 43, title: "Batch two" }),
+    ];
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    render(<App />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Select books" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Select “Batch one”" }));
+    fireEvent.click(screen.getByRole("button", { name: "Select “Batch two”" }));
+    expect(screen.getByText("Selected: 2")).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Remove from library" }),
+    );
+
+    expect(
+      await screen.findByRole("button", { name: /Keep me/ }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Batch one")).not.toBeInTheDocument();
+    expect(screen.queryByText("Batch two")).not.toBeInTheDocument();
+    expect(confirm).toHaveBeenCalledWith(
+      "Remove the selected books (2) from the library? The source files will remain on disk.",
+    );
+    expect(invokeMock).toHaveBeenCalledWith("remove_books", {
+      bookIds: [42, 43],
+    });
+    confirm.mockRestore();
   });
 
   it("groups local metadata by author and opens an author drill-down", async () => {

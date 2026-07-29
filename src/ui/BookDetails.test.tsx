@@ -65,6 +65,7 @@ describe("BookDetails", () => {
         busy={false}
         onRead={vi.fn()}
         onFavorite={vi.fn()}
+        onRemove={vi.fn()}
         onUpdated={onUpdated}
         onClose={vi.fn()}
       />,
@@ -105,6 +106,7 @@ describe("BookDetails", () => {
         busy={false}
         onRead={vi.fn()}
         onFavorite={vi.fn()}
+        onRemove={vi.fn()}
         onUpdated={vi.fn()}
         onClose={vi.fn()}
       />,
@@ -130,6 +132,7 @@ describe("BookDetails", () => {
         busy={false}
         onRead={vi.fn()}
         onFavorite={onFavorite}
+        onRemove={vi.fn()}
         onUpdated={onUpdated}
         onClose={vi.fn()}
       />,
@@ -138,5 +141,29 @@ describe("BookDetails", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add to favorites" }));
     await waitFor(() => expect(onFavorite).toHaveBeenCalledWith(book));
     expect(onUpdated).toHaveBeenCalledWith(updated);
+  });
+
+  it("removes one book only after the explicit confirmation callback", async () => {
+    const onRemove = vi.fn().mockResolvedValue(true);
+    render(
+      <BookDetails
+        book={book}
+        t={t}
+        busy={false}
+        onRead={vi.fn()}
+        onFavorite={vi.fn()}
+        onRemove={onRemove}
+        onUpdated={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Remove from library" }),
+    );
+    await waitFor(() => expect(onRemove).toHaveBeenCalledWith(book));
+    expect(
+      screen.getByText(/The source book file remains on disk/),
+    ).toBeInTheDocument();
   });
 });

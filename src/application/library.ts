@@ -94,3 +94,7 @@ export async function setBookFavorite(
 ): Promise<Book> {
   return invoke<Book>("set_book_favorite", { bookId, favorite });
 }
+
+export async function removeBooks(bookIds: number[]): Promise<number> {
+  return invoke<number>("remove_books", { bookIds });
+}

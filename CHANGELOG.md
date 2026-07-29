@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.0-beta.3 library removal candidate
+
+- Added confirmed single-book removal from the details panel.
+- Added an explicit batch-selection mode with a selected count, filtered
+  Select all action, cancellation, and one transactional removal command.
+- Source book files remain untouched. ApriReader removes only its local record,
+  progress, annotations, full-text index, and app-managed caches.
+
 ## 0.9.0-beta.2 localization candidate
 
 - Replaced the unnatural Russian watched-folder action

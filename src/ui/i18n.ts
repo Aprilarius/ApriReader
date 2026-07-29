@@ -94,6 +94,21 @@ export const translations = {
     addBooks: "Добавить книги",
     watchFolder: "Сканировать папку",
     scanFolders: "Пересканировать",
+    selectBooks: "Выбрать книги",
+    cancelSelection: "Отменить выбор",
+    selectAllVisible: "Выбрать все",
+    selectedBooks: "Выбрано: {count}",
+    removeFromLibrary: "Удалить из библиотеки",
+    removeBookConfirm:
+      "Удалить «{title}» из библиотеки? Исходный файл останется на диске.",
+    removeBooksConfirm:
+      "Удалить выбранные книги ({count}) из библиотеки? Исходные файлы останутся на диске.",
+    removeBookPolicy:
+      "Удаляется только запись ApriReader, включая локальный прогресс и заметки. Исходный файл книги останется на диске.",
+    bookRemoved: "Книга удалена из библиотеки.",
+    booksRemoved: "Удалено книг: {count}.",
+    removeBooksError: "Не удалось удалить книги из библиотеки",
+    selectionLabel: "Выбрать «{title}»",
     allBooks: "Все",
     unavailable: "Файл недоступен",
     loading: "Загрузка библиотеки…",
@@ -424,6 +439,21 @@ export const translations = {
     addBooks: "Add books",
     watchFolder: "Watch folder",
     scanFolders: "Rescan",
+    selectBooks: "Select books",
+    cancelSelection: "Cancel selection",
+    selectAllVisible: "Select all",
+    selectedBooks: "Selected: {count}",
+    removeFromLibrary: "Remove from library",
+    removeBookConfirm:
+      "Remove “{title}” from the library? The source file will remain on disk.",
+    removeBooksConfirm:
+      "Remove the selected books ({count}) from the library? The source files will remain on disk.",
+    removeBookPolicy:
+      "Only the ApriReader record is removed, including local progress and notes. The source book file remains on disk.",
+    bookRemoved: "Book removed from the library.",
+    booksRemoved: "Books removed: {count}.",
+    removeBooksError: "Could not remove books from the library",
+    selectionLabel: "Select “{title}”",
     allBooks: "All",
     unavailable: "File unavailable",
     loading: "Loading library…",

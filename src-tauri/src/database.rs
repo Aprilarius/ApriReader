@@ -7,6 +7,7 @@ use crate::steam::{self, SteamError, SteamIntegrationStatus, SteamSyncResult};
 use rusqlite::{params, Connection, OpenFlags, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use std::{
+    collections::BTreeSet,
     fs,
     path::{Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
@@ -186,6 +187,8 @@ pub enum DatabaseError {
     MissingFolder,
     #[error("the selected book does not exist")]
     MissingBook,
+    #[error("the book selection is invalid")]
+    InvalidBookSelection,
     #[error("the reading position is invalid")]
     InvalidPosition,
     #[error("the annotation is invalid")]
@@ -515,6 +518,63 @@ impl Database {
             })
         })?;
         rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
+    }
+
+    pub fn remove_books(&mut self, book_ids: &[i64]) -> Result<usize, DatabaseError> {
+        let book_ids = book_ids
+            .iter()
+            .copied()
+            .filter(|id| *id > 0)
+            .collect::<BTreeSet<_>>();
+        if book_ids.is_empty() || book_ids.len() > 10_000 {
+            return Err(DatabaseError::InvalidBookSelection);
+        }
+
+        let transaction = self.connection.transaction()?;
+        let mut removed = 0;
+        let mut cached_paths = BTreeSet::new();
+        let mut reader_cache_keys = BTreeSet::new();
+        for book_id in book_ids {
+            let record = transaction
+                .query_row(
+                    "SELECT fingerprint, cover_path, embedded_cover_path
+                     FROM books WHERE id = ?1",
+                    [book_id],
+                    |row| {
+                        Ok((
+                            row.get::<_, String>(0)?,
+                            row.get::<_, Option<String>>(1)?,
+                            row.get::<_, Option<String>>(2)?,
+                        ))
+                    },
+                )
+                .optional()?;
+            let Some((fingerprint, cover_path, embedded_cover_path)) = record else {
+                continue;
+            };
+            transaction.execute("DELETE FROM book_search WHERE book_id = ?1", [book_id])?;
+            removed += transaction.execute("DELETE FROM books WHERE id = ?1", [book_id])?;
+            cached_paths.extend(cover_path);
+            cached_paths.extend(embedded_cover_path);
+            reader_cache_keys.insert(
+                fingerprint
+                    .get(..24)
+                    .unwrap_or(fingerprint.as_str())
+                    .to_owned(),
+            );
+        }
+        transaction.commit()?;
+
+        for path in cached_paths {
+            remove_managed_file(&self.cover_dir, Path::new(&path));
+        }
+        for key in reader_cache_keys {
+            remove_managed_directory(&self.reader_cache_dir, &key);
+        }
+        if removed > 0 {
+            self.create_backup()?;
+        }
+        Ok(removed)
     }
 
     pub fn update_book_metadata(
@@ -1467,6 +1527,22 @@ fn remove_managed_external_cover(cover_dir: &Path, path: &str) -> Result<(), Dat
     Ok(())
 }
 
+fn remove_managed_file(root: &Path, path: &Path) {
+    if path.parent() == Some(root) && path.is_file() {
+        let _ = fs::remove_file(path);
+    }
+}
+
+fn remove_managed_directory(root: &Path, name: &str) {
+    let safe_name = !name.is_empty() && name.chars().all(|character| character.is_ascii_hexdigit());
+    if safe_name {
+        let path = root.join(name);
+        if path.parent() == Some(root) && path.is_dir() {
+            let _ = fs::remove_dir_all(path);
+        }
+    }
+}
+
 fn fts_query(query: &str) -> Option<String> {
     let tokens = query
         .split_whitespace()
@@ -1602,6 +1678,108 @@ mod tests {
             .next()
             .is_some());
         assert_eq!(fs::read(&source).expect("source remains readable"), fixture);
+    }
+
+    #[test]
+    fn removes_a_book_record_and_local_derivatives_but_keeps_the_source() {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let source = directory.path().join("Removable Book.txt");
+        fs::write(&source, "source content must remain").expect("fixture");
+        let mut database = test_database(directory.path());
+        database
+            .import_paths(std::slice::from_ref(&source))
+            .expect("import");
+        let book_id = database.list_books().expect("books")[0].id;
+        let fingerprint = database
+            .connection
+            .query_row(
+                "SELECT fingerprint FROM books WHERE id = ?1",
+                [book_id],
+                |row| row.get::<_, String>(0),
+            )
+            .expect("fingerprint");
+        database
+            .connection
+            .execute(
+                "INSERT INTO annotations(
+                    book_id, kind, section_id, block_index, start_offset, end_offset
+                 ) VALUES (?1, 'bookmark', 'section-1', 0, 0, 0)",
+                [book_id],
+            )
+            .expect("annotation");
+        database
+            .connection
+            .execute(
+                "INSERT INTO book_search(
+                    book_id, section_id, block_index, section_title, body
+                 ) VALUES (?1, 'section-1', 0, 'Fixture', 'indexed text')",
+                [book_id],
+            )
+            .expect("search index");
+        let reader_cache = database
+            .reader_cache_dir
+            .join(fingerprint.get(..24).unwrap_or(&fingerprint));
+        fs::create_dir_all(&reader_cache).expect("reader cache");
+        fs::write(reader_cache.join("page.bin"), b"cache").expect("cache file");
+
+        assert_eq!(database.remove_books(&[book_id]).expect("remove"), 1);
+        assert!(database.list_books().expect("books").is_empty());
+        assert_eq!(
+            database
+                .connection
+                .query_row("SELECT COUNT(*) FROM annotations", [], |row| {
+                    row.get::<_, i64>(0)
+                })
+                .expect("annotation count"),
+            0
+        );
+        assert_eq!(
+            database
+                .connection
+                .query_row("SELECT COUNT(*) FROM book_search", [], |row| {
+                    row.get::<_, i64>(0)
+                })
+                .expect("search count"),
+            0
+        );
+        assert!(!reader_cache.exists());
+        assert_eq!(
+            fs::read_to_string(source).expect("source remains"),
+            "source content must remain"
+        );
+    }
+
+    #[test]
+    fn removes_several_unique_book_ids_as_one_batch() {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let first = directory.path().join("First removable.txt");
+        let second = directory.path().join("Second removable.txt");
+        fs::write(&first, "first source").expect("first fixture");
+        fs::write(&second, "second source").expect("second fixture");
+        let mut database = test_database(directory.path());
+        database
+            .import_paths(&[first.clone(), second.clone()])
+            .expect("import");
+        let ids = database
+            .list_books()
+            .expect("books")
+            .into_iter()
+            .map(|book| book.id)
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            database
+                .remove_books(&[ids[0], ids[1], ids[1], i64::MAX])
+                .expect("batch remove"),
+            2
+        );
+        assert!(database.list_books().expect("books").is_empty());
+        assert!(first.is_file());
+        assert!(second.is_file());
+        assert!(matches!(
+            database.remove_books(&[]),
+            Err(DatabaseError::InvalidBookSelection)
+        ));
     }
 
     #[test]

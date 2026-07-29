@@ -204,3 +204,10 @@ whitespace, while the first stored display spelling remains visible. Books
 inside a group use an `Intl.Collator` with numeric comparison for deterministic
 natural title order. The empty series key sorts last and receives only the
 localized No Series label.
+
+Library removal crosses one typed `remove_books` command. Rust deduplicates and
+bounds the requested IDs, deletes the selected records in one transaction, and
+relies on SQLite foreign-key cascades for annotations and reading sessions.
+FTS5 rows are removed explicitly. App-managed covers and fixed-reader caches
+are cleaned only after their paths are proven to be inside the matching local
+cache root. Source paths are never opened for writing or deletion.

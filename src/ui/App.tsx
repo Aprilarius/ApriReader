@@ -9,6 +9,7 @@ import {
   coverUrl,
   listBooks,
   listWatchedFolders,
+  removeBooks,
   scanWatchedFolders,
   setBookFavorite,
   type Book,
@@ -206,6 +207,45 @@ export function App() {
     }
   };
 
+  const confirmAndRemoveBooks = async (targets: Book[]): Promise<boolean> => {
+    const uniqueTargets = [
+      ...new Map(targets.map((book) => [book.id, book])).values(),
+    ];
+    if (uniqueTargets.length === 0) return false;
+    const confirmation =
+      uniqueTargets.length === 1
+        ? t("removeBookConfirm").replace("{title}", uniqueTargets[0]!.title)
+        : t("removeBooksConfirm").replace(
+            "{count}",
+            String(uniqueTargets.length),
+          );
+    if (!window.confirm(confirmation)) return false;
+
+    setBusy(true);
+    setMessage("");
+    setError("");
+    try {
+      const removed = await removeBooks(uniqueTargets.map((book) => book.id));
+      setSelectedId((currentId) =>
+        uniqueTargets.some((book) => book.id === currentId) ? null : currentId,
+      );
+      await refresh();
+      setMessage(
+        removed === 1
+          ? t("bookRemoved")
+          : t("booksRemoved").replace("{count}", String(removed)),
+      );
+      return true;
+    } catch (reason) {
+      setError(
+        `${t("removeBooksError")}: ${reason instanceof Error ? reason.message : String(reason)}`,
+      );
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const openBook = async (book: Book) => {
     setReaderLoading(true);
     setError("");
@@ -372,6 +412,7 @@ export function App() {
               onSelect={setSelectedId}
               onOpen={(book) => void openBook(book)}
               onFavorite={(book) => void toggleFavorite(book)}
+              onRemove={confirmAndRemoveBooks}
               onImport={() => void runImport(chooseAndImportBooks)}
               onWatch={() => void runImport(chooseAndWatchFolder)}
             />
@@ -449,6 +490,7 @@ export function App() {
         busy={readerLoading}
         onRead={(book) => void openBook(book)}
         onFavorite={toggleFavorite}
+        onRemove={(book) => confirmAndRemoveBooks([book])}
         onUpdated={(book) =>
           setBooks((items) =>
             items.map((item) => (item.id === book.id ? book : item)),
@@ -718,6 +760,7 @@ function LibraryPage({
   onSelect,
   onOpen,
   onFavorite,
+  onRemove,
   onImport,
   onWatch,
 }: {
@@ -734,12 +777,40 @@ function LibraryPage({
   onSelect: (id: number) => void;
   onOpen: (book: Book) => void;
   onFavorite: (book: Book) => void;
+  onRemove: (books: Book[]) => Promise<boolean>;
   onImport: () => void;
   onWatch: () => void;
 }) {
   const [renderLimit, setRenderLimit] = useState(120);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedBookIds, setSelectedBookIds] = useState<Set<number>>(
+    () => new Set(),
+  );
   const renderedBooks = visibleBooks.slice(0, renderLimit);
   useEffect(() => setRenderLimit(120), [visibleBooks]);
+  useEffect(() => {
+    setSelectedBookIds((current) => {
+      const availableIds = new Set(books.map((book) => book.id));
+      return new Set([...current].filter((id) => availableIds.has(id)));
+    });
+  }, [books]);
+
+  const cancelSelection = () => {
+    setSelectionMode(false);
+    setSelectedBookIds(new Set());
+  };
+  const toggleSelection = (bookId: number) => {
+    setSelectedBookIds((current) => {
+      const next = new Set(current);
+      if (next.has(bookId)) next.delete(bookId);
+      else next.add(bookId);
+      return next;
+    });
+  };
+  const removeSelection = async () => {
+    const selectedBooks = books.filter((book) => selectedBookIds.has(book.id));
+    if (await onRemove(selectedBooks)) cancelSelection();
+  };
 
   return (
     <>
@@ -767,24 +838,73 @@ function LibraryPage({
           <span>{visibleBooks.length}</span>
         </div>
         <div className="toolbar-actions">
-          <button
-            className="secondary-button"
-            type="button"
-            disabled={busy}
-            onClick={onWatch}
-          >
-            <Icon name="folder" />
-            {t("watchFolder")}
-          </button>
-          <button
-            className="primary-button"
-            type="button"
-            disabled={busy}
-            onClick={onImport}
-          >
-            <Icon name="plus" />
-            {t("addBooks")}
-          </button>
+          {selectionMode ? (
+            <>
+              <span className="selection-count" role="status">
+                {t("selectedBooks").replace(
+                  "{count}",
+                  String(selectedBookIds.size),
+                )}
+              </span>
+              <button
+                className="secondary-button"
+                type="button"
+                disabled={busy}
+                onClick={() =>
+                  setSelectedBookIds(
+                    new Set(visibleBooks.map((book) => book.id)),
+                  )
+                }
+              >
+                {t("selectAllVisible")}
+              </button>
+              <button
+                className="danger-button"
+                type="button"
+                disabled={busy || selectedBookIds.size === 0}
+                onClick={() => void removeSelection()}
+              >
+                {t("removeFromLibrary")}
+              </button>
+              <button
+                className="secondary-button"
+                type="button"
+                disabled={busy}
+                onClick={cancelSelection}
+              >
+                {t("cancelSelection")}
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                className="secondary-button"
+                type="button"
+                disabled={busy || books.length === 0}
+                onClick={() => setSelectionMode(true)}
+              >
+                {t("selectBooks")}
+              </button>
+              <button
+                className="secondary-button"
+                type="button"
+                disabled={busy}
+                onClick={onWatch}
+              >
+                <Icon name="folder" />
+                {t("watchFolder")}
+              </button>
+              <button
+                className="primary-button"
+                type="button"
+                disabled={busy}
+                onClick={onImport}
+              >
+                <Icon name="plus" />
+                {t("addBooks")}
+              </button>
+            </>
+          )}
         </div>
       </div>
       {formats.length > 0 && (
@@ -819,7 +939,16 @@ function LibraryPage({
             <BookCard
               key={book.id}
               book={book}
-              selected={book.id === selectedId}
+              selected={
+                selectionMode
+                  ? selectedBookIds.has(book.id)
+                  : book.id === selectedId
+              }
+              selectionMode={selectionMode}
+              selectionLabel={t("selectionLabel").replace(
+                "{title}",
+                book.title,
+              )}
               unknownAuthor={t("unknownAuthor")}
               unavailable={t("unavailable")}
               addFavoriteLabel={t("addToFavorites")}
@@ -827,6 +956,7 @@ function LibraryPage({
               onSelect={onSelect}
               onOpen={onOpen}
               onFavorite={onFavorite}
+              onToggleSelection={toggleSelection}
             />
           ))}
           {renderedBooks.length < visibleBooks.length && (
@@ -1454,9 +1584,12 @@ function BookCard({
   actionLabel,
   addFavoriteLabel,
   removeFavoriteLabel,
+  selectionMode = false,
+  selectionLabel,
   onSelect,
   onOpen,
   onFavorite,
+  onToggleSelection,
 }: {
   book: Book;
   selected: boolean;
@@ -1466,29 +1599,48 @@ function BookCard({
   actionLabel?: string;
   addFavoriteLabel: string;
   removeFavoriteLabel: string;
+  selectionMode?: boolean;
+  selectionLabel?: string;
   onSelect: (id: number) => void;
   onOpen: (book: Book) => void;
   onFavorite: (book: Book) => void;
+  onToggleSelection?: (id: number) => void;
 }) {
   return (
     <article
-      className={`book-card ${selected ? "selected" : ""} ${book.isAvailable ? "" : "unavailable"}`}
+      className={`book-card ${selected ? "selected" : ""} ${selectionMode ? "selection-mode" : ""} ${book.isAvailable ? "" : "unavailable"}`}
     >
-      <button
-        className={`favorite-toggle ${book.isFavorite ? "active" : ""}`}
-        type="button"
-        aria-label={book.isFavorite ? removeFavoriteLabel : addFavoriteLabel}
-        aria-pressed={book.isFavorite}
-        onClick={() => onFavorite(book)}
-      >
-        <Icon name="favorite" />
-      </button>
+      {selectionMode ? (
+        <button
+          className={`selection-toggle ${selected ? "active" : ""}`}
+          type="button"
+          aria-label={selectionLabel}
+          aria-pressed={selected}
+          onClick={() => onToggleSelection?.(book.id)}
+        >
+          <span aria-hidden="true">{selected ? "✓" : ""}</span>
+        </button>
+      ) : (
+        <button
+          className={`favorite-toggle ${book.isFavorite ? "active" : ""}`}
+          type="button"
+          aria-label={book.isFavorite ? removeFavoriteLabel : addFavoriteLabel}
+          aria-pressed={book.isFavorite}
+          onClick={() => onFavorite(book)}
+        >
+          <Icon name="favorite" />
+        </button>
+      )}
       <button
         type="button"
         className="book-select"
         aria-label={`${book.title} — ${book.author || unknownAuthor}, ${book.format}, ${Math.round(book.progress * 100)}%`}
-        onClick={() => onSelect(book.id)}
-        onDoubleClick={() => onOpen(book)}
+        onClick={() =>
+          selectionMode ? onToggleSelection?.(book.id) : onSelect(book.id)
+        }
+        onDoubleClick={() => {
+          if (!selectionMode) onOpen(book);
+        }}
       >
         <span className="cover-wrap">
           {book.coverPath ? (
@@ -1593,6 +1745,7 @@ export function BookDetails({
   busy,
   onRead,
   onFavorite,
+  onRemove,
   onUpdated,
   onClose,
 }: {
@@ -1601,6 +1754,7 @@ export function BookDetails({
   busy: boolean;
   onRead: (book: Book) => void;
   onFavorite: (book: Book) => Promise<Book>;
+  onRemove: (book: Book) => Promise<boolean>;
   onUpdated: (book: Book) => void;
   onClose: () => void;
 }) {
@@ -1858,6 +2012,20 @@ export function BookDetails({
                   {book.progress > 0 ? t("continueReading") : t("readBook")}
                 </button>
               )}
+              <div className="remove-book-policy">
+                <p>{t("removeBookPolicy")}</p>
+                <button
+                  className="danger-button"
+                  type="button"
+                  disabled={actionBusy || busy}
+                  onClick={() => {
+                    setActionBusy(true);
+                    void onRemove(book).finally(() => setActionBusy(false));
+                  }}
+                >
+                  {t("removeFromLibrary")}
+                </button>
+              </div>
             </>
           )}
         </div>

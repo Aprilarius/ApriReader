@@ -158,3 +158,8 @@ Series group, and opens a local drill-down containing the normal library cards.
 Books in a series use locale-aware natural title order, so numeric title
 suffixes remain intuitive. Editing metadata immediately rebuilds the groups
 without changing the source book.
+
+Library records can be removed individually from book details or in a batch
+from an explicit selection mode. Removal always requires confirmation and
+deletes only ApriReader-owned metadata, progress, annotations, search data, and
+cache files. The source book remains unchanged in its original location.

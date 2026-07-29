@@ -132,3 +132,9 @@ mark instead of author initials. Selecting a series replaces the group grid
 with a compact back header and the existing book-card grid in natural title
 order. Books without series metadata remain visible in a plain No Series group;
 the interface never invents volume numbers or collection artwork.
+
+The library toolbar exposes a calm selection mode for batch removal. Selected
+cards use the existing brass state, the toolbar reports the exact count, and
+Select all applies to the current filtered result. Book details exposes the
+same removal as a restrained danger action. Both flows explicitly confirm that
+the source files stay on disk.
