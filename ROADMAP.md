@@ -21,7 +21,10 @@
       `docs/release/BETA4_RELEASE_DECISION.md`. An automation-assisted Windows
       11 accessibility smoke found a reader-entry focus jump; the beta.5 source
       fix and remaining matrix cells are recorded in
-      `docs/release/WINDOWS11_BETA4_ACCESSIBILITY_SMOKE.md`.
+      `docs/release/WINDOWS11_BETA4_ACCESSIBILITY_SMOKE.md`. The installed
+      beta.5 candidate then passed product-owner smoke testing with no critical
+      defects reported; its scoped HOLD decision is recorded in
+      `docs/release/BETA5_RELEASE_DECISION.md`.
 
 ## Library navigation completion
 
