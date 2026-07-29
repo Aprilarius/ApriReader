@@ -50,7 +50,8 @@ never edits the source book.
 
 Stage 4 adds a separate fixed-layout boundary in
 `src-tauri/src/special_reader.rs`. PDF source bytes are copied to a
-fingerprint-keyed app-local reader cache and rendered by PDF.js in its worker;
+fingerprint-keyed app-local reader cache only after the PDF signature is
+validated, then rendered by PDF.js in its worker;
 React renders only the page canvas and does not attach a scripting or
 annotation layer from the document. CBZ uses the bounded ZIP reader already in
 the project. CBR uses the pure-Rust `rars` adapter for RAR3/RAR5 families.

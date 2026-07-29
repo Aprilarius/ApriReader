@@ -101,6 +101,13 @@
    also execute `docs/release/STEAM_RC_CHECKLIST.md` and
    `docs/steam/TEST_CHECKLIST.md`.
 
+The Rust integration suite complements step 7 with disposable valid and
+malformed fixtures for all nine public formats. It opens them through the real
+reader adapters, rejects unsafe or structurally invalid input, checks that HTML
+does not expose an external script URL, and verifies every source fixture
+remains byte-for-byte unchanged. This automated coverage does not replace the
+manual oversized-input and external-request checks.
+
 ## Reader usability regression
 
 1. Start the release EXE and confirm no Command Prompt or console window opens.

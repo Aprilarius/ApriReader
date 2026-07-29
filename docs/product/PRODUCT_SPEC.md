@@ -29,7 +29,8 @@ the user chooses a destination.
 
 Stage 4 completes the first-release format set. PDF uses a dedicated
 fixed-layout canvas viewer with page navigation, zoom, keyboard controls, and
-restored progress. CBZ and CBR use an image-sequence reader with natural page
+restored progress. A PDF must have a valid PDF file signature before it enters
+the app-local reader cache. CBZ and CBR use an image-sequence reader with natural page
 ordering, single/two-page layouts, and left-to-right or right-to-left reading.
 DOCX joins the safe reflow reader as semantic text rather than promising a
 pixel-identical Word layout. Fixed-format cache files remain app-local and

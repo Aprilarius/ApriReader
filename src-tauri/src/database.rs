@@ -1590,6 +1590,10 @@ fn collect_supported_files(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::BTreeMap;
+    use std::io::Write;
+
+    const TEST_PNG: &[u8] = &[137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82];
 
     fn test_database(directory: &Path) -> Database {
         Database::open(
@@ -1598,6 +1602,79 @@ mod tests {
             directory.join("backups"),
         )
         .expect("database")
+    }
+
+    fn write_test_epub(path: &Path) {
+        let file = fs::File::create(path).expect("EPUB");
+        let mut archive = zip::ZipWriter::new(file);
+        let options = zip::write::SimpleFileOptions::default();
+        archive
+            .start_file("META-INF/container.xml", options)
+            .expect("container");
+        archive
+            .write_all(br#"<container><rootfile full-path="OPS/book.opf"/></container>"#)
+            .expect("container content");
+        archive.start_file("OPS/book.opf", options).expect("OPF");
+        archive
+            .write_all(
+                br#"<package><metadata><dc:title>Matrix EPUB</dc:title></metadata><manifest><item id="chapter" href="chapter.xhtml"/></manifest><spine><itemref idref="chapter"/></spine></package>"#,
+            )
+            .expect("OPF content");
+        archive
+            .start_file("OPS/chapter.xhtml", options)
+            .expect("chapter");
+        archive
+            .write_all(b"<h1>EPUB chapter</h1><p>Safe EPUB text.</p>")
+            .expect("chapter content");
+        archive.finish().expect("EPUB archive");
+    }
+
+    fn write_test_docx(path: &Path) {
+        let file = fs::File::create(path).expect("DOCX");
+        let mut archive = zip::ZipWriter::new(file);
+        let options = zip::write::SimpleFileOptions::default();
+        archive
+            .start_file("word/document.xml", options)
+            .expect("document");
+        archive
+            .write_all(
+                br#"<w:document xmlns:w="urn:test"><w:body><w:p><w:r><w:t>Safe DOCX text.</w:t></w:r></w:p></w:body></w:document>"#,
+            )
+            .expect("document content");
+        archive.finish().expect("DOCX archive");
+    }
+
+    fn write_test_cbz(path: &Path) {
+        let file = fs::File::create(path).expect("CBZ");
+        let mut archive = zip::ZipWriter::new(file);
+        archive
+            .start_file("page-001.png", zip::write::SimpleFileOptions::default())
+            .expect("page");
+        archive.write_all(TEST_PNG).expect("page content");
+        archive.finish().expect("CBZ archive");
+    }
+
+    fn write_test_cbr(path: &Path) {
+        use rars::{
+            rar15_40::{write_stored_archive, StoredEntry, WriterOptions},
+            version::ArchiveVersion,
+            FeatureSet,
+        };
+        let entries = [StoredEntry {
+            name: b"page-001.png",
+            data: TEST_PNG,
+            file_time: 0,
+            file_attr: 0,
+            host_os: 2,
+            password: None,
+            file_comment: None,
+        }];
+        let bytes = write_stored_archive(
+            &entries,
+            WriterOptions::new(ArchiveVersion::Rar29, FeatureSet::store_only()),
+        )
+        .expect("RAR");
+        fs::write(path, bytes).expect("CBR");
     }
 
     #[test]
@@ -1678,6 +1755,140 @@ mod tests {
             .next()
             .is_some());
         assert_eq!(fs::read(&source).expect("source remains readable"), fixture);
+    }
+
+    #[test]
+    fn public_format_matrix_opens_valid_synthetic_books_without_source_changes() {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let fixtures = directory.path().join("fixtures");
+        fs::create_dir(&fixtures).expect("fixtures");
+        let txt = fixtures.join("matrix.txt");
+        let html = fixtures.join("matrix.html");
+        let markdown = fixtures.join("matrix.md");
+        let epub = fixtures.join("matrix.epub");
+        let fb2 = fixtures.join("matrix.fb2");
+        let docx = fixtures.join("matrix.docx");
+        let pdf = fixtures.join("matrix.pdf");
+        let cbz = fixtures.join("matrix.cbz");
+        let cbr = fixtures.join("matrix.cbr");
+        fs::write(&txt, "Safe TXT matrix text.").expect("TXT");
+        fs::write(
+            &html,
+            "<h1>HTML matrix</h1><script src='https://invalid.test/x.js'></script><p>Safe HTML text.</p>",
+        )
+        .expect("HTML");
+        fs::write(&markdown, "# Markdown matrix\n\nSafe Markdown text.").expect("Markdown");
+        write_test_epub(&epub);
+        fs::write(
+            &fb2,
+            r#"<?xml version="1.0"?><FictionBook><body><section><title><p>FB2 matrix</p></title><p>Safe FB2 text.</p></section></body></FictionBook>"#,
+        )
+        .expect("FB2");
+        write_test_docx(&docx);
+        fs::write(&pdf, b"%PDF-1.4\n% synthetic matrix\n%%EOF").expect("PDF");
+        write_test_cbz(&cbz);
+        write_test_cbr(&cbr);
+        let paths = vec![txt, html, markdown, epub, fb2, docx, pdf, cbz, cbr];
+        let originals = paths
+            .iter()
+            .map(|path| (path.clone(), fs::read(path).expect("source bytes")))
+            .collect::<BTreeMap<_, _>>();
+
+        let mut database = test_database(directory.path());
+        let summary = database.import_paths(&paths).expect("matrix import");
+        assert_eq!(summary.imported, 9);
+        assert_eq!(summary.failed, 0);
+        let books = database.list_books().expect("matrix books");
+        assert_eq!(books.len(), 9);
+        for book in books {
+            match book.format.as_str() {
+                "TXT" | "HTML" | "MD" | "EPUB" | "FB2" | "DOCX" => {
+                    let document = database.load_document(book.id).expect("reflow document");
+                    assert!(!document.sections.is_empty());
+                    let text = document
+                        .sections
+                        .iter()
+                        .flat_map(|section| &section.blocks)
+                        .map(|block| block.text.as_str())
+                        .collect::<Vec<_>>()
+                        .join(" ");
+                    assert!(!text.contains("invalid.test"));
+                }
+                "PDF" => {
+                    let document = database
+                        .load_special_document(book.id)
+                        .expect("PDF document");
+                    let cached = document.source_path.expect("cached PDF");
+                    assert_eq!(
+                        fs::read(cached).expect("cached PDF bytes"),
+                        fs::read(&book.source_path).expect("source PDF bytes")
+                    );
+                }
+                "CBZ" | "CBR" => {
+                    let document = database
+                        .load_special_document(book.id)
+                        .expect("comic document");
+                    assert_eq!(document.pages.len(), 1);
+                }
+                format => panic!("unexpected matrix format: {format}"),
+            }
+        }
+        for (path, expected) in originals {
+            assert_eq!(fs::read(path).expect("unchanged source"), expected);
+        }
+    }
+
+    #[test]
+    fn malformed_format_matrix_fails_safely_and_keeps_fixture_bytes() {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let fixtures = [
+            ("broken.txt", b"".as_slice()),
+            (
+                "broken.html",
+                b"<script src='https://invalid.test/payload.js'>run()</script>".as_slice(),
+            ),
+            ("broken.md", b"---".as_slice()),
+            ("broken.epub", b"not a ZIP archive".as_slice()),
+            ("broken.fb2", b"not FictionBook XML".as_slice()),
+            ("broken.docx", b"not a DOCX archive".as_slice()),
+            ("broken.pdf", b"not a PDF".as_slice()),
+            ("broken.cbz", b"not a CBZ archive".as_slice()),
+            ("broken.cbr", b"not a CBR archive".as_slice()),
+        ];
+        let paths = fixtures
+            .iter()
+            .map(|(name, bytes)| {
+                let path = directory.path().join(name);
+                fs::write(&path, bytes).expect("malformed fixture");
+                (path, bytes.to_vec())
+            })
+            .collect::<Vec<_>>();
+
+        for (path, original) in &paths {
+            let extension = path
+                .extension()
+                .and_then(|value| value.to_str())
+                .unwrap_or_default()
+                .to_ascii_uppercase();
+            let failed_safely = match extension.as_str() {
+                "TXT" | "HTML" | "MD" | "EPUB" | "FB2" | "DOCX" => read_document(path).is_err(),
+                "PDF" | "CBZ" | "CBR" => prepare_special_document(
+                    1,
+                    "Broken fixture".to_owned(),
+                    String::new(),
+                    extension,
+                    path,
+                    "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+                    0.0,
+                    0,
+                    &directory.path().join("reader-cache"),
+                )
+                .is_err(),
+                _ => unreachable!(),
+            };
+            assert!(failed_safely, "{} should fail safely", path.display());
+            assert_eq!(fs::read(path).expect("fixture remains"), *original);
+        }
     }
 
     #[test]

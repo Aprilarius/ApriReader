@@ -25,6 +25,8 @@ pub enum SpecialReaderError {
     TooLarge,
     #[error("the comic archive contains no supported images")]
     EmptyComic,
+    #[error("the PDF signature is invalid")]
+    InvalidPdf,
     #[error("encrypted or split comic archives are not supported")]
     UnsupportedArchive,
     #[error("the document is damaged or cannot be read: {0}")]
@@ -86,9 +88,10 @@ pub fn prepare_special_document(
     }
     let key = fingerprint.get(..24).unwrap_or(fingerprint);
     let document_cache = cache_root.join(key);
-    fs::create_dir_all(&document_cache)?;
     match format.as_str() {
         "PDF" => {
+            validate_pdf(source_path)?;
+            fs::create_dir_all(&document_cache)?;
             let target = document_cache.join("document.pdf");
             if !target.is_file() || fs::metadata(&target)?.len() != size {
                 fs::copy(source_path, &target)?;
@@ -106,6 +109,7 @@ pub fn prepare_special_document(
             })
         }
         "CBZ" | "CBR" => {
+            fs::create_dir_all(&document_cache)?;
             let marker = document_cache.join(".complete");
             if !marker.is_file() {
                 if format == "CBZ" {
@@ -133,6 +137,16 @@ pub fn prepare_special_document(
         }
         _ => Err(SpecialReaderError::Unsupported),
     }
+}
+
+fn validate_pdf(path: &Path) -> Result<(), SpecialReaderError> {
+    let mut file = File::open(path)?;
+    let mut header = [0_u8; 5];
+    let count = file.read(&mut header)?;
+    if count != header.len() || &header != b"%PDF-" {
+        return Err(SpecialReaderError::InvalidPdf);
+    }
+    Ok(())
 }
 
 fn extract_cbz(source: &Path, target: &Path) -> Result<(), SpecialReaderError> {
@@ -470,5 +484,16 @@ mod tests {
         assert!(!safe_archive_path(Path::new("../page.png")));
         assert!(safe_archive_path(Path::new("chapter/page.png")));
         assert_eq!(image_extension("page.svg"), None);
+    }
+
+    #[test]
+    fn rejects_a_file_without_a_pdf_signature() {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let source = directory.path().join("renamed.pdf");
+        fs::write(&source, b"not a PDF").expect("fixture");
+        assert!(matches!(
+            validate_pdf(&source),
+            Err(SpecialReaderError::InvalidPdf)
+        ));
     }
 }

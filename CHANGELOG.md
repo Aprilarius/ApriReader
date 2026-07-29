@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.9.0-beta.4 format hardening candidate
+
+- Added a disposable automated matrix for valid and malformed EPUB, PDF, FB2,
+  TXT, HTML, Markdown, CBZ, CBR, and DOCX fixtures.
+- Confirmed that every matrix fixture remains byte-for-byte unchanged after
+  opening or safe rejection.
+- Added PDF signature validation before a fixed-layout document enters the
+  app-local reader cache.
+
 ## 0.9.0-beta.3 library removal candidate
 
 - Added confirmed single-book removal from the details panel.
