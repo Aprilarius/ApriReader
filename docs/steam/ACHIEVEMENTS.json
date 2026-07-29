@@ -1,0 +1,215 @@
+{
+  "schemaVersion": 2,
+  "achievements": [
+    {
+      "id": "first_book_opened",
+      "nameRu": "Первая книга",
+      "nameEn": "First book"
+    },
+    {
+      "id": "first_book_finished",
+      "nameRu": "Последняя страница",
+      "nameEn": "The last page"
+    },
+    {
+      "id": "five_books_finished",
+      "nameRu": "Пять историй",
+      "nameEn": "Five stories"
+    },
+    {
+      "id": "ten_books_finished",
+      "nameRu": "Десять завершённых книг",
+      "nameEn": "Ten finished books"
+    },
+    {
+      "id": "twenty_five_books_finished",
+      "nameRu": "Двадцать пять книг",
+      "nameEn": "Twenty-five books"
+    },
+    {
+      "id": "fifty_books_finished",
+      "nameRu": "Пятьдесят книг",
+      "nameEn": "Fifty books"
+    },
+    {
+      "id": "hundred_books_finished",
+      "nameRu": "Сто книг",
+      "nameEn": "One hundred books"
+    },
+    {
+      "id": "two_hundred_fifty_books_finished",
+      "nameRu": "Двести пятьдесят книг",
+      "nameEn": "Two hundred fifty books"
+    },
+    {
+      "id": "reading_30_minutes",
+      "nameRu": "Полчаса с книгой",
+      "nameEn": "Half an hour"
+    },
+    {
+      "id": "reading_10_hours",
+      "nameRu": "Десять часов чтения",
+      "nameEn": "Ten reading hours"
+    },
+    {
+      "id": "reading_50_hours",
+      "nameRu": "Пятьдесят часов чтения",
+      "nameEn": "Fifty reading hours"
+    },
+    {
+      "id": "reading_100_hours",
+      "nameRu": "Сто часов чтения",
+      "nameEn": "One hundred reading hours"
+    },
+    {
+      "id": "reading_500_hours",
+      "nameRu": "Пятьсот часов чтения",
+      "nameEn": "Five hundred reading hours"
+    },
+    {
+      "id": "ten_thousand_words",
+      "nameRu": "Десять тысяч слов",
+      "nameEn": "Ten thousand words"
+    },
+    {
+      "id": "hundred_thousand_words",
+      "nameRu": "Сто тысяч слов",
+      "nameEn": "One hundred thousand words"
+    },
+    {
+      "id": "million_words",
+      "nameRu": "Миллион слов",
+      "nameEn": "One million words"
+    },
+    {
+      "id": "ten_million_words",
+      "nameRu": "Десять миллионов слов",
+      "nameEn": "Ten million words"
+    },
+    {
+      "id": "hundred_pages",
+      "nameRu": "Сто страниц",
+      "nameEn": "One hundred pages"
+    },
+    {
+      "id": "thousand_pages",
+      "nameRu": "Тысяча страниц",
+      "nameEn": "One thousand pages"
+    },
+    {
+      "id": "ten_thousand_pages",
+      "nameRu": "Десять тысяч страниц",
+      "nameEn": "Ten thousand pages"
+    },
+    {
+      "id": "three_day_streak",
+      "nameRu": "Три дня подряд",
+      "nameEn": "Three days running"
+    },
+    {
+      "id": "seven_day_streak",
+      "nameRu": "Неделя чтения",
+      "nameEn": "A week of reading"
+    },
+    {
+      "id": "thirty_day_streak",
+      "nameRu": "Месяц чтения",
+      "nameEn": "A month of reading"
+    },
+    {
+      "id": "hundred_day_streak",
+      "nameRu": "Сто дней подряд",
+      "nameEn": "One hundred days running"
+    },
+    {
+      "id": "year_streak",
+      "nameRu": "Год с книгами",
+      "nameEn": "A year with books"
+    },
+    {
+      "id": "five_annotations",
+      "nameRu": "На полях",
+      "nameEn": "In the margins"
+    },
+    {
+      "id": "twenty_five_annotations",
+      "nameRu": "Вдумчивый читатель",
+      "nameEn": "Thoughtful reader"
+    },
+    {
+      "id": "hundred_annotations",
+      "nameRu": "Исследователь текста",
+      "nameEn": "Text researcher"
+    },
+    {
+      "id": "three_authors",
+      "nameRu": "Новые голоса",
+      "nameEn": "New voices"
+    },
+    {
+      "id": "ten_authors",
+      "nameRu": "Десять авторов",
+      "nameEn": "Ten authors"
+    },
+    {
+      "id": "twenty_five_authors",
+      "nameRu": "Двадцать пять авторов",
+      "nameEn": "Twenty-five authors"
+    },
+    {
+      "id": "fifty_authors",
+      "nameRu": "Пятьдесят авторов",
+      "nameEn": "Fifty authors"
+    },
+    {
+      "id": "hundred_authors",
+      "nameRu": "Сто авторов",
+      "nameEn": "One hundred authors"
+    },
+    {
+      "id": "three_genres",
+      "nameRu": "Три жанра",
+      "nameEn": "Three genres"
+    },
+    {
+      "id": "five_genres",
+      "nameRu": "Пять жанров",
+      "nameEn": "Five genres"
+    },
+    {
+      "id": "ten_genres",
+      "nameRu": "Десять жанров",
+      "nameEn": "Ten genres"
+    },
+    {
+      "id": "twenty_genres",
+      "nameRu": "Двадцать жанров",
+      "nameEn": "Twenty genres"
+    },
+    {
+      "id": "three_series",
+      "nameRu": "Продолжение следует",
+      "nameEn": "To be continued"
+    },
+    {
+      "id": "ten_series",
+      "nameRu": "Десять серий",
+      "nameEn": "Ten series"
+    },
+    {
+      "id": "twenty_five_series",
+      "nameRu": "Двадцать пять серий",
+      "nameEn": "Twenty-five series"
+    },
+    {
+      "id": "fifty_series",
+      "nameRu": "Пятьдесят серий",
+      "nameEn": "Fifty series"
+    },
+    {
+      "id": "daily_goal_met",
+      "nameRu": "Цель достигнута",
+      "nameEn": "Goal reached"
+    }
+  ]
+}
