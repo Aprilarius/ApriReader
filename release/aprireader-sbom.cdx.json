@@ -1,13 +1,13 @@
 {
   "bomFormat": "CycloneDX",
   "specVersion": "1.5",
-  "serialNumber": "urn:uuid:257a8d50-dc04-58fc-b3a2-1c3757db3f51",
+  "serialNumber": "urn:uuid:bbadedd3-9a27-59b2-81a3-c2e484b666b9",
   "version": 1,
   "metadata": {
     "component": {
       "type": "application",
       "name": "ApriReader",
-      "version": "0.9.0-beta.4",
+      "version": "0.9.0-beta.5",
       "licenses": [
         {
           "license": {
@@ -19,7 +19,7 @@
     "properties": [
       {
         "name": "aprireader:lockfiles-sha256",
-        "value": "7d4a5e905ed83d78e119ff7272b80e6caab5ba7d606e754e17487a00046ac489"
+        "value": "b9bc7fb030fa2db3386a5c26c11d8e38614fe0095271876269556218ab43a3b6"
       },
       {
         "name": "aprireader:scope",

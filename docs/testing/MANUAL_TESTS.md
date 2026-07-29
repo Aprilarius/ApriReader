@@ -111,8 +111,9 @@ manual oversized-input and external-request checks.
 ## Reader usability regression
 
 1. Start the release EXE and confirm no Command Prompt or console window opens.
-2. Open a reflow book and use the top toolbar arrows to move between chapters
-   without scrolling to the footer.
+2. Open a reflow book and confirm focus starts on the toolbar back control.
+   Press Tab and confirm focus follows the toolbar without scrolling to the
+   chapter footer. Use the top toolbar arrows to move between chapters.
 3. In text settings, try every system-font profile and change size, line
    height, width, weight, letter spacing, word spacing, paragraph spacing, and
    alignment. Restart and confirm the choices persist.

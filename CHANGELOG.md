@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.9.0-beta.5 keyboard-focus candidate
+
+- Reader entry now places keyboard focus on the visible top toolbar instead of
+  leaving focus on a control from the previous screen.
+- Added the missing accessible name and the same initial focus behavior to PDF
+  and comic reader back controls.
+- Added regression coverage for initial focus in reflow and fixed-layout
+  readers.
+
 ## 0.9.0-beta.4 format hardening candidate
 
 - Added a disposable automated matrix for valid and malformed EPUB, PDF, FB2,

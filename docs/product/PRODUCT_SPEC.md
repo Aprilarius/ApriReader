@@ -110,6 +110,10 @@ must pass the repository security gate, reproduce its lockfile-derived SBOM,
 and complete the documented closed-beta and protected Steam checklists before
 it can be called a public release.
 
+Opening any reader places focus on its visible top toolbar. The first Tab
+therefore follows the reader controls instead of moving a stale focus target
+to chapter-footer or page-footer controls.
+
 Reader polish adds system-font profiles plus explicit import of a local TTF,
 OTF, WOFF, or WOFF2 file. Imported fonts are copied into app-local storage
 after extension, signature, and size checks; the source file remains unchanged.

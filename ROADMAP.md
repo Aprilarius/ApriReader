@@ -18,7 +18,10 @@
       awaits the remaining Windows 10/11 closed-beta and protected Steamworks
       evidence. The product owner reported a successful beta.4 manual smoke
       pass on 2026-07-29; the scoped HOLD decision is recorded in
-      `docs/release/BETA4_RELEASE_DECISION.md`.
+      `docs/release/BETA4_RELEASE_DECISION.md`. An automation-assisted Windows
+      11 accessibility smoke found a reader-entry focus jump; the beta.5 source
+      fix and remaining matrix cells are recorded in
+      `docs/release/WINDOWS11_BETA4_ACCESSIBILITY_SMOKE.md`.
 
 ## Library navigation completion
 

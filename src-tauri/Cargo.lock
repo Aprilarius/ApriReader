@@ -61,7 +61,7 @@ checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 
 [[package]]
 name = "aprireader"
-version = "0.9.0-beta.4"
+version = "0.9.0-beta.5"
 dependencies = [
  "base64 0.22.1",
  "ort",

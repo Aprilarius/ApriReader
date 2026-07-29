@@ -789,6 +789,7 @@ export function ReaderScreen({
           type="button"
           className="reader-icon-button"
           aria-label={t("readerBack")}
+          autoFocus
           onClick={onClose}
         >
           ←

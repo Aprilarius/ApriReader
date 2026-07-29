@@ -40,6 +40,20 @@ const t = (key: TranslationKey) => translations.en[key];
 describe("ReaderScreen", () => {
   beforeEach(() => localStorage.clear());
 
+  it("places initial keyboard focus on the reader toolbar", () => {
+    render(
+      <ReaderScreen
+        document={document}
+        t={t}
+        onClose={vi.fn()}
+        onProgress={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getByRole("button", { name: "Back to library" }),
+    ).toHaveFocus();
+  });
+
   it("renders normalized book text and navigates through the table of contents", () => {
     render(
       <ReaderScreen

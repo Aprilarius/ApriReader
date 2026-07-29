@@ -23,6 +23,20 @@ const comic: SpecialDocument = {
 };
 
 describe("SpecialReaderScreen", () => {
+  it("places initial keyboard focus on the fixed reader toolbar", () => {
+    render(
+      <SpecialReaderScreen
+        document={comic}
+        t={t}
+        onClose={vi.fn()}
+        onProgress={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getByRole("button", { name: "Back to library" }),
+    ).toHaveFocus();
+  });
+
   it("navigates comic pages and offers a two-page spread", () => {
     render(
       <SpecialReaderScreen

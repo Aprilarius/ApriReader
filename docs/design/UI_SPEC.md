@@ -98,6 +98,8 @@ local import, fine spacing and weight controls, alignment, bionic highlighting,
 page-wheel behavior, themes, and their short explanations form one scrollable
 settings surface. Previous/next chapter arrows remain visible in the top
 toolbar so chapter navigation never depends on reaching the document footer.
+On reader entry, keyboard focus starts on the labelled back control in that
+toolbar without scrolling the document.
 
 The same panel begins with a two-choice reading-layout control. Continuous text
 keeps the approved centered vertical column. Book spread uses two equal

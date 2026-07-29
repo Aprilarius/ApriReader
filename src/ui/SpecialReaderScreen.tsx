@@ -181,7 +181,12 @@ function PdfReader({
         if (event.key === "Escape") onClose();
       }}
     >
-      <ReaderHeader title={document.title} format="PDF" onClose={onClose}>
+      <ReaderHeader
+        title={document.title}
+        format="PDF"
+        backLabel={t("readerBack")}
+        onClose={onClose}
+      >
         <button
           type="button"
           aria-label={t("zoomOut")}
@@ -276,6 +281,7 @@ function ComicReader({
       <ReaderHeader
         title={document.title}
         format={document.format}
+        backLabel={t("readerBack")}
         onClose={onClose}
       >
         <button
@@ -332,17 +338,25 @@ function ComicReader({
 function ReaderHeader({
   title,
   format,
+  backLabel,
   onClose,
   children,
 }: {
   title: string;
   format: string;
+  backLabel: string;
   onClose: () => void;
   children: React.ReactNode;
 }) {
   return (
     <header className="fixed-reader-toolbar">
-      <button type="button" className="fixed-reader-back" onClick={onClose}>
+      <button
+        type="button"
+        className="fixed-reader-back"
+        aria-label={backLabel}
+        autoFocus
+        onClick={onClose}
+      >
         ←
       </button>
       <div>
