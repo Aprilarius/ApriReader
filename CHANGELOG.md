@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.0.0
+
+- Released the complete privacy-first Windows library and reader for EPUB, PDF,
+  FB2, TXT, HTML, Markdown, CBZ, CBR, and DOCX.
+- Included local metadata editing, opt-in Open Library lookup, annotations,
+  offline language packages, statistics, 42 achievements, reading layouts,
+  detailed typography, imported fonts, bionic highlighting, and recovery.
+- Completed keyboard, Narrator, high-scaling, forced-colors, safe format
+  parsing, source-preserving removal, and release-provenance hardening.
+- Added a clean-tree `github-release` build profile, deterministic transitive
+  license report, SBOM, source manifest, and public release documentation.
+- Published the GitHub profile without Steamworks, telemetry, bundled books,
+  models, TTS, or background network access. The initial Windows installer is
+  intentionally unsigned and may show an unknown-publisher warning.
+
 ## 1.0.0-rc.1 release candidate
 
 - Consolidated the tested beta.6 Narrator, beta.7 scaling, beta.8 forced-colors,

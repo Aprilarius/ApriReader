@@ -1,10 +1,12 @@
 [package]
 name = "aprireader"
-version = "1.0.0-rc.1"
+version = "1.0.0"
 description = "ApriReader desktop application"
 authors = ["Bahadur"]
 edition = "2021"
 license = "Apache-2.0"
+repository = "https://github.com/Aprilarius/ApriReader"
+homepage = "https://github.com/Aprilarius/ApriReader"
 
 [features]
 default = []

@@ -45,6 +45,7 @@ changes during the build.
 
 - Complete keyboard, Narrator, 100–250% Windows scaling, forced-colors, and
   malformed-format manual passes on Windows 10 and Windows 11.
-- Review complete transitive copyright text before public binary distribution.
+- Keep the generated transitive license report current and review every
+  metadata-only declaration before a future dependency upgrade.
 - Run the protected Steam online/offline/Overlay matrix in Steamworks.
 - Record closed-beta consent, candidate hash, defects, and go/no-go decision.

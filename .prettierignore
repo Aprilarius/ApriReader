@@ -4,4 +4,5 @@ src-tauri/target
 src-tauri/gen
 pnpm-lock.yaml
 release/aprireader-sbom.cdx.json
+release/THIRD_PARTY_LICENSES.md
 docs/design/screenshots

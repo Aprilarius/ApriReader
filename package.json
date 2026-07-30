@@ -1,7 +1,10 @@
 {
   "name": "aprireader",
   "private": true,
-  "version": "1.0.0-rc.1",
+  "version": "1.0.0",
+  "description": "Privacy-first desktop reader and personal library for Windows",
+  "license": "Apache-2.0",
+  "repository": "https://github.com/Aprilarius/ApriReader",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -13,10 +16,11 @@
     "rust:fmt": "cargo fmt --manifest-path src-tauri/Cargo.toml -- --check",
     "rust:clippy": "cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings",
     "rust:test": "cargo test --manifest-path src-tauri/Cargo.toml",
-    "release:audit": "python scripts/release_audit.py && python scripts/generate_sbom.py --check",
+    "release:audit": "python scripts/release_audit.py && python scripts/generate_sbom.py --check && python scripts/generate_third_party_licenses.py --check",
     "check": "pnpm format && pnpm lint && pnpm test && pnpm build && pnpm rust:fmt && pnpm rust:clippy && pnpm rust:test && pnpm release:audit",
     "beta:build": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build_beta_candidate.ps1",
     "rc:build": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build_beta_candidate.ps1 -RequireCleanTree -Channel release-candidate",
+    "github:build": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build_beta_candidate.ps1 -RequireCleanTree -Channel github-release",
     "tauri": "tauri",
     "tauri:steam": "tauri build --config src-tauri/tauri.steam.conf.json --features steam-build --no-bundle"
   },

@@ -41,7 +41,11 @@
       tested accessibility work and requires a clean Git tree for every
       release-candidate build. The product owner installed RC1 and reported no
       bugs on 2026-07-30; the exact scoped PASS and remaining public-release
-      gates are recorded in `docs/release/RC1_RELEASE_DECISION.md`.
+      gates are recorded in `docs/release/RC1_RELEASE_DECISION.md`. The product
+      owner selected an unsigned public GitHub 1.0 release as the next delivery
+      profile; its clean-build, evidence, warning, and verification rules are
+      recorded in `docs/release/GITHUB_1_0_RELEASE_POLICY.md`. Code signing and
+      the protected Steamworks profile remain separate follow-up gates.
 
 ## Library navigation completion
 

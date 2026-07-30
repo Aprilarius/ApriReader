@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [switch]$RequireCleanTree,
-    [ValidateSet("closed-beta", "release-candidate")]
+    [ValidateSet("closed-beta", "release-candidate", "github-release")]
     [string]$Channel = "closed-beta"
 )
 
@@ -27,8 +27,8 @@ $pnpm = Get-Command pnpm -ErrorAction Stop
 $python = Get-Command python -ErrorAction Stop
 $git = Get-Command git -ErrorAction Stop
 
-if ($Channel -eq "release-candidate" -and -not $RequireCleanTree) {
-    throw "A release-candidate build requires -RequireCleanTree."
+if ($Channel -in @("release-candidate", "github-release") -and -not $RequireCleanTree) {
+    throw "Release-candidate and GitHub release builds require -RequireCleanTree."
 }
 
 function Get-SourceSnapshot {
@@ -145,6 +145,7 @@ try {
         "NOTICE",
         "THIRD_PARTY_NOTICES.md",
         "release\aprireader-sbom.cdx.json",
+        "release\THIRD_PARTY_LICENSES.md",
         "docs\steam\TEST_CHECKLIST.md",
         "docs\testing\MANUAL_TESTS.md"
     )
@@ -183,6 +184,11 @@ try {
         sourceChangedFileCount = $sourceStatus.Count
         sourceManifest = $sourceManifestName
         sourceManifestSha256 = $sourceSnapshot.Hash
+        releaseScope = if ($Channel -eq "github-release") {
+            "Public GitHub build without Steamworks; unsigned installer accepted by product owner."
+        } else {
+            "Pre-release validation artifact."
+        }
         windowsCaption = $windowsDescription
         windowsVersion = $windowsVersion
         installer = Split-Path -Leaf $candidateInstaller
@@ -192,13 +198,20 @@ try {
         publicProfile = $true
         protectedSteamFilesIncluded = $false
         automatedChecks = "passed"
-        externalGates = @(
-            "Code-signing certificate and timestamp",
-            "Windows 10 closed-beta matrix",
-            "Windows 11 closed-beta matrix",
-            "Protected Steamworks build and synchronization matrix",
-            "Product-owner go/no-go record"
-        )
+        externalGates = if ($Channel -eq "github-release") {
+            @(
+                "Future code-signing certificate and timestamp",
+                "Separate protected Steamworks release and synchronization matrix"
+            )
+        } else {
+            @(
+                "Code-signing certificate and timestamp",
+                "Windows 10 closed-beta matrix",
+                "Windows 11 closed-beta matrix",
+                "Protected Steamworks build and synchronization matrix",
+                "Product-owner go/no-go record"
+            )
+        }
     }
     $record |
         ConvertTo-Json -Depth 4 |

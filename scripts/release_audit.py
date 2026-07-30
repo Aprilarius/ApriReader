@@ -108,9 +108,9 @@ def check_candidate_provenance() -> None:
         "sourceChangedFileCount": "changed-file count",
         "SOURCE_SHA256SUMS.txt": "source manifest",
         "sourceManifestSha256": "source manifest hash",
-        'Channel -eq "release-candidate"': "release-candidate channel guard",
-        "A release-candidate build requires -RequireCleanTree.": (
-            "mandatory clean-tree release-candidate guard"
+        '"release-candidate", "github-release"': "public channel guard",
+        "Release-candidate and GitHub release builds require -RequireCleanTree.": (
+            "mandatory clean-tree public-build guard"
         ),
         "The release source tree changed while the candidate was building.": (
             "mid-build source mutation guard"
@@ -123,6 +123,8 @@ def check_candidate_provenance() -> None:
     ]
     if missing:
         fail(f"candidate provenance gate is stale: {', '.join(missing)}")
+    if not (ROOT / "release" / "THIRD_PARTY_LICENSES.md").is_file():
+        fail("generated third-party license bundle is missing")
 
 
 def main() -> int:

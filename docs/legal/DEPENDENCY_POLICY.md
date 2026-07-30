@@ -101,3 +101,10 @@ Windows build environment.
 
 The RC build profile adds no dependency. It is a stricter invocation of the
 reviewed candidate builder and requires a clean Git tree before compilation.
+
+The GitHub 1.0 profile adds no dependency and contains no Steamworks file.
+Its initial NSIS installer is intentionally unsigned under the dated product
+owner policy in `docs/release/GITHUB_1_0_RELEASE_POLICY.md`. The generated
+`release/THIRD_PARTY_LICENSES.md` inventories the Windows production graph and
+collects every packaged license or notice text plus explicit metadata-only
+declarations; the release audit rejects a stale report.

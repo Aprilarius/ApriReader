@@ -1,55 +1,85 @@
 # ApriReader
 
-ApriReader is a privacy-first desktop reader and personal library for Windows.
-This repository currently contains the Stage 9 closed-beta candidate: a Tauri
-2 shell, React with strict TypeScript, Rust infrastructure, SQLite migrations,
-local file and folder import, duplicate detection, embedded EPUB/FB2 metadata
-and covers, a safe reflow reader for TXT/HTML/Markdown/EPUB/FB2, persisted
-reading position, rolling backups, localization, tests, and the approved design
-system. The reader also provides local FTS5 search, stable locators, bookmarks,
-highlights, notes, saved quotes, and user-directed Markdown export.
+ApriReader is a privacy-first desktop reader and personal digital library for
+Windows 10/11 x64.
 
-PDF now has a dedicated worker-backed canvas viewer, CBZ/CBR have a bounded
-image-sequence reader with natural ordering and LTR/RTL spreads, and DOCX is
-normalized into the safe reflow reader.
-Stage 5 adds local metadata editing and an explicit, cached Open Library lookup
-with candidate comparison, provenance, rate limiting, and removable
-app-local external covers. Multi-value genres are extracted from bounded
-EPUB/FB2 metadata, may be applied from a selected Open Library candidate, and
-remain locally editable without changing source books.
+It reads DRM-free EPUB, PDF, FB2, TXT, HTML, Markdown, CBZ, CBR, and DOCX files.
+Books remain in their original locations, reading data stays local, and network
+access occurs only when you explicitly search or apply metadata from Open
+Library.
+
+## Download
+
+Download the current Windows installer from
+[GitHub Releases](https://github.com/Aprilarius/ApriReader/releases/latest).
+
+The initial 1.0 installer is not code-signed. Windows may therefore identify it
+as coming from an unknown publisher. Download it only from the official
+Aprilarius/ApriReader release page and verify the published SHA-256 value.
+
+## Highlights
+
+- Local library, folders, duplicate detection, favorites, authors, and series.
+- Continuous reading and two-page book spreads with persistent page counters.
+- PDF canvas reader and safe comic reader with single/two-page and LTR/RTL
+  modes.
+- Fine typography, reading-friendly profiles, imported local fonts, and
+  optional bionic highlighting.
+- Full-text search, bookmarks, highlights, notes, quotes, and Markdown export.
+- Local statistics, reading goals, activity calendar, and 42 achievements.
+- Keyboard navigation, Windows Narrator support, high scaling, and forced
+  colors.
+- App-local backups and guarded recovery from a damaged library database.
+
+## Privacy and safety
+
+- No telemetry or advertising.
+- No bundled books, catalogs, generated covers, TTS engine, or language model.
+- Book content is treated as untrusted and cannot execute embedded scripts.
+- Source books are never modified or deleted by library removal.
+- Open Library is contacted only after an explicit metadata action.
+- The GitHub build contains no Steamworks SDK, App ID, bridge, or credentials.
 
 ## Development
 
-Prerequisites: Node.js 22+, pnpm 10+, Rust stable, and the
-[Tauri Windows prerequisites](https://v2.tauri.app/start/prerequisites/).
+Prerequisites:
+
+- Node.js 22+
+- pnpm 11.9.0
+- stable Rust
+- [Tauri Windows prerequisites](https://v2.tauri.app/start/prerequisites/)
 
 ```powershell
-pnpm install
+pnpm install --frozen-lockfile
 pnpm tauri dev
 ```
 
-Run all local checks with `pnpm check`.
+Run the complete local gate:
 
-Build the reviewed Windows closed-beta installer and its local evidence package
-with `pnpm beta:build`. Generated candidates are written under
-`release/candidates/` and are intentionally excluded from source control.
+```powershell
+pnpm check
+```
 
-The app makes network requests only after an explicit Open Library metadata
-search or candidate apply action. It contains no telemetry, sample books,
-generated covers, Steamworks, TTS, or unrestricted catalog service.
+Build a clean public GitHub artifact:
 
-Stage 6 adds verified user-imported offline dictionaries and text-in/text-out
-ONNX translation packages. No dictionary, model, or online package catalog is
-bundled; the permissively licensed ONNX CPU runtime is included by the
-application. See `docs/language/PACKAGE_FORMAT.md`.
+```powershell
+pnpm github:build
+```
 
-Stage 7 adds privacy-preserving active reading sessions, repeatable local
-statistics, an 84-day calendar, daily goals, and a canonical local achievement
-registry with 42 progressively harder goals. Author, genre, and series
-discovery counts completed books only. Idle or unfocused windows do not
-accumulate time. Steam integration remains explicitly deferred to Stage 8.
+Generated installers and evidence archives are written to
+`release/candidates/` and are excluded from source control.
 
-Stage 8 adds a persistent offline achievement queue and a separate protected
-Steam bridge profile. The normal build remains fully local and contains no
-Steamworks SDK, App ID, or proprietary binary. Protected build and verification
-details live under `docs/steam`.
+## Documentation
+
+- [Product specification](docs/product/PRODUCT_SPEC.md)
+- [Architecture](docs/architecture/ARCHITECTURE.md)
+- [Manual tests](docs/testing/MANUAL_TESTS.md)
+- [Dependency policy](docs/legal/DEPENDENCY_POLICY.md)
+- [Changelog](CHANGELOG.md)
+
+## License
+
+ApriReader is licensed under Apache-2.0. Third-party attribution and exact
+release inventories are available in `THIRD_PARTY_NOTICES.md`,
+`release/THIRD_PARTY_LICENSES.md`, and
+`release/aprireader-sbom.cdx.json`.

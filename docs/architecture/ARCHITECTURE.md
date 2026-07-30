@@ -242,3 +242,7 @@ the production installer build. A changed snapshot aborts packaging. The
 eventual signed release can invoke the same builder with `-RequireCleanTree`.
 The `rc:build` entry point additionally selects the `release-candidate`
 channel and refuses to run unless that clean-tree guard is active.
+The stricter `github:build` entry point records the `github-release` channel,
+requires the same clean source state, and packages only the public profile.
+Steam evidence remains independent because no protected file may enter this
+source tree or GitHub artifact.

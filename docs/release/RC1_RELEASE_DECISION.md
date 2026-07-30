@@ -43,7 +43,7 @@ defect.
   fixtures, and the 1,000-book library.
 - Complete the protected Steamworks online, offline, retry, achievement, and
   Overlay matrix in the authorized environment.
-- Complete the transitive copyright and notice review for binary distribution.
+- Preserve the generated transitive license and notice report with the binary.
 - Record an explicit dated public `GO` decision tied to the final installer and
   source-manifest hashes.
 

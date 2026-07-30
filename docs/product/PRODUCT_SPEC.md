@@ -108,9 +108,9 @@ under Windows scaling and forced-colors mode. Large search results render in
 bounded batches while truthful totals remain visible. Every candidate build
 must pass the repository security gate, reproduce its lockfile-derived SBOM,
 record the exact source-tree state and a SHA-256 source manifest, and complete
-the documented closed-beta and protected Steam checklists before it can be
-called a public release. Packaging must stop if source files change while the
-candidate is being built.
+the documented closed-beta checks before it can be called a public GitHub
+release. The protected Steam checklist gates only the separate Steam profile.
+Packaging must stop if source files change while the candidate is being built.
 
 Opening any reader places focus on its visible top toolbar. The first Tab
 therefore follows the reader controls instead of moving a stale focus target

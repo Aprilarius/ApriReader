@@ -27,7 +27,8 @@ Stage 6 adds ort (MIT OR Apache-2.0) and the Microsoft ONNX Runtime (MIT) CPU
 runtime. ApriReader does not bundle models or dictionary data.
 
 Stage 9 adds no dependency. The release inventory generated from both lockfiles
-is `release/aprireader-sbom.cdx.json`; `pnpm release:audit` verifies that it is
-current and that the reviewed direct dependency set has not changed. Complete
-transitive copyright text remains a mandatory public-binary release gate in
-`docs/release/SECURITY_REVIEW.md`.
+is `release/aprireader-sbom.cdx.json`. The deterministic Windows production
+license report is `release/THIRD_PARTY_LICENSES.md`; it collects installed
+license and notice texts and identifies packages that expose only a package
+metadata license declaration. `pnpm release:audit` verifies that both reports
+are current and that the reviewed direct dependency set has not changed.
