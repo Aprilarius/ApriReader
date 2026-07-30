@@ -45,7 +45,9 @@
       owner selected an unsigned public GitHub 1.0 release as the next delivery
       profile; its clean-build, evidence, warning, and verification rules are
       recorded in `docs/release/GITHUB_1_0_RELEASE_POLICY.md`. Code signing and
-      the protected Steamworks profile remain separate follow-up gates.
+      the protected Steamworks profile remain separate follow-up gates. The
+      exact clean 1.0 artifact passed its full build gate and received GO for
+      publication in `docs/release/GITHUB_1_0_RELEASE_DECISION.md`.
 
 ## Library navigation completion
 
