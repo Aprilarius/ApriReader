@@ -39,7 +39,9 @@
       manifest, a truthful clean or modified tree state, and a guard against
       source changes during packaging. Version 1.0.0-rc.1 consolidates the
       tested accessibility work and requires a clean Git tree for every
-      release-candidate build.
+      release-candidate build. The product owner installed RC1 and reported no
+      bugs on 2026-07-30; the exact scoped PASS and remaining public-release
+      gates are recorded in `docs/release/RC1_RELEASE_DECISION.md`.
 
 ## Library navigation completion
 
