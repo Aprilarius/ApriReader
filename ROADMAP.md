@@ -47,7 +47,9 @@
       recorded in `docs/release/GITHUB_1_0_RELEASE_POLICY.md`. Code signing and
       the protected Steamworks profile remain separate follow-up gates. The
       exact clean 1.0 artifact passed its full build gate and received GO for
-      publication in `docs/release/GITHUB_1_0_RELEASE_DECISION.md`.
+      publication in `docs/release/GITHUB_1_0_RELEASE_DECISION.md`. The public
+      GitHub release was published and its anonymous installer download was
+      verified on 2026-07-30.
 
 ## Library navigation completion
 

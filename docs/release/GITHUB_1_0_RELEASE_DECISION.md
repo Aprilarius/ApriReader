@@ -2,7 +2,10 @@
 
 Decision date: 2026-07-30
 
-Decision: **GO for public GitHub publication**
+Decision: **PUBLISHED**
+
+Public release:
+`https://github.com/Aprilarius/ApriReader/releases/tag/v1.0.0`
 
 ## Approved artifact
 
@@ -41,3 +44,13 @@ Decision: **GO for public GitHub publication**
 - The Tauri bundler reported that updater bundle-type metadata was unavailable.
   ApriReader 1.0 does not include or advertise an automatic updater, so this
   warning does not affect the approved installer scope.
+
+## Publication verification
+
+- Published at `2026-07-30T14:15:49Z` as the latest non-prerelease release.
+- The public release exposes all six approved assets plus GitHub's two source
+  archives.
+- Every uploaded asset digest matched its local SHA-256 value before
+  publication.
+- An anonymous download of the public installer returned HTTP `200` and
+  `9,508,323` bytes, matching the approved local artifact size.
