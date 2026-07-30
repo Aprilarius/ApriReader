@@ -18,11 +18,15 @@ export function SpecialReaderScreen({
   t,
   onClose,
   onProgress,
+  language,
+  screenReaderSupport = true,
 }: {
   document: SpecialDocument;
   t: Translator;
   onClose: () => void;
   onProgress: (progress: number) => void;
+  language?: string;
+  screenReaderSupport?: boolean;
 }) {
   if (document.kind === "pdf") {
     return (
@@ -31,6 +35,8 @@ export function SpecialReaderScreen({
         t={t}
         onClose={onClose}
         onProgress={onProgress}
+        language={language}
+        screenReaderSupport={screenReaderSupport}
       />
     );
   }
@@ -40,6 +46,8 @@ export function SpecialReaderScreen({
       t={t}
       onClose={onClose}
       onProgress={onProgress}
+      language={language}
+      screenReaderSupport={screenReaderSupport}
     />
   );
 }
@@ -49,11 +57,15 @@ function PdfReader({
   t,
   onClose,
   onProgress,
+  language,
+  screenReaderSupport,
 }: {
   document: SpecialDocument;
   t: Translator;
   onClose: () => void;
   onProgress: (progress: number) => void;
+  language?: string;
+  screenReaderSupport: boolean;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const pdfRef = useRef<PDFDocumentProxy | null>(null);
@@ -173,6 +185,7 @@ function PdfReader({
   return (
     <div
       className="fixed-reader pdf-reader"
+      lang={language}
       onKeyDown={(event) => {
         if (event.key === "ArrowLeft" || event.key === "PageUp")
           changePage(page - 1);
@@ -217,6 +230,7 @@ function PdfReader({
         pageCount={pageCount}
         t={t}
         onChange={changePage}
+        announce={screenReaderSupport}
       />
     </div>
   );
@@ -227,11 +241,15 @@ function ComicReader({
   t,
   onClose,
   onProgress,
+  language,
+  screenReaderSupport,
 }: {
   document: SpecialDocument;
   t: Translator;
   onClose: () => void;
   onProgress: (progress: number) => void;
+  language?: string;
+  screenReaderSupport: boolean;
 }) {
   const [page, setPage] = useState(
     Math.min(document.pages.length, document.lastPage + 1),
@@ -270,6 +288,7 @@ function ComicReader({
   return (
     <div
       className="fixed-reader comic-reader"
+      lang={language}
       onKeyDown={(event) => {
         if (event.key === "ArrowLeft")
           changePage(page + (direction === "rtl" ? step : -step));
@@ -287,6 +306,7 @@ function ComicReader({
         <button
           type="button"
           className={layout === "single" ? "active" : ""}
+          aria-pressed={layout === "single"}
           onClick={() => setLayout("single")}
         >
           {t("singlePage")}
@@ -294,6 +314,7 @@ function ComicReader({
         <button
           type="button"
           className={layout === "double" ? "active" : ""}
+          aria-pressed={layout === "double"}
           onClick={() => setLayout("double")}
         >
           {t("doublePage")}
@@ -330,6 +351,7 @@ function ComicReader({
         step={step}
         t={t}
         onChange={changePage}
+        announce={screenReaderSupport}
       />
     </div>
   );
@@ -374,15 +396,25 @@ function PageControls({
   step = 1,
   t,
   onChange,
+  announce,
 }: {
   page: number;
   pageCount: number;
   step?: number;
   t: Translator;
   onChange: (page: number) => void;
+  announce: boolean;
 }) {
   return (
     <footer className="fixed-page-controls">
+      <p
+        className="sr-only"
+        role="status"
+        aria-live={announce ? "polite" : "off"}
+        aria-atomic="true"
+      >
+        {announce ? `${t("currentPage")}: ${page} / ${pageCount}` : ""}
+      </p>
       <button
         type="button"
         disabled={page <= 1}

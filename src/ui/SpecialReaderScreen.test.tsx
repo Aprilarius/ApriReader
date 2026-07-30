@@ -37,6 +37,30 @@ describe("SpecialReaderScreen", () => {
     ).toHaveFocus();
   });
 
+  it("tags book language and disables optional page announcements", () => {
+    const { container } = render(
+      <SpecialReaderScreen
+        document={comic}
+        t={t}
+        language="en-US"
+        screenReaderSupport={false}
+        onClose={vi.fn()}
+        onProgress={vi.fn()}
+      />,
+    );
+    expect(container.querySelector(".fixed-reader")).toHaveAttribute(
+      "lang",
+      "en-US",
+    );
+    expect(container.querySelector('[role="status"]')).toHaveAttribute(
+      "aria-live",
+      "off",
+    );
+    expect(
+      screen.getByRole("button", { name: "Back to library" }),
+    ).toBeInTheDocument();
+  });
+
   it("navigates comic pages and offers a two-page spread", () => {
     render(
       <SpecialReaderScreen
@@ -47,9 +71,18 @@ describe("SpecialReaderScreen", () => {
       />,
     );
     expect(screen.getByAltText("Comic page 1")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Single page" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
     fireEvent.click(screen.getByRole("button", { name: /Next/ }));
     expect(screen.getByAltText("Comic page 2")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Two-page spread" }));
+    const doublePage = screen.getByRole("button", {
+      name: "Two-page spread",
+    });
+    expect(doublePage).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(doublePage);
+    expect(doublePage).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByAltText("Comic page 3")).toBeInTheDocument();
   });
 

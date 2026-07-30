@@ -7,7 +7,12 @@ build evidence.
 
 - Run `pnpm beta:build` and retain its generated candidate record and evidence
   archive.
-- Record version, commit, build date, Windows version, and SHA-256.
+- Record version, commit, source-tree state, source-manifest SHA-256, build
+  date, Windows version, and installer SHA-256.
+- Confirm the generated `SOURCE_SHA256SUMS.txt` hash matches the candidate
+  record. A modified tree is acceptable only for an explicitly identified
+  closed-beta build; a release candidate must use `pnpm rc:build`, report the
+  `release-candidate` channel, and pass the mandatory clean-tree guard.
 - Confirm `pnpm check`, normal production build, and protected Steam build pass.
 - Attach the current `release/aprireader-sbom.cdx.json`.
 - Confirm no protected Steam file is present in the public candidate.
@@ -39,4 +44,4 @@ build evidence.
 - No unresolved severity-high issue.
 - All lower-severity issues have an owner and release decision.
 - Product owner signs a dated go/no-go record linked to the exact candidate
-  hash.
+  installer and source-manifest hashes.

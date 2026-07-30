@@ -37,7 +37,9 @@ startup fails instead of creating an empty library over user data.
 
 Run `pnpm release:audit`. It fails when reviewed direct dependencies,
 capabilities, asset scopes, CSP constraints, protected-file rules, or the
-lockfile-derived SBOM are stale.
+lockfile-derived SBOM are stale. Candidate packaging also records the source
+tree state and a hashed source manifest, and aborts if the source snapshot
+changes during the build.
 
 ## Residual release gates
 

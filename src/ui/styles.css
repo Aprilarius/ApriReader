@@ -29,6 +29,7 @@
 .settings-page {
   display: grid;
   gap: 24px;
+  width: 100%;
   max-width: 980px;
 }
 
@@ -68,6 +69,53 @@
   color: var(--muted);
   font-size: 13px;
   line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.accessibility-settings .section-heading {
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.accessibility-settings .eyebrow {
+  margin-bottom: 4px;
+}
+
+.settings-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  max-width: 690px;
+  margin-top: 18px;
+  padding: 16px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  cursor: pointer;
+}
+
+.settings-toggle input {
+  width: 20px;
+  height: 20px;
+  margin: 1px 0 0;
+  accent-color: var(--brass);
+}
+
+.settings-toggle span,
+.settings-toggle strong,
+.settings-toggle small {
+  display: block;
+}
+
+.settings-toggle strong {
+  font-size: 14px;
+}
+
+.settings-toggle small {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .integration-stats {
@@ -98,6 +146,31 @@
 @media (max-width: 700px) {
   .integration-stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .settings-section,
+  .language-packages-intro {
+    padding: 20px;
+  }
+
+  .accessibility-settings .section-heading,
+  .steam-settings .section-heading {
+    flex-wrap: wrap;
+  }
+
+  .language-packages-intro,
+  .language-package-list article {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .language-packages-intro button {
+    width: 100%;
+  }
+
+  .language-package-actions {
+    flex-wrap: wrap;
+    justify-content: space-between;
   }
 }
 
@@ -284,6 +357,8 @@ svg {
 .app-shell {
   display: grid;
   grid-template-columns: 232px minmax(0, 1fr) 372px;
+  min-width: 0;
+  min-height: 0;
   height: 100%;
   background: var(--bg);
 }
@@ -291,6 +366,8 @@ svg {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  min-height: 0;
+  overflow: hidden;
   padding: 26px 14px 18px;
   color: var(--dark-muted);
   background: var(--sidebar);
@@ -318,7 +395,15 @@ svg {
 }
 .nav-list {
   display: grid;
+  flex: 1 1 auto;
+  align-content: start;
   gap: 3px;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-color: rgba(212, 173, 98, 0.45) transparent;
+  scrollbar-width: thin;
 }
 .nav-item,
 .language-button {
@@ -364,6 +449,7 @@ svg {
 }
 .sidebar-foot {
   display: grid;
+  flex: none;
   gap: 8px;
   margin-top: auto;
 }
@@ -382,6 +468,7 @@ svg {
 }
 .main-content {
   min-width: 0;
+  min-height: 0;
   overflow: auto;
   padding: 28px 30px 44px;
 }
@@ -405,6 +492,9 @@ svg {
   gap: 24px;
   margin-bottom: 22px;
 }
+.page-header > div {
+  min-width: 0;
+}
 .eyebrow {
   margin: 0 0 5px;
   color: var(--brass);
@@ -426,6 +516,7 @@ h1 {
   margin-bottom: 0;
   font-size: clamp(26px, 2.1vw, 32px);
   font-weight: 600;
+  overflow-wrap: anywhere;
 }
 h2 {
   margin-bottom: 0;
@@ -800,6 +891,9 @@ h2 {
 .toolbar-actions {
   flex-wrap: wrap;
   gap: 8px;
+}
+.toolbar-actions > button {
+  flex: none;
 }
 .selection-count {
   min-width: 92px;
@@ -1384,21 +1478,40 @@ h2 {
     bottom: 0;
     left: 0;
     z-index: 10;
-    display: block;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
     height: 68px;
     padding: 8px;
   }
-  .brand,
-  .sidebar-foot {
+  .brand {
     display: none;
   }
   .nav-list {
     display: flex;
-    justify-content: space-around;
+    flex: 1 1 auto;
+    justify-content: flex-start;
+    min-width: 0;
     overflow-x: auto;
+    overflow-y: hidden;
     scrollbar-width: thin;
   }
   .nav-item {
+    flex: 0 0 48px;
+    width: 48px;
+    min-height: 48px;
+    padding: 0;
+    justify-content: center;
+  }
+  .sidebar-foot {
+    display: flex;
+    flex: none;
+    margin: 0 0 0 4px;
+  }
+  .sidebar-foot p {
+    display: none;
+  }
+  .language-button {
     flex: 0 0 48px;
     width: 48px;
     min-height: 48px;
@@ -1451,7 +1564,47 @@ h2 {
     gap: 22px 12px;
   }
 }
+@media (max-height: 600px) and (min-width: 701px) {
+  .sidebar {
+    padding-block: 10px;
+  }
+  .brand {
+    min-height: 40px;
+    margin-bottom: 8px;
+  }
+  .sidebar-foot {
+    gap: 0;
+  }
+  .sidebar-foot p {
+    display: none;
+  }
+  .nav-item,
+  .language-button {
+    min-height: 44px;
+  }
+}
 @media (max-width: 480px) {
+  .settings-section,
+  .language-packages-intro,
+  .language-package-empty,
+  .statistics-panel,
+  .achievement-card {
+    padding: 16px;
+  }
+  .integration-stats {
+    grid-template-columns: 1fr;
+  }
+  .section-heading {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .goal-form {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .goal-form button {
+    min-height: 44px;
+  }
   .stat-grid {
     grid-template-columns: 1fr;
   }
@@ -1464,28 +1617,6 @@ h2 {
   *::before,
   *::after {
     transition-duration: 0.01ms !important;
-  }
-}
-
-@media (forced-colors: active) {
-  :focus-visible {
-    outline: 3px solid Highlight;
-  }
-  .nav-item.active,
-  .format-filters button.active,
-  .primary-button,
-  .continue-book-button,
-  .favorite-toggle.active,
-  .selection-toggle.active,
-  .details-favorite.active,
-  .integration-badge.available {
-    border: 2px solid Highlight;
-  }
-  .author-card {
-    border: 1px solid ButtonText;
-  }
-  .book-reading-progress > span > i {
-    background: Highlight;
   }
 }
 
@@ -1797,9 +1928,12 @@ h2 {
   --reader-text: #292a28;
   --reader-muted: #77746d;
   --reader-border: rgba(67, 57, 43, 0.12);
+  --reader-toolbar-height: 68px;
   position: relative;
   display: grid;
-  grid-template-rows: 68px 3px minmax(0, 1fr) 40px;
+  grid-template-rows: var(--reader-toolbar-height) 3px minmax(0, 1fr) 40px;
+  min-width: 0;
+  min-height: 0;
   width: 100%;
   height: 100%;
   color: var(--reader-text);
@@ -1828,6 +1962,7 @@ h2 {
   grid-template-columns: 48px minmax(0, 1fr) auto;
   align-items: center;
   gap: 16px;
+  min-width: 0;
   padding: 10px 20px;
   color: var(--reader-text);
   background: color-mix(in srgb, var(--reader-paper) 94%, transparent);
@@ -1891,6 +2026,7 @@ h2 {
 .reader-actions {
   display: flex;
   gap: 6px;
+  min-width: 0;
 }
 
 .reader-actions button {
@@ -2099,7 +2235,7 @@ h2 {
 
 .reader-side-panel {
   position: absolute;
-  top: 71px;
+  top: calc(var(--reader-toolbar-height) + 3px);
   bottom: 40px;
   z-index: 7;
   width: min(360px, calc(100% - 32px));
@@ -2595,6 +2731,8 @@ h2 {
   grid-template-rows: 68px minmax(0, 1fr) 64px;
   width: 100%;
   height: 100%;
+  min-width: 0;
+  min-height: 0;
   color: #ece7dc;
   background: #171918;
 }
@@ -2605,6 +2743,7 @@ h2 {
   grid-template-columns: 48px minmax(0, 1fr) auto;
   align-items: center;
   gap: 14px;
+  min-width: 0;
   padding: 10px 18px;
   background: #1d201e;
   border-bottom: 1px solid rgba(232, 226, 215, 0.12);
@@ -2637,6 +2776,7 @@ h2 {
   display: flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
 }
 
 .fixed-reader-toolbar button,
@@ -2863,5 +3003,346 @@ h2 {
 
   .fixed-page-controls button::first-letter {
     font-size: 18px;
+  }
+}
+
+@media (max-width: 520px) {
+  .reader-screen {
+    --reader-toolbar-height: 112px;
+  }
+
+  .reader-toolbar {
+    grid-template-columns: 44px minmax(0, 1fr);
+    grid-template-rows: 44px 44px;
+    gap: 8px;
+    padding: 8px 10px;
+  }
+
+  .reader-actions {
+    grid-column: 1 / -1;
+    width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    scrollbar-width: thin;
+  }
+
+  .reader-actions button {
+    flex: 0 0 44px;
+  }
+
+  .reader-page-status {
+    max-width: calc(100% - 20px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .fixed-reader-toolbar {
+    grid-template-columns: 44px minmax(64px, 1fr) auto;
+  }
+
+  .fixed-reader-toolbar nav {
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: thin;
+  }
+
+  .fixed-reader-toolbar nav > * {
+    flex: none;
+  }
+}
+
+@media (forced-colors: active) {
+  :root {
+    --bg: Canvas;
+    --surface: Canvas;
+    --surface-2: ButtonFace;
+    --sidebar: Canvas;
+    --sidebar-raised: Highlight;
+    --text: CanvasText;
+    --muted: GrayText;
+    --dark-text: CanvasText;
+    --dark-muted: CanvasText;
+    --brass: Highlight;
+    --brass-light: Highlight;
+    --walnut: ButtonText;
+    --border: ButtonText;
+    --shadow: none;
+  }
+
+  :focus-visible {
+    outline: 3px solid Highlight;
+    outline-offset: 3px;
+  }
+
+  .app-shell,
+  .main-content,
+  .settings-section,
+  .language-packages-intro,
+  .language-package-list article,
+  .statistics-panel,
+  .achievement-card,
+  .reading-now-intro,
+  .author-card,
+  .author-detail-header,
+  .details-panel,
+  .empty-state {
+    color: CanvasText;
+    background: Canvas;
+    box-shadow: none;
+  }
+
+  .settings-section,
+  .language-packages-intro,
+  .language-package-list article,
+  .statistics-panel,
+  .achievement-card,
+  .reading-now-intro,
+  .author-card,
+  .author-detail-header,
+  .details-panel,
+  .empty-state,
+  .folder-list article {
+    border-color: ButtonText;
+  }
+
+  .nav-item.active,
+  .format-filters button.active,
+  .primary-button,
+  .continue-book-button,
+  .favorite-toggle.active,
+  .selection-toggle.active,
+  .details-favorite.active,
+  .integration-badge.available,
+  .reader-actions button.active,
+  .reader-location-list button.active,
+  .reader-choice-group button.active,
+  .theme-choices button.active,
+  .fixed-reader-toolbar button.active {
+    color: HighlightText;
+    background: Highlight;
+    border: 2px solid Highlight;
+  }
+
+  .nav-item.active::before {
+    background: HighlightText;
+  }
+
+  .nav-item.active svg,
+  .favorite-toggle.active svg,
+  .details-favorite.active svg,
+  .reader-location-list button.active span,
+  .reader-choice-group button.active strong,
+  .reader-choice-group button.active small {
+    color: HighlightText;
+  }
+
+  .theme-choices button.active .theme-swatch {
+    border-color: HighlightText;
+  }
+
+  .book-card.selected::after {
+    background: transparent;
+    border: 3px solid Highlight;
+  }
+
+  .achievement-card,
+  .achievement-card.unlocked {
+    opacity: 1;
+  }
+
+  .achievement-card:not(.unlocked) {
+    border-style: dashed;
+  }
+
+  .achievement-card.unlocked {
+    border: 3px double Highlight;
+  }
+
+  .achievement-card.unlocked .achievement-emblem {
+    color: HighlightText;
+    background: Highlight;
+    outline: 1px solid Highlight;
+  }
+
+  .goal-track,
+  .achievement-progress,
+  .book-reading-progress > span:first-child,
+  .reader-progress-track {
+    background: Canvas;
+    border: 1px solid ButtonText;
+  }
+
+  .goal-track span,
+  .achievement-progress span,
+  .book-reading-progress i,
+  .reader-progress-track span {
+    background: Highlight;
+  }
+
+  .calendar-day {
+    background: Canvas;
+    border-color: GrayText;
+  }
+
+  .calendar-day.level-1,
+  .calendar-day.level-2,
+  .calendar-day.level-3,
+  .calendar-day.level-4 {
+    background: Highlight;
+    border-color: Highlight;
+  }
+
+  .calendar-day.level-2 {
+    border-style: dashed;
+  }
+
+  .calendar-day.level-3 {
+    outline: 1px solid Highlight;
+    outline-offset: 1px;
+  }
+
+  .calendar-day.level-4 {
+    border: 2px double Highlight;
+  }
+
+  .notice,
+  .recovery-notice,
+  .availability-warning,
+  .availability-badge {
+    color: CanvasText;
+    background: Canvas;
+    border: 2px solid Highlight;
+  }
+
+  .error-message,
+  .danger-button,
+  .text-button.danger,
+  .remove-book-policy {
+    color: CanvasText;
+    background: Canvas;
+    border-color: LinkText;
+  }
+
+  button:disabled,
+  input:disabled,
+  select:disabled,
+  textarea:disabled,
+  .reader-actions button:disabled,
+  .reader-section-nav button:disabled,
+  .reader-export-button:disabled {
+    color: GrayText;
+    border-color: GrayText;
+    opacity: 1;
+  }
+
+  .reader-screen,
+  .reader-screen.theme-sepia,
+  .reader-screen.theme-night {
+    --reader-background: Canvas;
+    --reader-paper: Canvas;
+    --reader-text: CanvasText;
+    --reader-muted: GrayText;
+    --reader-border: ButtonText;
+  }
+
+  .reader-toolbar,
+  .reader-scroll,
+  .reader-scroll.layout-spread,
+  .reader-side-panel,
+  .selection-toolbar,
+  .reader-toast,
+  .reader-page-status {
+    color: CanvasText;
+    background: Canvas;
+    box-shadow: none;
+  }
+
+  .reader-toolbar,
+  .reader-side-panel,
+  .selection-toolbar,
+  .reader-toast,
+  .reader-page-status,
+  .reader-section-nav,
+  .reader-blocks pre,
+  .reader-result-list button,
+  .annotation-card {
+    border-color: ButtonText;
+  }
+
+  .reader-blocks blockquote,
+  .reader-blocks hr,
+  .annotation-card {
+    border-color: Highlight;
+  }
+
+  .reader-choice-group button,
+  .theme-choices button,
+  .reader-import-font,
+  .reader-search-form input,
+  .reader-search-form button,
+  .reader-export-button,
+  .selection-toolbar button,
+  .selection-toolbar textarea,
+  .annotation-card textarea,
+  .reader-select select {
+    color: CanvasText;
+    background: Canvas;
+    border-color: ButtonText;
+  }
+
+  .reader-annotation {
+    color: MarkText;
+    background: Mark;
+    outline: 1px solid MarkText;
+  }
+
+  .reader-annotation.kind-note {
+    color: CanvasText;
+    background: Canvas;
+    border-bottom: 3px solid Highlight;
+    outline: 1px solid Highlight;
+  }
+
+  .reader-annotation.kind-quote {
+    color: CanvasText;
+    background: Canvas;
+    border-bottom: 2px dashed Highlight;
+    outline: none;
+  }
+
+  .theme-swatch {
+    background: Canvas;
+    border: 2px solid ButtonText;
+  }
+
+  .fixed-reader,
+  .fixed-reader-toolbar,
+  .fixed-reader-stage,
+  .comic-stage,
+  .fixed-page-controls {
+    color: CanvasText;
+    background: Canvas;
+  }
+
+  .fixed-reader-toolbar,
+  .fixed-page-controls {
+    border-color: ButtonText;
+  }
+
+  .fixed-reader-toolbar button,
+  .fixed-page-controls button,
+  .fixed-page-controls input {
+    color: CanvasText;
+    background: Canvas;
+    border: 1px solid ButtonText;
+  }
+
+  .book-cover,
+  .details-cover,
+  .fixed-reader-stage canvas,
+  .comic-stage img {
+    forced-color-adjust: none;
   }
 }

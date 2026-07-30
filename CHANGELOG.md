@@ -1,5 +1,64 @@
 # Changelog
 
+## 1.0.0-rc.1 release candidate
+
+- Consolidated the tested beta.6 Narrator, beta.7 scaling, beta.8 forced-colors,
+  and beta.9 provenance work into the first 1.0 release candidate.
+- Added a dedicated `rc:build` gate that requires a clean Git tree and records
+  the `release-candidate` channel in its evidence.
+- Prevented release-candidate packaging through the generic builder unless the
+  clean-tree requirement is explicitly active.
+- Retained the complete source manifest, security review, SBOM, manual matrix,
+  and Steam boundary evidence beside the installer.
+
+## 0.9.0-beta.9 provenance candidate
+
+- Added a complete SHA-256 manifest for every tracked or untracked source file
+  included in a closed-beta build.
+- Candidate records now identify whether the source tree was clean or modified,
+  report its changed-file count, and bind the source manifest by hash.
+- Abort packaging if any source file changes while checks and the Windows
+  installer are being built.
+- Added an optional clean-tree requirement for the eventual signed release
+  candidate and bundled the complete release-test documentation with evidence.
+
+## 0.9.0-beta.8 forced-colors candidate
+
+- Added complete Windows forced-colors styling for the application shell,
+  settings, library, statistics, achievements, and every reader.
+- Kept selected, active, locked, unlocked, progress, calendar, warning, and
+  annotation states distinguishable through borders and patterns instead of
+  relying on color alone.
+- Preserved the original appearance of book covers, PDF pages, and comic pages
+  while surrounding controls follow Windows system colors.
+- Exposed pressed state for layout, alignment, theme, and comic spread controls
+  so assistive technology can report the current choice.
+
+## 0.9.0-beta.7 high-scaling candidate
+
+- Kept the complete navigation reachable in short high-scaling windows by
+  making the vertical rail scroll independently.
+- Preserved the language switch in compact bottom navigation and added stable
+  accessible names to every icon-only destination.
+- Reduced and reflowed Settings, language-package, statistics, and achievement
+  surfaces at narrow logical widths.
+- Added a two-row, horizontally scrollable reader toolbar below 520 CSS pixels
+  so every chapter, search, annotation, and typography action remains
+  reachable.
+- Hardened PDF and comic toolbars, page controls, page status, long headings,
+  and reader panels against narrow or short viewports.
+
+## 0.9.0-beta.6 Narrator support candidate
+
+- Added an enabled-by-default screen reader support setting with persistent
+  local on/off state.
+- Reflow readers now expose book language metadata and optionally announce
+  chapter and page changes through Windows Narrator.
+- PDF and comic readers expose the same language metadata and optional page
+  announcements.
+- Essential names for buttons and controls remain available even when the
+  optional announcements are disabled.
+
 ## 0.9.0-beta.5 keyboard-focus candidate
 
 - Reader entry now places keyboard focus on the visible top toolbar instead of

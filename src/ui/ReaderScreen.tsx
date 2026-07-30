@@ -117,11 +117,15 @@ export function ReaderScreen({
   t,
   onClose,
   onProgress,
+  language,
+  screenReaderSupport = true,
 }: {
   document: DocumentModel;
   t: Translator;
   onClose: () => void;
   onProgress: (progress: number) => void;
+  language?: string;
+  screenReaderSupport?: boolean;
 }) {
   const [sectionIndex, setSectionIndex] = useState(document.lastSection);
   const [panel, setPanel] = useState<ReaderPanel>(null);
@@ -775,6 +779,7 @@ export function ReaderScreen({
   return (
     <div
       className={`reader-screen theme-${preferences.theme} ${preferences.bionicReading ? "bionic-reading" : ""}`}
+      lang={language}
       style={style}
       onKeyDown={(event) => {
         if (event.key === "Escape") {
@@ -979,6 +984,7 @@ export function ReaderScreen({
           <button
             type="button"
             className={preferences.layout === "continuous" ? "active" : ""}
+            aria-pressed={preferences.layout === "continuous"}
             onClick={() => changeLayout("continuous")}
           >
             <strong>{t("layoutContinuous")}</strong>
@@ -987,6 +993,7 @@ export function ReaderScreen({
           <button
             type="button"
             className={preferences.layout === "spread" ? "active" : ""}
+            aria-pressed={preferences.layout === "spread"}
             onClick={() => changeLayout("spread")}
           >
             <strong>{t("layoutSpread")}</strong>
@@ -1097,6 +1104,7 @@ export function ReaderScreen({
           <button
             type="button"
             className={preferences.textAlign === "left" ? "active" : ""}
+            aria-pressed={preferences.textAlign === "left"}
             onClick={() =>
               setPreferences((value) => ({ ...value, textAlign: "left" }))
             }
@@ -1106,6 +1114,7 @@ export function ReaderScreen({
           <button
             type="button"
             className={preferences.textAlign === "justify" ? "active" : ""}
+            aria-pressed={preferences.textAlign === "justify"}
             onClick={() =>
               setPreferences((value) => ({ ...value, textAlign: "justify" }))
             }
@@ -1157,6 +1166,7 @@ export function ReaderScreen({
             <button
               type="button"
               className={preferences.theme === theme ? "active" : ""}
+              aria-pressed={preferences.theme === theme}
               key={theme}
               onClick={() => setPreferences((value) => ({ ...value, theme }))}
             >
@@ -1166,6 +1176,17 @@ export function ReaderScreen({
           ))}
         </fieldset>
       </ReaderSidePanel>
+
+      <p
+        className="sr-only"
+        role="status"
+        aria-live={screenReaderSupport ? "polite" : "off"}
+        aria-atomic="true"
+      >
+        {screenReaderSupport
+          ? `${t("chapterAnnouncement")}: ${section.title}`
+          : ""}
+      </p>
 
       <main
         className={`reader-scroll layout-${preferences.layout}`}
@@ -1214,7 +1235,12 @@ export function ReaderScreen({
         </article>
       </main>
 
-      <p className="reader-page-status" role="status" aria-live="polite">
+      <p
+        className="reader-page-status"
+        role="status"
+        aria-live={screenReaderSupport ? "polite" : "off"}
+        aria-atomic="true"
+      >
         {preferences.layout === "spread"
           ? `${t("pages")} ${pagePosition.start}–${pagePosition.end} ${t("pageOf")} ${pagePosition.total}`
           : `${t("page")} ${pagePosition.start} ${t("pageOf")} ${pagePosition.total}`}

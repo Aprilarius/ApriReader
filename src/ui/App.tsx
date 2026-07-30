@@ -50,6 +50,10 @@ import { ReaderScreen } from "./ReaderScreen";
 import { SpecialReaderScreen } from "./SpecialReaderScreen";
 import { AchievementsPage, StatisticsPage } from "./StatisticsPages";
 import { useLocale } from "./useLocale";
+import {
+  normalizeBookLanguage,
+  useScreenReaderSupport,
+} from "./useScreenReaderSupport";
 
 type Route = { id: string; label: TranslationKey; icon: IconName };
 const routes: Route[] = [
@@ -66,6 +70,8 @@ const routes: Route[] = [
 
 export function App() {
   const { locale, t, toggleLocale } = useLocale();
+  const { screenReaderSupport, setScreenReaderSupport } =
+    useScreenReaderSupport();
   const [route, setRoute] = useState("library");
   const [books, setBooks] = useState<Book[]>([]);
   const [folders, setFolders] = useState<WatchedFolder[]>([]);
@@ -79,6 +85,7 @@ export function App() {
   const [document, setDocument] = useState<DocumentModel | null>(null);
   const [specialDocument, setSpecialDocument] =
     useState<SpecialDocument | null>(null);
+  const [readerLanguage, setReaderLanguage] = useState<string>();
   const [readerLoading, setReaderLoading] = useState(false);
   const [statistics, setStatistics] =
     useState<StatisticsSnapshot>(emptyStatistics);
@@ -250,6 +257,7 @@ export function App() {
     setReaderLoading(true);
     setError("");
     try {
+      setReaderLanguage(normalizeBookLanguage(book.language));
       if (isSpecialFormat(book.format)) {
         setSpecialDocument(await loadSpecialDocument(book.id));
       } else {
@@ -270,6 +278,8 @@ export function App() {
       <ReaderScreen
         document={document}
         t={t}
+        language={readerLanguage}
+        screenReaderSupport={screenReaderSupport}
         onClose={() => {
           setDocument(null);
           void refresh();
@@ -290,6 +300,8 @@ export function App() {
       <SpecialReaderScreen
         document={specialDocument}
         t={t}
+        language={readerLanguage}
+        screenReaderSupport={screenReaderSupport}
         onClose={() => {
           setSpecialDocument(null);
           void refresh();
@@ -323,7 +335,9 @@ export function App() {
               className={`nav-item ${route === item.id ? "active" : ""}`}
               type="button"
               key={item.id}
+              aria-label={t(item.label)}
               aria-current={route === item.id ? "page" : undefined}
+              title={t(item.label)}
               onClick={() => setRoute(item.id)}
             >
               <Icon name={item.icon} />
@@ -437,7 +451,11 @@ export function App() {
               onScan={() => void runImport(async () => scanWatchedFolders())}
             />
           ) : route === "settings" ? (
-            <SettingsPage t={t} />
+            <SettingsPage
+              t={t}
+              screenReaderSupport={screenReaderSupport}
+              onScreenReaderSupportChange={setScreenReaderSupport}
+            />
           ) : route === "statistics" ? (
             <StatisticsPage t={t} onChanged={setStatistics} />
           ) : route === "authors" ? (
@@ -621,9 +639,44 @@ export function LanguagePackagesPage({ t }: { t: Translator }) {
   );
 }
 
-export function SettingsPage({ t }: { t: Translator }) {
+export function SettingsPage({
+  t,
+  screenReaderSupport,
+  onScreenReaderSupportChange,
+}: {
+  t: Translator;
+  screenReaderSupport: boolean;
+  onScreenReaderSupportChange: (enabled: boolean) => void;
+}) {
   return (
     <div className="settings-page">
+      <section className="accessibility-settings settings-section">
+        <div className="section-heading">
+          <div>
+            <p className="eyebrow">{t("accessibility")}</p>
+            <h2>{t("screenReaderSupport")}</h2>
+          </div>
+          <span
+            className={`integration-badge ${screenReaderSupport ? "available" : ""}`}
+          >
+            {screenReaderSupport ? t("enabled") : t("disabled")}
+          </span>
+        </div>
+        <p className="settings-hint">{t("screenReaderSupportHint")}</p>
+        <label className="settings-toggle">
+          <input
+            type="checkbox"
+            checked={screenReaderSupport}
+            onChange={(event) =>
+              onScreenReaderSupportChange(event.target.checked)
+            }
+          />
+          <span>
+            <strong>{t("screenReaderAnnouncements")}</strong>
+            <small>{t("screenReaderEssentialHint")}</small>
+          </span>
+        </label>
+      </section>
       <SteamIntegrationPanel t={t} />
       <LanguagePackagesPage t={t} />
     </div>

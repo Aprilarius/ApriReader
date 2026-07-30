@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { emptyStatistics } from "../application/statistics";
 import type { Book } from "../application/library";
@@ -371,6 +371,31 @@ describe("App", () => {
     expect(localStorage.getItem("aprireader.locale")).toBe("en");
   });
 
+  it("persists the screen reader support preference", async () => {
+    localStorage.setItem("aprireader.locale", "en");
+    const { unmount } = render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    const toggle = await screen.findByRole("checkbox", {
+      name: /Announce reading changes/,
+    });
+    expect(toggle).toBeChecked();
+
+    fireEvent.click(toggle);
+    expect(toggle).not.toBeChecked();
+    expect(localStorage.getItem("aprireader.screenReaderSupport")).toBe(
+      "false",
+    );
+
+    unmount();
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    expect(
+      await screen.findByRole("checkbox", {
+        name: /Announce reading changes/,
+      }),
+    ).not.toBeChecked();
+  });
+
   it("keeps keyboard navigation available and exposes a skip link", () => {
     render(<App />);
     expect(
@@ -385,6 +410,30 @@ describe("App", () => {
     });
     document.dispatchEvent(contextMenu);
     expect(contextMenu.defaultPrevented).toBe(true);
+  });
+
+  it("keeps compact navigation names independent from visible labels", () => {
+    localStorage.setItem("aprireader.locale", "en");
+    render(<App />);
+    const navigation = screen.getByRole("navigation", { name: "Library" });
+    for (const label of [
+      "Library",
+      "Reading Now",
+      "Collections",
+      "Authors",
+      "Series",
+      "Favorites",
+      "Achievements",
+      "Statistics",
+      "Settings",
+    ]) {
+      expect(
+        within(navigation).getByRole("button", { name: label }),
+      ).toHaveAttribute("aria-label", label);
+    }
+    expect(
+      screen.getByRole("button", { name: "Переключить на русский" }),
+    ).toBeInTheDocument();
   });
 
   it("renders a large library in bounded batches", async () => {

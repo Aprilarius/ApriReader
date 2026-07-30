@@ -101,10 +101,35 @@ def check_tauri_boundary() -> None:
         fail("installer must expose the reviewed RU/EN language selector")
 
 
+def check_candidate_provenance() -> None:
+    builder = (ROOT / "scripts" / "build_beta_candidate.ps1").read_text("utf-8")
+    required_markers = {
+        "sourceTreeState": "source tree state",
+        "sourceChangedFileCount": "changed-file count",
+        "SOURCE_SHA256SUMS.txt": "source manifest",
+        "sourceManifestSha256": "source manifest hash",
+        'Channel -eq "release-candidate"': "release-candidate channel guard",
+        "A release-candidate build requires -RequireCleanTree.": (
+            "mandatory clean-tree release-candidate guard"
+        ),
+        "The release source tree changed while the candidate was building.": (
+            "mid-build source mutation guard"
+        ),
+    }
+    missing = [
+        description
+        for marker, description in required_markers.items()
+        if marker not in builder
+    ]
+    if missing:
+        fail(f"candidate provenance gate is stale: {', '.join(missing)}")
+
+
 def main() -> int:
     check_forbidden_files()
     check_direct_dependencies()
     check_tauri_boundary()
+    check_candidate_provenance()
     print("Release security and direct-license gates passed.")
     for name, license_id in sorted(APPROVED_NPM.items() | APPROVED_CARGO.items()):
         print(f"  {name}: {license_id}")

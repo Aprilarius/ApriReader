@@ -107,8 +107,10 @@ The shell remains fully reachable with keyboard and screen-reader navigation
 under Windows scaling and forced-colors mode. Large search results render in
 bounded batches while truthful totals remain visible. Every candidate build
 must pass the repository security gate, reproduce its lockfile-derived SBOM,
-and complete the documented closed-beta and protected Steam checklists before
-it can be called a public release.
+record the exact source-tree state and a SHA-256 source manifest, and complete
+the documented closed-beta and protected Steam checklists before it can be
+called a public release. Packaging must stop if source files change while the
+candidate is being built.
 
 Opening any reader places focus on its visible top toolbar. The first Tab
 therefore follows the reader controls instead of moving a stale focus target
@@ -168,3 +170,26 @@ Library records can be removed individually from book details or in a batch
 from an explicit selection mode. Removal always requires confirmation and
 deletes only ApriReader-owned metadata, progress, annotations, search data, and
 cache files. The source book remains unchanged in its original location.
+
+Settings provide an enabled-by-default Screen Reader Support option. It controls
+only ApriReader's additional chapter, page, and reading-state announcements;
+essential accessible names remain present when it is disabled. When trustworthy
+book language metadata is available, every reader exposes a normalized language
+tag so Windows Narrator can select the appropriate installed voice. ApriReader
+does not bundle or implement a text-to-speech engine.
+
+High Windows scaling must not remove any destination or reading action.
+Short desktop layouts keep the navigation rail independently scrollable. At
+compact widths, destinations move to a horizontally scrollable bottom rail
+while the language switch remains fixed and reachable. Icon-only navigation
+keeps explicit accessible names. Reflow reader actions may use a second
+horizontal toolbar row, while fixed-format controls and page position remain
+visible without reducing interactive targets below 44 CSS pixels.
+
+When Windows forced-colors mode is active, ApriReader uses the system canvas,
+text, button, highlight, link, and disabled colors throughout the shell and
+all readers. Selected, active, locked, unlocked, progress, calendar, warning,
+and annotation states must remain distinguishable through borders, line
+styles, or patterns rather than color alone. Source book covers, rendered PDF
+pages, and comic artwork retain their document colors. Disabled controls
+remain legible, and every visual choice continues to expose its semantic state.

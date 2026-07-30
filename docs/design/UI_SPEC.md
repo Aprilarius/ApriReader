@@ -140,3 +140,33 @@ cards use the existing brass state, the toolbar reports the exact count, and
 Select all applies to the current filtered result. Book details exposes the
 same removal as a restrained danger action. Both flows explicitly confirm that
 the source files stay on disk.
+
+Settings begins with a restrained Accessibility card. Its Screen Reader Support
+checkbox is enabled by default and clearly explains that voice and speed belong
+to Windows. Disabling it silences ApriReader's live chapter and page
+announcements without removing button names, keyboard focus, labels, or other
+essential semantics. The current state is repeated in the existing compact
+status badge style.
+
+High-scaling layouts preserve reachability rather than compressing every
+surface. A short vertical rail scrolls between destinations while its language
+action remains outside that scroll area. Below 700 CSS pixels the rail becomes
+a bottom strip with horizontally scrollable destinations and a fixed language
+button. Hidden visual labels never supply the only accessible name.
+
+Below 520 CSS pixels, the reflow reader keeps book identity on the first toolbar
+row and exposes every reading action in a second horizontally scrollable row.
+The page counter truncates only as a last visual fallback while retaining its
+full accessible text. Settings cards reduce padding and reflow actions;
+statistics, achievements, language packages, PDF, and comic controls remain
+inside their own scrollable surfaces.
+
+Windows High Contrast Black and High Contrast White map the interface to
+`Canvas`, `CanvasText`, `ButtonFace`, `ButtonText`, `GrayText`, `Highlight`,
+and `HighlightText`. Active controls use a visible highlight border as well as
+the system highlight fill. Selected library cards and unlocked achievements
+use heavier or double outlines; locked achievements and reading-calendar
+levels use dashed or patterned outlines. Notes and quotes remain distinct
+through solid and dashed highlight borders. Book covers and rendered PDF or
+comic content keep their source colors, while their surrounding toolbars,
+stages, controls, and page counters use system colors.

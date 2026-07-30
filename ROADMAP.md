@@ -24,7 +24,22 @@
       `docs/release/WINDOWS11_BETA4_ACCESSIBILITY_SMOKE.md`. The installed
       beta.5 candidate then passed product-owner smoke testing with no critical
       defects reported; its scoped HOLD decision is recorded in
-      `docs/release/BETA5_RELEASE_DECISION.md`.
+      `docs/release/BETA5_RELEASE_DECISION.md`. The beta.6 source adds a
+      persistent Windows Narrator support toggle, language tagging, and
+      optional chapter/page announcements while preserving essential control
+      semantics. The beta.7 source hardens short and narrow layouts, preserves
+      all compact navigation names and the language switch, and reflows reader
+      controls for high-scaling viewports. The real Windows 10/11 scaling
+      matrix remains an external candidate test. The beta.8 source applies
+      Windows system colors across the shell and every reader, reinforces
+      active and informational states without color alone, and preserves
+      source document imagery. High Contrast Black and White remain external
+      installed-candidate checks. The product owner reported beta.8 successful
+      on 2026-07-30. Beta.9 hardens candidate provenance with an exact source
+      manifest, a truthful clean or modified tree state, and a guard against
+      source changes during packaging. Version 1.0.0-rc.1 consolidates the
+      tested accessibility work and requires a clean Git tree for every
+      release-candidate build.
 
 ## Library navigation completion
 

@@ -212,3 +212,33 @@ relies on SQLite foreign-key cascades for annotations and reading sessions.
 FTS5 rows are removed explicitly. App-managed covers and fixed-reader caches
 are cleaned only after their paths are proven to be inside the matching local
 cache root. Source paths are never opened for writing or deletion.
+
+Screen reader support is a WebView-local preference and adds no native command
+or dependency. Reader roots inherit a validated BCP 47 language tag derived
+from local book metadata. Optional chapter and page updates use polite,
+atomic live regions; disabling the preference switches those regions off while
+preserving structural roles, labels, and keyboard behavior.
+
+High-scaling behavior remains CSS- and semantic-HTML-only. Shell navigation
+uses bounded independent overflow regions so short windows never clip the
+route list behind the fixed language action. Compact route buttons own explicit
+accessible names independent of hidden visual labels. Reader toolbar height is
+a responsive CSS variable shared with side-panel positioning, allowing the
+action row to reflow without covering book content or changing reading
+locators.
+
+Forced-colors support is also CSS- and semantic-HTML-only. A single
+`forced-colors: active` layer remaps application surfaces and controls to
+Windows system colors, then reinforces state with borders and line styles.
+Choice controls expose `aria-pressed` independently of their visual treatment.
+Only document imagery and fixed-reader canvases opt out of forced recoloring;
+book bytes and rendered page content are never transformed or rewritten.
+
+Closed-beta provenance is produced from Git's tracked and non-ignored
+untracked source set. The candidate builder hashes each source file into
+`SOURCE_SHA256SUMS.txt`, records the manifest hash, HEAD commit, clean or
+modified tree state, and changed-file count, then repeats the snapshot after
+the production installer build. A changed snapshot aborts packaging. The
+eventual signed release can invoke the same builder with `-RequireCleanTree`.
+The `rc:build` entry point additionally selects the `release-candidate`
+channel and refuses to run unless that clean-tree guard is active.

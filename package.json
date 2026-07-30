@@ -1,7 +1,7 @@
 {
   "name": "aprireader",
   "private": true,
-  "version": "0.9.0-beta.5",
+  "version": "1.0.0-rc.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -16,6 +16,7 @@
     "release:audit": "python scripts/release_audit.py && python scripts/generate_sbom.py --check",
     "check": "pnpm format && pnpm lint && pnpm test && pnpm build && pnpm rust:fmt && pnpm rust:clippy && pnpm rust:test && pnpm release:audit",
     "beta:build": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build_beta_candidate.ps1",
+    "rc:build": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build_beta_candidate.ps1 -RequireCleanTree -Channel release-candidate",
     "tauri": "tauri",
     "tauri:steam": "tauri build --config src-tauri/tauri.steam.conf.json --features steam-build --no-bundle"
   },

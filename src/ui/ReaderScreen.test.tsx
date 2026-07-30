@@ -54,6 +54,31 @@ describe("ReaderScreen", () => {
     ).toHaveFocus();
   });
 
+  it("tags book language and respects optional reader announcements", () => {
+    const { container } = render(
+      <ReaderScreen
+        document={document}
+        t={t}
+        language="en-US"
+        screenReaderSupport={false}
+        onClose={vi.fn()}
+        onProgress={vi.fn()}
+      />,
+    );
+    expect(container.querySelector(".reader-screen")).toHaveAttribute(
+      "lang",
+      "en-US",
+    );
+    expect(container.querySelector(".reader-page-status")).toHaveAttribute(
+      "aria-live",
+      "off",
+    );
+    expect(screen.queryByText("Chapter: Opening")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Back to library" }),
+    ).toBeInTheDocument();
+  });
+
   it("renders normalized book text and navigates through the table of contents", () => {
     render(
       <ReaderScreen
@@ -93,7 +118,10 @@ describe("ReaderScreen", () => {
     fireEvent.click(
       screen.getByRole("checkbox", { name: /Bionic highlighting/ }),
     );
-    fireEvent.click(screen.getByRole("button", { name: /Book spread/ }));
+    const spread = screen.getByRole("button", { name: /Book spread/ });
+    expect(spread).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(spread);
+    expect(spread).toHaveAttribute("aria-pressed", "true");
     expect(localStorage.getItem("aprireader.reader.preferences")).toContain(
       '"fontChoice":"clear"',
     );

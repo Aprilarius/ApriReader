@@ -53,6 +53,14 @@ export const translations = {
     achievements: "Достижения",
     statistics: "Статистика",
     settings: "Настройки",
+    accessibility: "Доступность",
+    screenReaderSupport: "Поддержка экранного диктора",
+    screenReaderSupportHint:
+      "Передаёт Windows Narrator дополнительные объявления о главах, страницах и режиме чтения. Голос и скорость настраиваются в Windows.",
+    screenReaderAnnouncements: "Объявлять изменения при чтении",
+    screenReaderEssentialHint:
+      "Основные названия кнопок и элементов остаются доступными всегда.",
+    chapterAnnouncement: "Глава",
     personalLibrary: "Ваша личная библиотека",
     greeting: "Добрый вечер",
     search: "Название, автор или формат",
@@ -398,6 +406,14 @@ export const translations = {
     achievements: "Achievements",
     statistics: "Statistics",
     settings: "Settings",
+    accessibility: "Accessibility",
+    screenReaderSupport: "Screen reader support",
+    screenReaderSupportHint:
+      "Gives Windows Narrator additional chapter, page, and reading-mode announcements. Voice and speed are configured in Windows.",
+    screenReaderAnnouncements: "Announce reading changes",
+    screenReaderEssentialHint:
+      "Essential button and control names always remain accessible.",
+    chapterAnnouncement: "Chapter",
     personalLibrary: "Your personal library",
     greeting: "Good evening",
     search: "Title, author, or format",

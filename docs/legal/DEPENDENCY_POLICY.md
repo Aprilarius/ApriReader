@@ -82,3 +82,22 @@ Genre metadata and the expanded achievement registry add no dependency.
 Parsing uses the existing bounded XML and JSON adapters, and all genre values
 remain local unless the user explicitly performs the existing Open Library
 search.
+
+Screen reader support adds no dependency, voice package, speech model, or TTS
+engine. It uses standard HTML accessibility semantics exposed by the existing
+Windows WebView to a screen reader selected and configured by the user.
+
+High-scaling support adds no dependency. It uses the existing CSS layout,
+overflow, media-query, and semantic HTML capabilities of the Windows WebView.
+
+Windows forced-colors support adds no dependency, palette package, or external
+service. It uses system color keywords, CSS media queries, and existing HTML
+accessibility semantics provided by the Windows WebView.
+
+Candidate source provenance adds no application dependency. Git is a
+release-environment tool only; it enumerates tracked and non-ignored source
+files, while SHA-256 hashing uses PowerShell and .NET already present in the
+Windows build environment.
+
+The RC build profile adds no dependency. It is a stricter invocation of the
+reviewed candidate builder and requires a clean Git tree before compilation.
