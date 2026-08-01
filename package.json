@@ -21,6 +21,7 @@
     "beta:build": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build_beta_candidate.ps1",
     "rc:build": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build_beta_candidate.ps1 -RequireCleanTree -Channel release-candidate",
     "github:build": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build_beta_candidate.ps1 -RequireCleanTree -Channel github-release",
+    "github:signed-build": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build_beta_candidate.ps1 -RequireCleanTree -RequireSignature -Channel github-release",
     "tauri": "tauri",
     "tauri:steam": "tauri build --config src-tauri/tauri.steam.conf.json --features steam-build --no-bundle"
   },
@@ -34,7 +35,7 @@
   },
   "devDependencies": {
     "@eslint/js": "9.32.0",
-    "@tauri-apps/cli": "2.8.4",
+    "@tauri-apps/cli": "2.11.4",
     "@testing-library/jest-dom": "6.9.1",
     "@testing-library/react": "16.3.0",
     "@types/react": "19.1.9",

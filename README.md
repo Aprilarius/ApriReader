@@ -70,6 +70,14 @@ Build a clean public GitHub artifact:
 pnpm github:build
 ```
 
+Build a clean signed public artifact after configuring the external Windows
+certificate and timestamp service described in
+[`docs/release/WINDOWS_SIGNING.md`](docs/release/WINDOWS_SIGNING.md):
+
+```powershell
+pnpm github:signed-build
+```
+
 Generated installers and evidence archives are written to
 `release/candidates/` and are excluded from source control.
 
@@ -79,6 +87,7 @@ Generated installers and evidence archives are written to
 - [Architecture](docs/architecture/ARCHITECTURE.md)
 - [Manual tests](docs/testing/MANUAL_TESTS.md)
 - [Dependency policy](docs/legal/DEPENDENCY_POLICY.md)
+- [Windows release signing](docs/release/WINDOWS_SIGNING.md)
 - [Changelog](CHANGELOG.md)
 
 ## License

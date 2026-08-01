@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Updated the build-only Tauri CLI to 2.11.4 so NSIS bundle-type metadata is
+  patched without the previous `__TAURI_BUNDLE_TYPE` warning.
+- Added a fail-closed Authenticode release profile that keeps credentials out
+  of the repository, signs both the application and installer through Tauri,
+  requires timestamping, and records verified public signature metadata.
+
 ## 1.1.0 - 2026-08-01
 
 - Hardened file handling with bounded post-open reads for books and fonts,

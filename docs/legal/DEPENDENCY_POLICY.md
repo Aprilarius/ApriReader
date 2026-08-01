@@ -119,3 +119,11 @@ owner policy in `docs/release/GITHUB_1_0_RELEASE_POLICY.md`. The generated
 `release/THIRD_PARTY_LICENSES.md` inventories the Windows production graph and
 collects every packaged license or notice text plus explicit metadata-only
 declarations; the release audit rejects a stale report.
+
+The Windows release pipeline uses `@tauri-apps/cli` 2.11.4 under its existing
+Apache-2.0 OR MIT license. This build-only update aligns the NSIS bundler with
+the current Rust Tauri runtime and restores reliable bundle-type metadata
+patching; it adds no application capability or packaged runtime dependency.
+Authenticode credentials remain external to the repository. A signed build
+uses a code-signing certificate already installed in the Windows certificate
+store plus the certificate provider's timestamp service.
