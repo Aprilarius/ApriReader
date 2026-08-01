@@ -26,13 +26,11 @@ import {
   type DocumentModel,
 } from "../application/reader";
 import {
-  listLanguagePackages,
-  lookupDictionary,
-  translateOffline,
-  type DictionaryResult,
-  type InstalledLanguagePackage,
-  type TranslationResult,
-} from "../application/languageTools";
+  externalTranslationConsentKey,
+  externalTranslationMaxCharacters,
+  openExternalTranslation,
+  type ExternalTranslationProvider,
+} from "../application/externalTranslation";
 import {
   chooseAndImportReaderFont,
   readerFontUrl,
@@ -40,11 +38,24 @@ import {
 } from "../application/fonts";
 import { Icon } from "./icons";
 import type { TranslationKey } from "./i18n";
+import { readLocalValue, writeLocalValue } from "./localStorage";
 import { useReadingSession } from "./useReadingSession";
 
 type Translator = (key: TranslationKey) => string;
 type ReaderTheme = "paper" | "sepia" | "night";
-type ReaderFontChoice = "literary" | "book" | "classic" | "clear" | "custom";
+type ReaderFontChoice =
+  | "literary"
+  | "book"
+  | "classic"
+  | "clear"
+  | "literata"
+  | "lora"
+  | "merriweather"
+  | "sourceSerif"
+  | "charis"
+  | "ibmPlex"
+  | "custom";
+type ReaderFontStyle = "normal" | "italic";
 type ReaderLayout = "continuous" | "spread";
 type ReaderPanel = "contents" | "search" | "annotations" | "settings" | null;
 
@@ -56,6 +67,7 @@ type ReaderPreferences = {
   wordSpacing: number;
   paragraphSpacing: number;
   fontWeight: number;
+  fontStyle: ReaderFontStyle;
   fontChoice: ReaderFontChoice;
   customFont: ImportedReaderFont | null;
   textAlign: "left" | "justify";
@@ -70,7 +82,6 @@ type PendingSelection = {
   startOffset: number;
   endOffset: number;
   text: string;
-  context: string;
 };
 
 type ReaderViewport = {
@@ -84,6 +95,13 @@ type PageMeasurement = {
   counts: number[];
 };
 
+type PendingPositionSave = {
+  bookId: number;
+  section: number;
+  sectionProgress: number;
+  progress: number;
+};
+
 const preferenceKey = "aprireader.reader.preferences";
 const defaultPreferences: ReaderPreferences = {
   fontSize: 20,
@@ -93,6 +111,7 @@ const defaultPreferences: ReaderPreferences = {
   wordSpacing: 0,
   paragraphSpacing: 1.15,
   fontWeight: 400,
+  fontStyle: "normal",
   fontChoice: "literary",
   customFont: null,
   textAlign: "left",
@@ -102,15 +121,72 @@ const defaultPreferences: ReaderPreferences = {
   theme: "paper",
 };
 
-const readerFontFamilies: Record<
-  Exclude<ReaderFontChoice, "custom">,
-  string
-> = {
-  literary: 'Georgia, "Times New Roman", serif',
-  book: '"Palatino Linotype", "Book Antiqua", Palatino, serif',
-  classic: "Cambria, Constantia, Georgia, serif",
-  clear: '"Segoe UI", Arial, sans-serif',
+type ReaderFontDefinition = {
+  family: string;
+  weights: readonly number[];
 };
+
+const readerFonts: Record<
+  Exclude<ReaderFontChoice, "custom">,
+  ReaderFontDefinition
+> = {
+  literary: {
+    family: 'Georgia, "Times New Roman", serif',
+    weights: [400, 700],
+  },
+  book: {
+    family: '"Palatino Linotype", "Book Antiqua", Palatino, serif',
+    weights: [400, 700],
+  },
+  classic: {
+    family: "Cambria, Constantia, Georgia, serif",
+    weights: [400, 700],
+  },
+  clear: {
+    family: '"Segoe UI", Arial, sans-serif',
+    weights: [300, 400, 600, 700],
+  },
+  literata: {
+    family: '"ApriReader Literata", Georgia, serif',
+    weights: [200, 300, 400, 500, 600, 700, 800, 900],
+  },
+  lora: {
+    family: '"ApriReader Lora", Georgia, serif',
+    weights: [400, 500, 600, 700],
+  },
+  merriweather: {
+    family: '"ApriReader Merriweather", Georgia, serif',
+    weights: [300, 400, 500, 600, 700, 800, 900],
+  },
+  sourceSerif: {
+    family: '"ApriReader Source Serif 4", Georgia, serif',
+    weights: [200, 300, 400, 500, 600, 700, 800, 900],
+  },
+  charis: {
+    family: '"ApriReader Charis SIL", Georgia, serif',
+    weights: [400, 700],
+  },
+  ibmPlex: {
+    family: '"ApriReader IBM Plex Serif", Georgia, serif',
+    weights: [100, 200, 300, 400, 500, 600, 700],
+  },
+};
+
+const customFontWeights = [300, 400, 500, 600, 700] as const;
+
+function fontWeightsForChoice(fontChoice: ReaderFontChoice) {
+  return fontChoice === "custom"
+    ? customFontWeights
+    : readerFonts[fontChoice].weights;
+}
+
+function closestFontWeight(requested: number, available: readonly number[]) {
+  return available.reduce((closest, candidate) =>
+    Math.abs(candidate - requested) < Math.abs(closest - requested)
+      ? candidate
+      : closest,
+  );
+}
 
 export function ReaderScreen({
   document,
@@ -147,24 +223,15 @@ export function ReaderScreen({
   const [searching, setSearching] = useState(false);
   const [searchSubmitted, setSearchSubmitted] = useState(false);
   const [message, setMessage] = useState("");
-  const [dictionaryResults, setDictionaryResults] = useState<
-    DictionaryResult[]
-  >([]);
-  const [translationResult, setTranslationResult] =
-    useState<TranslationResult | null>(null);
-  const [translationPackages, setTranslationPackages] = useState<
-    InstalledLanguagePackage[]
-  >([]);
-  const [selectedTranslationPackage, setSelectedTranslationPackage] =
-    useState("");
-  const [languageBusy, setLanguageBusy] = useState(false);
+  const [translationMenuOpen, setTranslationMenuOpen] = useState(false);
+  const [pendingTranslationProvider, setPendingTranslationProvider] =
+    useState<ExternalTranslationProvider | null>(null);
+  const [translationBusy, setTranslationBusy] = useState(false);
   const [fontBusy, setFontBusy] = useState(false);
-  const [languageMode, setLanguageMode] = useState<
-    "dictionary" | "translation" | null
-  >(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const measurementRef = useRef<HTMLDivElement>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingPositionSave = useRef<PendingPositionSave | null>(null);
   const pendingSectionProgress = useRef<number | null>(null);
   const lastWheelPage = useRef(Number.NEGATIVE_INFINITY);
   const changeSectionRef = useRef<(direction: number) => void>(() => undefined);
@@ -201,6 +268,14 @@ export function ReaderScreen({
     (readerViewport.width === 0 || readerViewport.width > 980)
       ? 2
       : 1;
+  const fontFamily =
+    preferences.fontChoice === "custom" && preferences.customFont
+      ? `"${preferences.customFont.family}", Georgia, serif`
+      : readerFonts[
+          preferences.fontChoice === "custom"
+            ? "literary"
+            : preferences.fontChoice
+        ].family;
   const pageMeasurementKey = useMemo(
     () =>
       JSON.stringify({
@@ -215,6 +290,7 @@ export function ReaderScreen({
         wordSpacing: preferences.wordSpacing,
         paragraphSpacing: preferences.paragraphSpacing,
         fontWeight: preferences.fontWeight,
+        fontStyle: preferences.fontStyle,
         fontChoice: preferences.fontChoice,
         customFont: preferences.customFont?.family ?? "",
         textAlign: preferences.textAlign,
@@ -254,7 +330,7 @@ export function ReaderScreen({
   });
 
   useEffect(() => {
-    localStorage.setItem(preferenceKey, JSON.stringify(preferences));
+    writeLocalValue(preferenceKey, JSON.stringify(preferences));
   }, [preferences]);
 
   useEffect(() => {
@@ -402,12 +478,43 @@ export function ReaderScreen({
     };
   }, [preferences.customFont, preferences.fontChoice]);
 
+  useEffect(() => {
+    const fontSet = window.document.fonts;
+    if (!fontSet?.load) return;
+    let active = true;
+    const descriptor = `${preferences.fontStyle} ${preferences.fontWeight} 20px ${fontFamily}`;
+    void fontSet
+      .load(descriptor, "ApriReader Абзац Əla")
+      .then(() => {
+        if (active) setFontRevision((value) => value + 1);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [fontFamily, preferences.fontStyle, preferences.fontWeight]);
+
   useEffect(
     () => () => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
+      const pending = pendingPositionSave.current;
+      if (pending) {
+        void saveReadingPosition(
+          pending.bookId,
+          pending.section,
+          pending.sectionProgress,
+          pending.progress,
+        );
+      }
     },
     [],
   );
+
+  const cancelPendingPositionSave = () => {
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = null;
+    pendingPositionSave.current = null;
+  };
 
   const savePosition = (sectionProgress: number) => {
     setSectionProgress(sectionProgress);
@@ -420,18 +527,29 @@ export function ReaderScreen({
           );
     setDisplayProgress(progress);
     onProgress(progress);
-    if (saveTimer.current) clearTimeout(saveTimer.current);
+    cancelPendingPositionSave();
+    pendingPositionSave.current = {
+      bookId: document.bookId,
+      section: sectionIndex,
+      sectionProgress,
+      progress,
+    };
     saveTimer.current = setTimeout(() => {
+      const pending = pendingPositionSave.current;
+      saveTimer.current = null;
+      pendingPositionSave.current = null;
+      if (!pending) return;
       void saveReadingPosition(
-        document.bookId,
-        sectionIndex,
-        sectionProgress,
-        progress,
+        pending.bookId,
+        pending.section,
+        pending.sectionProgress,
+        pending.progress,
       );
     }, 350);
   };
 
   const selectSection = (index: number, blockIndex?: number) => {
+    cancelPendingPositionSave();
     setSectionIndex(index);
     setPanel(null);
     setSelection(null);
@@ -563,68 +681,58 @@ export function ReaderScreen({
       startOffset,
       endOffset: startOffset + selected.toString().length,
       text,
-      context: startBlock.textContent?.slice(0, 4_000) ?? text,
     });
-    setDictionaryResults([]);
-    setTranslationResult(null);
-    setLanguageMode(null);
+    setTranslationMenuOpen(false);
+    setPendingTranslationProvider(null);
     setNoteDraft(null);
     event.stopPropagation();
   };
 
-  const lookupSelectedWord = async () => {
+  const openSelectedTranslation = async (
+    provider: ExternalTranslationProvider,
+  ) => {
     if (!selection) return;
-    setLanguageMode("dictionary");
-    setLanguageBusy(true);
-    setTranslationResult(null);
+    setTranslationBusy(true);
     try {
-      const results = await lookupDictionary(selection.text, selection.context);
-      setDictionaryResults(results);
+      await openExternalTranslation(provider, selection.text);
       setMessage("");
+      setTranslationMenuOpen(false);
+      setPendingTranslationProvider(null);
     } catch (reason) {
-      setMessage(String(reason));
+      console.error("Could not open external translator", reason);
+      setMessage(t("externalTranslationOpenError"));
     } finally {
-      setLanguageBusy(false);
+      setTranslationBusy(false);
     }
   };
 
-  const prepareTranslation = async () => {
+  const chooseTranslationProvider = (provider: ExternalTranslationProvider) => {
     if (!selection) return;
-    setLanguageMode("translation");
-    setLanguageBusy(true);
-    setDictionaryResults([]);
-    setTranslationResult(null);
-    try {
-      const packages = (await listLanguagePackages()).filter(
-        (item) => item.kind === "translation" && item.verified,
+    if (
+      Array.from(selection.text.trim()).length >
+      externalTranslationMaxCharacters
+    ) {
+      setMessage(
+        t("externalTranslationTooLong").replace(
+          "{count}",
+          String(externalTranslationMaxCharacters),
+        ),
       );
-      setTranslationPackages(packages);
-      setSelectedTranslationPackage(
-        packages[0] ? `${packages[0].id}\u0000${packages[0].version}` : "",
-      );
-      setMessage("");
-    } catch (reason) {
-      setMessage(String(reason));
-    } finally {
-      setLanguageBusy(false);
+      setTranslationMenuOpen(false);
+      return;
     }
+    if (readLocalValue(externalTranslationConsentKey) === "accepted") {
+      void openSelectedTranslation(provider);
+      return;
+    }
+    setPendingTranslationProvider(provider);
+    setTranslationMenuOpen(false);
   };
 
-  const runTranslation = async () => {
-    if (!selection || !selectedTranslationPackage) return;
-    const [packageId, version] = selectedTranslationPackage.split("\u0000");
-    if (!packageId || !version) return;
-    setLanguageBusy(true);
-    try {
-      setTranslationResult(
-        await translateOffline(packageId, version, selection.text),
-      );
-      setMessage("");
-    } catch (reason) {
-      setMessage(String(reason));
-    } finally {
-      setLanguageBusy(false);
-    }
+  const confirmExternalTranslation = () => {
+    if (!pendingTranslationProvider) return;
+    writeLocalValue(externalTranslationConsentKey, "accepted");
+    void openSelectedTranslation(pendingTranslationProvider);
   };
 
   const addSelectionAnnotation = async (
@@ -645,8 +753,16 @@ export function ReaderScreen({
       });
       setAnnotations((items) => [...items, created]);
       if (kind === "quote") {
-        void navigator.clipboard?.writeText(selection.text);
-        setMessage(t("quoteCopied"));
+        let copied = false;
+        try {
+          if (navigator.clipboard) {
+            await navigator.clipboard.writeText(selection.text);
+            copied = true;
+          }
+        } catch {
+          // The quote is still safely stored when clipboard access is denied.
+        }
+        setMessage(t(copied ? "quoteCopied" : "quoteSaved"));
       } else {
         setMessage(t("annotationSaved"));
       }
@@ -746,6 +862,8 @@ export function ReaderScreen({
           ...value,
           customFont: imported,
           fontChoice: "custom",
+          fontStyle: "normal",
+          fontWeight: 400,
         }));
         setMessage(t("fontImported"));
       }
@@ -756,14 +874,7 @@ export function ReaderScreen({
     }
   };
 
-  const fontFamily =
-    preferences.fontChoice === "custom" && preferences.customFont
-      ? `"${preferences.customFont.family}", Georgia, serif`
-      : readerFontFamilies[
-          preferences.fontChoice === "custom"
-            ? "literary"
-            : preferences.fontChoice
-        ];
+  const availableFontWeights = fontWeightsForChoice(preferences.fontChoice);
   const style = {
     "--reader-font-size": `${preferences.fontSize}px`,
     "--reader-line-height": String(preferences.lineHeight),
@@ -773,6 +884,7 @@ export function ReaderScreen({
     "--reader-word-spacing": `${preferences.wordSpacing}em`,
     "--reader-paragraph-spacing": `${preferences.paragraphSpacing}em`,
     "--reader-font-weight": String(preferences.fontWeight),
+    "--reader-font-style": preferences.fontStyle,
     "--reader-text-align": preferences.textAlign,
   } as CSSProperties;
 
@@ -783,7 +895,9 @@ export function ReaderScreen({
       style={style}
       onKeyDown={(event) => {
         if (event.key === "Escape") {
-          if (selection) setSelection(null);
+          if (pendingTranslationProvider) setPendingTranslationProvider(null);
+          else if (translationMenuOpen) setTranslationMenuOpen(false);
+          else if (selection) setSelection(null);
           else if (panel) setPanel(null);
           else onClose();
         }
@@ -1004,22 +1118,69 @@ export function ReaderScreen({
           <span>{t("readerFont")}</span>
           <select
             value={preferences.fontChoice}
-            onChange={(event) =>
+            onChange={(event) => {
+              const fontChoice = event.target.value as ReaderFontChoice;
               setPreferences((value) => ({
                 ...value,
-                fontChoice: event.target.value as ReaderFontChoice,
-              }))
-            }
+                fontChoice,
+                fontWeight: closestFontWeight(
+                  value.fontWeight,
+                  fontWeightsForChoice(fontChoice),
+                ),
+              }));
+            }}
           >
             <option value="literary">{t("fontLiterary")}</option>
             <option value="book">{t("fontBook")}</option>
             <option value="classic">{t("fontClassic")}</option>
             <option value="clear">{t("fontClear")}</option>
+            <option value="literata">Literata</option>
+            <option value="lora">Lora</option>
+            <option value="merriweather">Merriweather</option>
+            <option value="sourceSerif">Source Serif 4</option>
+            <option value="charis">Charis SIL</option>
+            <option value="ibmPlex">IBM Plex Serif</option>
             {preferences.customFont && (
               <option value="custom">{preferences.customFont.name}</option>
             )}
           </select>
         </label>
+        <div className="reader-font-variants">
+          <label className="reader-select">
+            <span>{t("fontStyle")}</span>
+            <select
+              value={preferences.fontStyle}
+              onChange={(event) =>
+                setPreferences((value) => ({
+                  ...value,
+                  fontStyle: event.target.value as ReaderFontStyle,
+                }))
+              }
+            >
+              <option value="normal">{t("fontStyleNormal")}</option>
+              <option value="italic">{t("fontStyleItalic")}</option>
+            </select>
+          </label>
+          <label className="reader-select">
+            <span>{t("fontWeight")}</span>
+            <select
+              value={preferences.fontWeight}
+              onChange={(event) =>
+                setPreferences((value) => ({
+                  ...value,
+                  fontWeight: Number(event.target.value),
+                }))
+              }
+            >
+              {availableFontWeights.map((weight) => (
+                <option value={weight} key={weight}>
+                  {fontWeightLabel(weight, t)}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <p className="reader-font-preview">{t("fontPreview")}</p>
         <button
           className="reader-import-font"
           type="button"
@@ -1057,16 +1218,6 @@ export function ReaderScreen({
           step={20}
           onChange={(columnWidth) =>
             setPreferences((value) => ({ ...value, columnWidth }))
-          }
-        />
-        <ReaderRange
-          label={t("fontWeight")}
-          value={preferences.fontWeight}
-          min={300}
-          max={700}
-          step={100}
-          onChange={(fontWeight) =>
-            setPreferences((value) => ({ ...value, fontWeight }))
           }
         />
         <ReaderRange
@@ -1305,13 +1456,25 @@ export function ReaderScreen({
               >
                 {t("copyQuote")}
               </button>
-              <button type="button" onClick={() => void lookupSelectedWord()}>
-                {t("dictionary")}
-              </button>
-              <button type="button" onClick={() => void prepareTranslation()}>
+              <button
+                type="button"
+                aria-haspopup="menu"
+                aria-expanded={translationMenuOpen}
+                onClick={() => {
+                  setPendingTranslationProvider(null);
+                  setTranslationMenuOpen((open) => !open);
+                }}
+              >
                 {t("translate")}
               </button>
-              <button type="button" onClick={() => setSelection(null)}>
+              <button
+                type="button"
+                onClick={() => {
+                  setTranslationMenuOpen(false);
+                  setPendingTranslationProvider(null);
+                  setSelection(null);
+                }}
+              >
                 {t("cancel")}
               </button>
             </div>
@@ -1337,60 +1500,63 @@ export function ReaderScreen({
               </button>
             </form>
           )}
-          {languageMode && (
-            <section className="selection-language-result" aria-live="polite">
-              {languageBusy ? (
-                <p>{t("languageToolWorking")}</p>
-              ) : languageMode === "dictionary" ? (
-                dictionaryResults.length === 0 ? (
-                  <p>{t("dictionaryNoResults")}</p>
-                ) : (
-                  dictionaryResults.map((result) => (
-                    <article key={`${result.packageId}-${result.term}`}>
-                      <strong>{result.term}</strong>
-                      <small>{result.packageName}</small>
-                      <ul>
-                        {result.definitions.map((definition) => (
-                          <li key={definition}>{definition}</li>
-                        ))}
-                      </ul>
-                      {result.examples[0] && <q>{result.examples[0]}</q>}
-                    </article>
-                  ))
-                )
-              ) : translationPackages.length === 0 ? (
-                <p>{t("translationPackageRequired")}</p>
-              ) : (
-                <>
-                  <label>
-                    <span>{t("translationPackage")}</span>
-                    <select
-                      value={selectedTranslationPackage}
-                      onChange={(event) =>
-                        setSelectedTranslationPackage(event.target.value)
-                      }
-                    >
-                      {translationPackages.map((item) => (
-                        <option
-                          key={`${item.id}-${item.version}`}
-                          value={`${item.id}\u0000${item.version}`}
-                        >
-                          {item.name} · {item.sourceLanguage} →{" "}
-                          {item.targetLanguage}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <button type="button" onClick={() => void runTranslation()}>
-                    {t("translateOffline")}
-                  </button>
-                  {translationResult && (
-                    <p className="translated-text">
-                      {translationResult.translatedText}
-                    </p>
+          {translationMenuOpen && (
+            <div className="translation-provider-menu" role="menu">
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => chooseTranslationProvider("google")}
+              >
+                {t("googleTranslate")}
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => chooseTranslationProvider("yandex")}
+              >
+                {t("yandexTranslate")}
+              </button>
+            </div>
+          )}
+          {pendingTranslationProvider && (
+            <section
+              className="external-translation-consent"
+              role="group"
+              aria-live="assertive"
+              aria-labelledby="external-translation-title"
+            >
+              <div>
+                <strong id="external-translation-title">
+                  {t("externalTranslationDisclosureTitle")}
+                </strong>
+                <p>
+                  {t("externalTranslationDisclosure").replace(
+                    "{provider}",
+                    t(
+                      pendingTranslationProvider === "google"
+                        ? "googleTranslate"
+                        : "yandexTranslate",
+                    ),
                   )}
-                </>
-              )}
+                </p>
+              </div>
+              <div className="external-translation-actions">
+                <button
+                  type="button"
+                  autoFocus
+                  disabled={translationBusy}
+                  onClick={confirmExternalTranslation}
+                >
+                  {t("continue")}
+                </button>
+                <button
+                  type="button"
+                  disabled={translationBusy}
+                  onClick={() => setPendingTranslationProvider(null)}
+                >
+                  {t("cancel")}
+                </button>
+              </div>
             </section>
           )}
         </div>
@@ -1654,10 +1820,25 @@ function annotationKindKey(kind: AnnotationKind): TranslationKey {
   }[kind] as TranslationKey;
 }
 
+function fontWeightLabel(weight: number, t: Translator) {
+  const keys: Record<number, TranslationKey> = {
+    100: "fontWeightThin",
+    200: "fontWeightExtraLight",
+    300: "fontWeightLight",
+    400: "fontWeightRegular",
+    500: "fontWeightMedium",
+    600: "fontWeightSemiBold",
+    700: "fontWeightBold",
+    800: "fontWeightExtraBold",
+    900: "fontWeightBlack",
+  };
+  return t(keys[weight] ?? "fontWeightRegular");
+}
+
 function readPreferences(): ReaderPreferences {
   try {
     const value = JSON.parse(
-      localStorage.getItem(preferenceKey) ?? "",
+      readLocalValue(preferenceKey) ?? "",
     ) as Partial<ReaderPreferences>;
     const customFont = validCustomFont(value.customFont)
       ? value.customFont
@@ -1667,10 +1848,24 @@ function readPreferences(): ReaderPreferences {
       "book",
       "classic",
       "clear",
+      "literata",
+      "lora",
+      "merriweather",
+      "sourceSerif",
+      "charis",
+      "ibmPlex",
       "custom",
     ].includes(value.fontChoice ?? "")
       ? (value.fontChoice as ReaderFontChoice)
       : defaultPreferences.fontChoice;
+    const fontChoice =
+      requestedFont === "custom" && !customFont ? "literary" : requestedFont;
+    const requestedWeight = clamp(
+      value.fontWeight,
+      100,
+      900,
+      defaultPreferences.fontWeight,
+    );
     return {
       fontSize: clamp(value.fontSize, 14, 36, defaultPreferences.fontSize),
       lineHeight: clamp(
@@ -1703,14 +1898,12 @@ function readPreferences(): ReaderPreferences {
         2,
         defaultPreferences.paragraphSpacing,
       ),
-      fontWeight: clamp(
-        value.fontWeight,
-        300,
-        700,
-        defaultPreferences.fontWeight,
+      fontWeight: closestFontWeight(
+        requestedWeight,
+        fontWeightsForChoice(fontChoice),
       ),
-      fontChoice:
-        requestedFont === "custom" && !customFont ? "literary" : requestedFont,
+      fontStyle: value.fontStyle === "italic" ? "italic" : "normal",
+      fontChoice,
       customFont,
       textAlign: value.textAlign === "justify" ? "justify" : "left",
       bionicReading: value.bionicReading === true,

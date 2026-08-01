@@ -4,6 +4,13 @@ ApriReader is a premium, privacy-first desktop reader and personal digital
 library for Windows 10/11 x64. It should feel like a calm private library, not a
 file manager.
 
+On first launch, ApriReader may ask how to address the user. This lightweight
+local profile contains only an optional display name: it has no account,
+password, Windows identity lookup, cloud synchronization, or network request.
+The user can continue with a name or skip the step, then change or remove the
+name in Settings. When present, it appears only in the time-aware library
+greeting. The value stays in app-local storage.
+
 The first public release targets DRM-free EPUB, PDF, FB2, TXT, HTML, Markdown,
 CBZ, CBR, and DOCX. Source books remain in their original locations. Data is
 local by default; network access always follows an explicit user action.
@@ -54,18 +61,29 @@ bounded EPUB subjects and FB2 genres; an explicitly selected Open Library
 candidate may provide a bounded subject list. The user can edit and normalize
 the values locally, and the source book remains unchanged.
 
-Stage 6 adds user-imported offline language packages. Selecting text in a
-reflow book exposes dictionary and translation actions without sending the
-selection anywhere. Dictionary lookup uses verified local JSON packages.
-Translation uses a selected, verified ONNX package through a text-in/text-out
-provider contract.
+Selecting up to 2,000 characters in a reflow book exposes a Translate action
+with Google Translate and Yandex Translate choices. ApriReader detects whether
+the selection is predominantly English or Russian, constructs only a fixed
+HTTPS translator URL for the corresponding EN-RU direction, and opens it in
+the user's default browser. It does not fetch or render remote translator
+content inside the application.
 
-ApriReader does not bundle, recommend, discover, or download dictionaries or
-models. The permissively licensed ONNX CPU runtime is part of the application;
-packages cannot add native code. Import is always explicit. Every package must declare its
-source, SPDX license, attribution, engine compatibility, exact file sizes, and
-SHA-256 hashes. Unsupported licenses, unsafe archive paths, oversized content,
-and modified installed files are rejected.
+Before the first handoff, ApriReader clearly states that the selected text will
+be sent to the chosen external service and requires explicit confirmation.
+That consent is stored locally and can never cause background transmission;
+each later handoff still requires choosing a provider. Whole-book translation,
+language-package import, model download, and arbitrary translator URLs are not
+supported. Source books remain unchanged.
+
+The Windows installer registers ApriReader as a viewer for every supported
+book extension: EPUB, FB2, TXT, HTML/HTM, Markdown/MD, PDF, CBZ, CBR, and DOCX.
+Opening one of those files from Explorer imports it into the local library when
+needed and immediately opens the matching safe reader. If ApriReader is already
+running, the existing window is focused and receives the path instead of
+leaving a second instance open. Duplicate content opens the existing local
+record. The normal importer validates the path, size, signature, archive
+boundaries, and normalized content; the source book remains in place and is
+never modified.
 
 Stage 7 records active reading sessions locally. Time is counted only while a
 reader is open, the app is visible and focused, and the user interacted
@@ -94,8 +112,8 @@ and successful retries do not issue the same local queue entry twice.
 The public GitHub build contains no Steamworks SDK, bridge, App ID, or
 credentials and continues to provide all achievements locally. A separate
 Steam build profile loads a protected bridge supplied only by the release
-environment. Settings reports the active profile and queue state without
-claiming that Steam is connected when it is not.
+environment. Synchronization stays automatic and does not expose build,
+provider, queue, or Overlay diagnostics in the user-facing Settings page.
 
 Stage 9 hardens the text-release candidate without expanding its feature set.
 ApriReader checks SQLite integrity at startup, identifies an interrupted prior
@@ -116,13 +134,16 @@ Opening any reader places focus on its visible top toolbar. The first Tab
 therefore follows the reader controls instead of moving a stale focus target
 to chapter-footer or page-footer controls.
 
-Reader polish adds system-font profiles plus explicit import of a local TTF,
-OTF, WOFF, or WOFF2 file. Imported fonts are copied into app-local storage
-after extension, signature, and size checks; the source file remains unchanged.
-Typography includes size, line height, column width, weight, letter spacing,
-word spacing, paragraph spacing, and alignment. Optional bionic highlighting
-bolds the beginning of words without changing their text or annotation
-locators.
+Reader polish adds system-font profiles and bundled OFL-licensed Literata,
+Lora, Merriweather, Source Serif 4, Charis SIL, and IBM Plex Serif families.
+Family, normal/italic style, and the real weights available for that family are
+selected independently; variable fonts apply optical sizing automatically.
+Explicit import of a local TTF, OTF, WOFF, or WOFF2 file remains available.
+Imported fonts are copied into app-local storage after extension, signature,
+and size checks; the source file remains unchanged. Typography also includes
+size, line height, column width, letter spacing, word spacing, paragraph
+spacing, and alignment. Optional bionic highlighting bolds the beginning of
+words without changing their text or annotation locators.
 
 The reading toolbar always exposes previous/next chapter controls. Optional
 page-wheel navigation moves one viewport per gesture and crosses to the

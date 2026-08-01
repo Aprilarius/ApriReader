@@ -1,9 +1,10 @@
 import { useCallback, useState } from "react";
+import { readLocalValue, writeLocalValue } from "./localStorage";
 
 export const screenReaderSupportKey = "aprireader.screenReaderSupport";
 
 function readScreenReaderSupport() {
-  return localStorage.getItem(screenReaderSupportKey) !== "false";
+  return readLocalValue(screenReaderSupportKey) !== "false";
 }
 
 export function useScreenReaderSupport() {
@@ -12,8 +13,8 @@ export function useScreenReaderSupport() {
   );
 
   const setScreenReaderSupport = useCallback((enabled: boolean) => {
-    localStorage.setItem(screenReaderSupportKey, String(enabled));
     setStoredValue(enabled);
+    writeLocalValue(screenReaderSupportKey, String(enabled));
   }, []);
 
   return { screenReaderSupport, setScreenReaderSupport };

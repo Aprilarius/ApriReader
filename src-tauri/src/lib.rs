@@ -1,7 +1,6 @@
 mod database;
 mod fonts;
 mod importer;
-mod language_tools;
 mod metadata;
 mod reader;
 mod special_reader;
@@ -13,23 +12,27 @@ use database::{
     StartupHealth, WatchedFolder,
 };
 use fonts::ImportedReaderFont;
-use language_tools::{
-    DictionaryResult, InstalledLanguagePackage, LanguagePackageManager, TranslationResult,
-};
 use metadata::MetadataCandidate;
 use reader::DocumentModel;
 use special_reader::SpecialDocument;
 use statistics::{AchievementProgress, StatisticsSnapshot};
-use std::{path::PathBuf, sync::Mutex};
+use std::{
+    collections::VecDeque,
+    ffi::OsString,
+    path::{Path, PathBuf},
+    sync::Mutex,
+};
 use steam::{SteamIntegrationStatus, SteamSyncResult};
-use tauri::{Manager, State};
+use tauri::{Emitter, Manager, State};
+
+const MAX_PENDING_LAUNCH_BOOKS: usize = 32;
 
 struct LibraryState {
     database: Mutex<Database>,
 }
 
-struct LanguageToolsState {
-    manager: Mutex<LanguagePackageManager>,
+struct LaunchBooksState {
+    paths: Mutex<VecDeque<PathBuf>>,
 }
 
 fn with_database<T>(
@@ -41,64 +44,6 @@ fn with_database<T>(
         .lock()
         .map_err(|_| "the local library database is unavailable".to_owned())?;
     operation(&mut database).map_err(|error| error.to_string())
-}
-
-fn with_language_tools<T>(
-    state: &State<'_, LanguageToolsState>,
-    operation: impl FnOnce(&LanguagePackageManager) -> Result<T, language_tools::LanguageToolsError>,
-) -> Result<T, String> {
-    let manager = state
-        .manager
-        .lock()
-        .map_err(|_| "the offline language package manager is unavailable".to_owned())?;
-    operation(&manager).map_err(|error| error.to_string())
-}
-
-#[tauri::command]
-fn import_language_package(
-    path: String,
-    state: State<'_, LanguageToolsState>,
-) -> Result<InstalledLanguagePackage, String> {
-    with_language_tools(&state, |manager| {
-        manager.import(PathBuf::from(path).as_path())
-    })
-}
-
-#[tauri::command]
-fn list_language_packages(
-    state: State<'_, LanguageToolsState>,
-) -> Result<Vec<InstalledLanguagePackage>, String> {
-    with_language_tools(&state, LanguagePackageManager::list)
-}
-
-#[tauri::command]
-fn lookup_dictionary(
-    text: String,
-    context: String,
-    state: State<'_, LanguageToolsState>,
-) -> Result<Vec<DictionaryResult>, String> {
-    with_language_tools(&state, |manager| manager.lookup(&text, &context))
-}
-
-#[tauri::command]
-fn translate_offline(
-    package_id: String,
-    version: String,
-    text: String,
-    state: State<'_, LanguageToolsState>,
-) -> Result<TranslationResult, String> {
-    with_language_tools(&state, |manager| {
-        manager.translate(&package_id, &version, &text)
-    })
-}
-
-#[tauri::command]
-fn remove_language_package(
-    package_id: String,
-    version: String,
-    state: State<'_, LanguageToolsState>,
-) -> Result<(), String> {
-    with_language_tools(&state, |manager| manager.remove(&package_id, &version))
 }
 
 #[tauri::command]
@@ -134,6 +79,25 @@ fn import_books(
 ) -> Result<ImportSummary, String> {
     let paths = paths.into_iter().map(PathBuf::from).collect::<Vec<_>>();
     with_database(&state, |database| database.import_paths(&paths))
+}
+
+#[tauri::command]
+fn take_launch_book_paths(state: State<'_, LaunchBooksState>) -> Result<Vec<String>, String> {
+    let mut paths = state
+        .paths
+        .lock()
+        .map_err(|_| "the launch-file queue is unavailable".to_owned())?;
+    Ok(paths
+        .drain(..)
+        .map(|path| path.to_string_lossy().into_owned())
+        .collect())
+}
+
+#[tauri::command]
+fn open_book_path(path: String, state: State<'_, LibraryState>) -> Result<BookRecord, String> {
+    with_database(&state, |database| {
+        database.import_book_for_open(PathBuf::from(path).as_path())
+    })
 }
 
 #[tauri::command]
@@ -369,8 +333,43 @@ fn export_annotations(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let app = tauri::Builder::default()
+    let initial_cwd = std::env::current_dir().unwrap_or_default();
+    let initial_paths = collect_launch_book_paths(std::env::args_os().skip(1), &initial_cwd);
+    let mut builder = tauri::Builder::default().manage(LaunchBooksState {
+        paths: Mutex::new(initial_paths.into()),
+    });
+
+    #[cfg(desktop)]
+    {
+        builder = builder.plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
+            let launch_paths = collect_launch_book_paths(
+                argv.into_iter().skip(1).map(OsString::from),
+                Path::new(&cwd),
+            );
+            if !launch_paths.is_empty() {
+                if let Ok(mut pending) = app.state::<LaunchBooksState>().paths.lock() {
+                    for path in launch_paths {
+                        if pending.len() == MAX_PENDING_LAUNCH_BOOKS {
+                            pending.pop_front();
+                        }
+                        if !pending.iter().any(|queued| same_launch_path(queued, &path)) {
+                            pending.push_back(path);
+                        }
+                    }
+                }
+                let _ = app.emit("open-book-paths", ());
+            }
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.unminimize();
+                let _ = window.set_focus();
+            }
+        }));
+    }
+
+    let app = builder
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             let data_dir = app.path().app_local_data_dir()?;
             std::fs::create_dir_all(&data_dir)?;
@@ -383,11 +382,6 @@ pub fn run() {
             app.manage(LibraryState {
                 database: Mutex::new(database),
             });
-            let language_packages = LanguagePackageManager::new(data_dir.join("language-packages"))
-                .map_err(|error| -> Box<dyn std::error::Error> { Box::new(error) })?;
-            app.manage(LanguageToolsState {
-                manager: Mutex::new(language_packages),
-            });
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -396,6 +390,8 @@ pub fn run() {
             list_books,
             remove_books,
             import_books,
+            take_launch_book_paths,
+            open_book_path,
             add_watched_folder,
             list_watched_folders,
             scan_watched_folders,
@@ -404,11 +400,6 @@ pub fn run() {
             search_metadata,
             apply_metadata_candidate,
             remove_external_cover,
-            import_language_package,
-            list_language_packages,
-            lookup_dictionary,
-            translate_offline,
-            remove_language_package,
             load_document,
             load_special_document,
             save_reading_position,
@@ -439,4 +430,68 @@ pub fn run() {
             }
         }
     });
+}
+
+fn collect_launch_book_paths(args: impl IntoIterator<Item = OsString>, cwd: &Path) -> Vec<PathBuf> {
+    let mut paths = Vec::<PathBuf>::new();
+    for argument in args {
+        if paths.len() == MAX_PENDING_LAUNCH_BOOKS {
+            break;
+        }
+        let path = PathBuf::from(argument);
+        if !importer::supported_book_path(&path) {
+            continue;
+        }
+        let resolved = if path.is_absolute() {
+            path
+        } else {
+            cwd.join(path)
+        };
+        if !paths
+            .iter()
+            .any(|queued| same_launch_path(queued, &resolved))
+        {
+            paths.push(resolved);
+        }
+    }
+    paths
+}
+
+fn same_launch_path(left: &Path, right: &Path) -> bool {
+    #[cfg(windows)]
+    {
+        left.to_string_lossy()
+            .eq_ignore_ascii_case(&right.to_string_lossy())
+    }
+    #[cfg(not(windows))]
+    {
+        left == right
+    }
+}
+
+#[cfg(test)]
+mod launch_tests {
+    use super::*;
+
+    #[test]
+    fn accepts_only_supported_launch_paths_and_resolves_relative_arguments() {
+        let cwd = Path::new(r"C:\Books");
+        let paths = collect_launch_book_paths(
+            [
+                OsString::from("novel.epub"),
+                OsString::from("--flag"),
+                OsString::from("malware.exe"),
+                OsString::from("NOVEL.EPUB"),
+            ],
+            cwd,
+        );
+        assert_eq!(paths, vec![cwd.join("novel.epub")]);
+    }
+
+    #[test]
+    fn bounds_the_launch_queue() {
+        let args = (0..64).map(|index| OsString::from(format!("book-{index}.txt")));
+        let paths = collect_launch_book_paths(args, Path::new(r"C:\Books"));
+        assert_eq!(paths.len(), MAX_PENDING_LAUNCH_BOOKS);
+    }
 }

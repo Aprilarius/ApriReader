@@ -13,7 +13,7 @@ Library.
 Download the current Windows installer from
 [GitHub Releases](https://github.com/Aprilarius/ApriReader/releases/latest).
 
-The initial 1.0 installer is not code-signed. Windows may therefore identify it
+The Windows installer is not yet code-signed. Windows may therefore identify it
 as coming from an unknown publisher. Download it only from the official
 Aprilarius/ApriReader release page and verify the published SHA-256 value.
 
@@ -23,13 +23,17 @@ Aprilarius/ApriReader release page and verify the published SHA-256 value.
 - Continuous reading and two-page book spreads with persistent page counters.
 - PDF canvas reader and safe comic reader with single/two-page and LTR/RTL
   modes.
-- Fine typography, reading-friendly profiles, imported local fonts, and
-  optional bionic highlighting.
+- Fine typography with six bundled OFL serif families, system profiles,
+  imported local fonts, and optional bionic highlighting.
 - Full-text search, bookmarks, highlights, notes, quotes, and Markdown export.
+- Selected-text EN-RU and RU-EN translation through an explicit Google or
+  Yandex browser handoff with first-use privacy consent.
 - Local statistics, reading goals, activity calendar, and 42 achievements.
 - Keyboard navigation, Windows Narrator support, high scaling, and forced
   colors.
 - App-local backups and guarded recovery from a damaged library database.
+- Explorer file associations for every supported book format, with safe
+  import-and-open in the existing ApriReader window.
 
 ## Privacy and safety
 
@@ -82,4 +86,5 @@ Generated installers and evidence archives are written to
 ApriReader is licensed under Apache-2.0. Third-party attribution and exact
 release inventories are available in `THIRD_PARTY_NOTICES.md`,
 `release/THIRD_PARTY_LICENSES.md`, and
-`release/aprireader-sbom.cdx.json`.
+`release/aprireader-sbom.cdx.json`. Bundled font licenses are packaged under
+`licenses/fonts`.

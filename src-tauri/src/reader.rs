@@ -218,7 +218,14 @@ fn read_text_bytes(path: &Path) -> Result<Vec<u8>, ReaderError> {
     if fs::metadata(path)?.len() > MAX_TEXT_FILE_SIZE {
         return Err(ReaderError::TooLarge);
     }
-    Ok(fs::read(path)?)
+    let mut bytes = Vec::new();
+    File::open(path)?
+        .take(MAX_TEXT_FILE_SIZE + 1)
+        .read_to_end(&mut bytes)?;
+    if bytes.len() as u64 > MAX_TEXT_FILE_SIZE {
+        return Err(ReaderError::TooLarge);
+    }
+    Ok(bytes)
 }
 
 fn read_txt(path: &Path) -> Result<Vec<DocumentSection>, ReaderError> {

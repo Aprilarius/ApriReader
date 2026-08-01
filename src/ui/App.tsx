@@ -17,6 +17,11 @@ import {
   type WatchedFolder,
 } from "../application/library";
 import {
+  listenForLaunchBooks,
+  openBookPath,
+  takeLaunchBookPaths,
+} from "../application/launchBooks";
+import {
   applyMetadataCandidate,
   metadataFromBook,
   removeExternalCover,
@@ -25,12 +30,6 @@ import {
   type BookMetadataInput,
   type MetadataCandidate,
 } from "../application/metadata";
-import {
-  chooseAndImportLanguagePackage,
-  listLanguagePackages,
-  removeLanguagePackage,
-  type InstalledLanguagePackage,
-} from "../application/languageTools";
 import { loadDocument, type DocumentModel } from "../application/reader";
 import { getStartupHealth, type StartupHealth } from "../application/health";
 import {
@@ -38,18 +37,20 @@ import {
   getStatistics,
   type StatisticsSnapshot,
 } from "../application/statistics";
-import {
-  getSteamIntegrationStatus,
-  syncSteamAchievements,
-  syncSteamIfAvailable,
-  type SteamIntegrationStatus,
-} from "../application/steam";
+import { syncSteamIfAvailable } from "../application/steam";
 import { Icon, type IconName } from "./icons";
+import { greetingKeyForHour } from "./greeting";
 import type { TranslationKey } from "./i18n";
 import { ReaderScreen } from "./ReaderScreen";
 import { SpecialReaderScreen } from "./SpecialReaderScreen";
 import { AchievementsPage, StatisticsPage } from "./StatisticsPages";
 import { useLocale } from "./useLocale";
+import { useCurrentHour } from "./useCurrentHour";
+import {
+  displayNameMaxLength,
+  normalizeDisplayName,
+  useLocalProfile,
+} from "./useLocalProfile";
 import {
   normalizeBookLanguage,
   useScreenReaderSupport,
@@ -70,6 +71,13 @@ const routes: Route[] = [
 
 export function App() {
   const { locale, t, toggleLocale } = useLocale();
+  const currentHour = useCurrentHour();
+  const {
+    onboardingComplete,
+    displayName,
+    completeOnboarding,
+    saveDisplayName,
+  } = useLocalProfile();
   const { screenReaderSupport, setScreenReaderSupport } =
     useScreenReaderSupport();
   const [route, setRoute] = useState("library");
@@ -94,6 +102,8 @@ export function App() {
   );
   const mainRef = useRef<HTMLElement>(null);
   const previousRoute = useRef(route);
+  const launchBookWork = useRef<Promise<void>>(Promise.resolve());
+  const readerRequest = useRef(0);
   const current = routes.find((item) => item.id === route) ?? routes[0]!;
   const selected = books.find((book) => book.id === selectedId) ?? null;
 
@@ -253,25 +263,95 @@ export function App() {
     }
   };
 
-  const openBook = async (book: Book) => {
-    setReaderLoading(true);
-    setError("");
-    try {
-      setReaderLanguage(normalizeBookLanguage(book.language));
-      if (isSpecialFormat(book.format)) {
-        setSpecialDocument(await loadSpecialDocument(book.id));
-      } else {
-        setDocument(await loadDocument(book.id));
+  const openBook = useCallback(
+    async (book: Book) => {
+      const request = ++readerRequest.current;
+      setReaderLoading(true);
+      setError("");
+      try {
+        const language = normalizeBookLanguage(book.language);
+        if (isSpecialFormat(book.format)) {
+          const nextDocument = await loadSpecialDocument(book.id);
+          if (request !== readerRequest.current) return;
+          setDocument(null);
+          setSpecialDocument(nextDocument);
+        } else {
+          const nextDocument = await loadDocument(book.id);
+          if (request !== readerRequest.current) return;
+          setSpecialDocument(null);
+          setDocument(nextDocument);
+        }
+        setReaderLanguage(language);
+        setSelectedId(null);
+      } catch (reason) {
+        if (request !== readerRequest.current) return;
+        setError(
+          `${t("readerError")}: ${reason instanceof Error ? reason.message : String(reason)}`,
+        );
+      } finally {
+        if (request === readerRequest.current) setReaderLoading(false);
       }
-      setSelectedId(null);
-    } catch (reason) {
-      setError(
-        `${t("readerError")}: ${reason instanceof Error ? reason.message : String(reason)}`,
-      );
-    } finally {
-      setReaderLoading(false);
-    }
-  };
+    },
+    [t],
+  );
+
+  const closeReader = useCallback(() => {
+    readerRequest.current += 1;
+    setReaderLoading(false);
+    setDocument(null);
+    setSpecialDocument(null);
+    void refresh();
+  }, [refresh]);
+
+  useEffect(() => {
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+
+    const consumeLaunchBooks = () => {
+      launchBookWork.current = launchBookWork.current
+        .then(async () => {
+          const paths = await takeLaunchBookPaths();
+          for (const path of paths) {
+            if (disposed) return;
+            const book = await openBookPath(path);
+            await refresh();
+            await openBook(book);
+          }
+        })
+        .catch((reason: unknown) => {
+          if (!disposed) {
+            setError(
+              `${t("readerError")}: ${reason instanceof Error ? reason.message : String(reason)}`,
+            );
+          }
+        });
+    };
+
+    void listenForLaunchBooks(consumeLaunchBooks).then((stopListening) => {
+      if (disposed) {
+        stopListening();
+        return;
+      }
+      unlisten = stopListening;
+      consumeLaunchBooks();
+    });
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, [openBook, refresh, t]);
+
+  if (!onboardingComplete) {
+    return (
+      <WelcomeScreen
+        locale={locale}
+        t={t}
+        onToggleLocale={toggleLocale}
+        onContinue={completeOnboarding}
+        onSkip={() => completeOnboarding()}
+      />
+    );
+  }
 
   if (document) {
     return (
@@ -280,10 +360,7 @@ export function App() {
         t={t}
         language={readerLanguage}
         screenReaderSupport={screenReaderSupport}
-        onClose={() => {
-          setDocument(null);
-          void refresh();
-        }}
+        onClose={closeReader}
         onProgress={(progress) => {
           setBooks((items) =>
             items.map((book) =>
@@ -302,10 +379,7 @@ export function App() {
         t={t}
         language={readerLanguage}
         screenReaderSupport={screenReaderSupport}
-        onClose={() => {
-          setSpecialDocument(null);
-          void refresh();
-        }}
+        onClose={closeReader}
         onProgress={(progress) => {
           setBooks((items) =>
             items.map((book) =>
@@ -346,7 +420,6 @@ export function App() {
           ))}
         </nav>
         <div className="sidebar-foot">
-          <p>{t("stageLabel")}</p>
           <button
             className="language-button"
             type="button"
@@ -373,20 +446,25 @@ export function App() {
             <div>
               <p className="eyebrow">{t("personalLibrary")}</p>
               <h1 id="page-title">
-                {route === "library" ? t("greeting") : t(current.label)}
+                {route === "library"
+                  ? `${t(greetingKeyForHour(currentHour))}${
+                      displayName ? `, ${displayName}` : ""
+                    }!`
+                  : t(current.label)}
               </h1>
             </div>
-            <label className="search">
-              <span className="sr-only">{t("search")}</span>
-              <Icon name="search" />
-              <input
-                type="search"
-                placeholder={t("search")}
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                disabled={route !== "library"}
-              />
-            </label>
+            {route === "library" && (
+              <label className="search">
+                <span className="sr-only">{t("search")}</span>
+                <Icon name="search" />
+                <input
+                  type="search"
+                  placeholder={t("search")}
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                />
+              </label>
+            )}
           </header>
 
           {message && (
@@ -453,6 +531,8 @@ export function App() {
           ) : route === "settings" ? (
             <SettingsPage
               t={t}
+              displayName={displayName}
+              onDisplayNameChange={saveDisplayName}
               screenReaderSupport={screenReaderSupport}
               onScreenReaderSupportChange={setScreenReaderSupport}
             />
@@ -495,9 +575,7 @@ export function App() {
               onFavorite={(book) => void toggleFavorite(book)}
               onBrowse={() => setRoute("library")}
             />
-          ) : (
-            <EmptyState title={t(current.label)} hint={t("notAvailable")} />
-          )}
+          ) : null}
         </section>
       </main>
 
@@ -520,7 +598,7 @@ export function App() {
         <button
           className="drawer-scrim"
           type="button"
-          aria-label={t("detailsEmpty")}
+          aria-label={t("closeDetails")}
           onClick={() => setSelectedId(null)}
         />
       )}
@@ -528,128 +606,142 @@ export function App() {
   );
 }
 
-export function LanguagePackagesPage({ t }: { t: Translator }) {
-  const [packages, setPackages] = useState<InstalledLanguagePackage[]>([]);
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState("");
-
-  const refresh = () =>
-    listLanguagePackages()
-      .then(setPackages)
-      .catch((reason) => setMessage(String(reason)));
-
-  useEffect(() => {
-    void refresh();
-  }, []);
-
-  const importPackage = async () => {
-    setBusy(true);
-    try {
-      const installed = await chooseAndImportLanguagePackage();
-      if (installed) {
-        setMessage(t("languagePackageImported"));
-        await refresh();
-      }
-    } catch (reason) {
-      setMessage(String(reason));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const removePackage = async (item: InstalledLanguagePackage) => {
-    if (!window.confirm(t("removeLanguagePackageConfirm"))) return;
-    setBusy(true);
-    try {
-      await removeLanguagePackage(item.id, item.version);
-      setMessage(t("languagePackageRemoved"));
-      await refresh();
-    } catch (reason) {
-      setMessage(String(reason));
-    } finally {
-      setBusy(false);
-    }
-  };
+function WelcomeScreen({
+  locale,
+  t,
+  onToggleLocale,
+  onContinue,
+  onSkip,
+}: {
+  locale: "ru" | "en";
+  t: Translator;
+  onToggleLocale: () => void;
+  onContinue: (displayName: string) => void;
+  onSkip: () => void;
+}) {
+  const [displayName, setDisplayName] = useState("");
+  const normalized = normalizeDisplayName(displayName);
 
   return (
-    <section className="language-packages-page">
-      <div className="language-packages-intro">
-        <div>
-          <p className="eyebrow">{t("offlineLanguageTools")}</p>
-          <h2>{t("languagePackages")}</h2>
-          <p>{t("languagePackagesHint")}</p>
-        </div>
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => void importPackage()}
+    <main className="welcome-screen">
+      <button
+        className="welcome-language"
+        type="button"
+        onClick={onToggleLocale}
+        aria-label={t("switchLanguage")}
+      >
+        {locale === "ru" ? "RU" : "EN"}
+      </button>
+      <section className="welcome-card" aria-labelledby="welcome-title">
+        <span className="welcome-mark" aria-hidden="true">
+          <Icon name="reading" />
+        </span>
+        <p className="eyebrow">{t("appName")}</p>
+        <h1 id="welcome-title">{t("welcomeTitle")}</h1>
+        <p className="welcome-copy">{t("welcomeHint")}</p>
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (normalized) onContinue(normalized);
+          }}
         >
-          {t("importLanguagePackage")}
-        </button>
-      </div>
-      {message && (
-        <p className="inline-status" role="status">
-          {message}
-        </p>
-      )}
-      {packages.length === 0 ? (
-        <div className="language-package-empty">
-          <h3>{t("noLanguagePackages")}</h3>
-          <p>{t("noLanguagePackagesHint")}</p>
-        </div>
-      ) : (
-        <div className="language-package-list">
-          {packages.map((item) => (
-            <article key={`${item.id}-${item.version}`}>
-              <div>
-                <span className="language-package-kind">
-                  {t(
-                    item.kind === "dictionary"
-                      ? "dictionaryPackage"
-                      : "translationPackage",
-                  )}
-                </span>
-                <h3>{item.name}</h3>
-                <p>
-                  {item.sourceLanguage}
-                  {item.targetLanguage ? ` → ${item.targetLanguage}` : ""}
-                  {" · "}
-                  {item.licenseSpdx}
-                  {" · "}v{item.version}
-                </p>
-                <small>{item.attribution}</small>
-              </div>
-              <div className="language-package-actions">
-                <span className={item.verified ? "verified" : "invalid"}>
-                  {t(item.verified ? "packageVerified" : "packageInvalid")}
-                </span>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void removePackage(item)}
-                >
-                  {t("removeLanguagePackage")}
-                </button>
-              </div>
-            </article>
-          ))}
-        </div>
-      )}
-    </section>
+          <label htmlFor="welcome-display-name">{t("displayNameLabel")}</label>
+          <input
+            id="welcome-display-name"
+            autoFocus
+            autoComplete="name"
+            maxLength={displayNameMaxLength}
+            value={displayName}
+            placeholder={t("displayNamePlaceholder")}
+            onChange={(event) => setDisplayName(event.target.value)}
+          />
+          <p className="welcome-privacy">{t("profilePrivacyHint")}</p>
+          <div className="welcome-actions">
+            <button
+              className="primary-button"
+              type="submit"
+              disabled={!normalized}
+            >
+              {t("continue")}
+            </button>
+            <button className="secondary-button" type="button" onClick={onSkip}>
+              {t("skip")}
+            </button>
+          </div>
+        </form>
+      </section>
+    </main>
   );
 }
 
 export function SettingsPage({
   t,
+  displayName,
+  onDisplayNameChange,
   screenReaderSupport,
   onScreenReaderSupportChange,
 }: {
   t: Translator;
+  displayName: string;
+  onDisplayNameChange: (displayName: string) => void;
   screenReaderSupport: boolean;
   onScreenReaderSupportChange: (enabled: boolean) => void;
 }) {
+  const [profileName, setProfileName] = useState(displayName);
+  const [profileSaved, setProfileSaved] = useState(false);
+
+  const saveProfile = (nextName: string) => {
+    const normalized = normalizeDisplayName(nextName);
+    onDisplayNameChange(normalized);
+    setProfileName(normalized);
+    setProfileSaved(true);
+  };
+
   return (
     <div className="settings-page">
+      <section className="profile-settings settings-section">
+        <p className="eyebrow">{t("localProfile")}</p>
+        <h2>{t("profileSettingsTitle")}</h2>
+        <p className="settings-hint">{t("profileSettingsHint")}</p>
+        <form
+          className="profile-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            saveProfile(profileName);
+          }}
+        >
+          <label htmlFor="settings-display-name">{t("displayNameLabel")}</label>
+          <input
+            id="settings-display-name"
+            maxLength={displayNameMaxLength}
+            value={profileName}
+            placeholder={t("displayNamePlaceholder")}
+            onChange={(event) => {
+              setProfileName(event.target.value);
+              setProfileSaved(false);
+            }}
+          />
+          <div className="profile-actions">
+            <button className="primary-button" type="submit">
+              {t("save")}
+            </button>
+            {displayName && (
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={() => saveProfile("")}
+              >
+                {t("removeName")}
+              </button>
+            )}
+          </div>
+          {profileSaved && (
+            <p className="profile-saved" role="status">
+              {t("profileSaved")}
+            </p>
+          )}
+        </form>
+      </section>
       <section className="accessibility-settings settings-section">
         <div className="section-heading">
           <div>
@@ -677,123 +769,7 @@ export function SettingsPage({
           </span>
         </label>
       </section>
-      <SteamIntegrationPanel t={t} />
-      <LanguagePackagesPage t={t} />
     </div>
-  );
-}
-
-export function SteamIntegrationPanel({ t }: { t: Translator }) {
-  const [status, setStatus] = useState<SteamIntegrationStatus | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState("");
-
-  const refreshSteam = useCallback(
-    () =>
-      getSteamIntegrationStatus()
-        .then(setStatus)
-        .catch((reason) => setMessage(String(reason))),
-    [],
-  );
-
-  useEffect(() => {
-    void refreshSteam();
-  }, [refreshSteam]);
-
-  const synchronize = async () => {
-    setBusy(true);
-    setMessage("");
-    try {
-      const result = await syncSteamAchievements();
-      setMessage(
-        result.synchronized > 0
-          ? t("steamSyncComplete")
-          : t("steamNothingToSync"),
-      );
-      await refreshSteam();
-    } catch (reason) {
-      setMessage(String(reason));
-      await refreshSteam();
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  if (!status) {
-    return (
-      <section className="steam-settings settings-section">
-        <p>{message || t("loading")}</p>
-      </section>
-    );
-  }
-
-  return (
-    <section className="steam-settings settings-section">
-      <div className="section-heading">
-        <div>
-          <p className="eyebrow">{t("steamIntegration")}</p>
-          <h2>{t("steamAchievements")}</h2>
-        </div>
-        <span
-          className={`integration-badge ${status.providerAvailable ? "available" : ""}`}
-        >
-          {status.providerAvailable
-            ? t("steamConnected")
-            : t("steamUnavailable")}
-        </span>
-      </div>
-      <p className="settings-hint">
-        {status.buildProfile === "steam"
-          ? t("steamBuildHint")
-          : t("githubBuildHint")}
-      </p>
-      <div className="integration-stats">
-        <div>
-          <span>{t("steamBuildProfile")}</span>
-          <strong>
-            {status.buildProfile === "steam"
-              ? t("steamProfile")
-              : t("githubProfile")}
-          </strong>
-        </div>
-        <div>
-          <span>{t("steamPending")}</span>
-          <strong>{status.pendingUnlocks}</strong>
-        </div>
-        <div>
-          <span>{t("steamSynchronized")}</span>
-          <strong>{status.syncedUnlocks}</strong>
-        </div>
-        <div>
-          <span>{t("steamOverlay")}</span>
-          <strong>
-            {status.overlayEnabled === null
-              ? t("notChecked")
-              : status.overlayEnabled
-                ? t("enabled")
-                : t("disabled")}
-          </strong>
-        </div>
-      </div>
-      {(message || status.lastError) && (
-        <p
-          className={status.lastError ? "error-message" : "notice"}
-          role="status"
-        >
-          {message || status.lastError}
-        </p>
-      )}
-      <button
-        className="secondary-button"
-        type="button"
-        disabled={
-          busy || !status.providerAvailable || status.pendingUnlocks === 0
-        }
-        onClick={() => void synchronize()}
-      >
-        {busy ? t("steamSyncing") : t("steamSyncNow")}
-      </button>
-    </section>
   );
 }
 
@@ -985,7 +961,10 @@ function LibraryPage({
           actionLabel={t("addBooks")}
         />
       ) : visibleBooks.length === 0 ? (
-        <EmptyState title={t("noBooks")} hint={t("search")} />
+        <EmptyState
+          title={t("noSearchResults")}
+          hint={t("noSearchResultsHint")}
+        />
       ) : (
         <section className="book-grid" aria-label={t("library")}>
           {renderedBooks.map((book) => (
@@ -1843,7 +1822,8 @@ export function BookDetails({
   return (
     <aside
       className={`details-panel ${book ? "open" : ""}`}
-      aria-label={t("detailsEmpty")}
+      aria-label={book ? undefined : t("detailsEmpty")}
+      aria-labelledby={book ? "book-details-title" : undefined}
     >
       {!book ? (
         <div className="details-empty">
@@ -1859,7 +1839,7 @@ export function BookDetails({
             className="details-close"
             type="button"
             onClick={onClose}
-            aria-label="Close"
+            aria-label={t("closeDetails")}
           >
             ×
           </button>
@@ -1925,7 +1905,7 @@ export function BookDetails({
             />
           ) : (
             <>
-              <h2>{book.title}</h2>
+              <h2 id="book-details-title">{book.title}</h2>
               {book.subtitle && (
                 <p className="details-subtitle">{book.subtitle}</p>
               )}

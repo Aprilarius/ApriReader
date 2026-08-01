@@ -12,6 +12,7 @@ use zip::ZipArchive;
 const MAX_BOOK_SIZE: u64 = 2 * 1024 * 1024 * 1024;
 const MAX_XML_SIZE: u64 = 4 * 1024 * 1024;
 const MAX_COVER_SIZE: u64 = 10 * 1024 * 1024;
+const MAX_METADATA_FIELD_CHARS: usize = 512;
 const SUPPORTED: &[&str] = &[
     "epub", "fb2", "txt", "html", "htm", "md", "markdown", "pdf", "cbz", "cbr", "docx",
 ];
@@ -86,8 +87,12 @@ pub fn inspect_book(path: &Path, cover_dir: &Path) -> Result<ImportedBook, Impor
         .file_stem()
         .and_then(|value| value.to_str())
         .unwrap_or("Untitled")
-        .trim()
-        .to_owned();
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .chars()
+        .take(MAX_METADATA_FIELD_CHARS)
+        .collect::<String>();
     let cover_path = save_cover(
         &fingerprint,
         metadata.cover_bytes.as_deref(),
@@ -97,8 +102,8 @@ pub fn inspect_book(path: &Path, cover_dir: &Path) -> Result<ImportedBook, Impor
     Ok(ImportedBook {
         source_path: path.canonicalize()?.to_string_lossy().into_owned(),
         fingerprint,
-        title: non_empty(metadata.title).unwrap_or(fallback_title),
-        author: non_empty(metadata.author).unwrap_or_default(),
+        title: bounded_metadata(metadata.title).unwrap_or(fallback_title),
+        author: bounded_metadata(metadata.author).unwrap_or_default(),
         genres: normalize_genres(metadata.genres),
         format: extension.to_ascii_uppercase(),
         file_size: i64::try_from(file_size).unwrap_or(i64::MAX),
@@ -106,14 +111,21 @@ pub fn inspect_book(path: &Path, cover_dir: &Path) -> Result<ImportedBook, Impor
     })
 }
 
-fn sha256(path: &Path) -> Result<String, std::io::Error> {
+fn sha256(path: &Path) -> Result<String, ImportError> {
     let mut file = File::open(path)?;
     let mut digest = Sha256::new();
     let mut buffer = [0_u8; 64 * 1024];
+    let mut total = 0_u64;
     loop {
         let count = file.read(&mut buffer)?;
         if count == 0 {
             break;
+        }
+        total = total
+            .checked_add(count as u64)
+            .ok_or(ImportError::TooLarge)?;
+        if total > MAX_BOOK_SIZE {
+            return Err(ImportError::TooLarge);
         }
         digest.update(&buffer[..count]);
     }
@@ -205,8 +217,15 @@ fn parse_epub_opf(xml: &[u8]) -> Metadata {
 }
 
 fn inspect_fb2(path: &Path) -> Result<Metadata, ImportError> {
-    let bytes = fs::read(path)?;
-    if bytes.len() as u64 > MAX_XML_SIZE * 8 {
+    let metadata_limit = MAX_XML_SIZE * 8;
+    if fs::metadata(path)?.len() > metadata_limit {
+        return Ok(Metadata::default());
+    }
+    let mut bytes = Vec::new();
+    File::open(path)?
+        .take(metadata_limit + 1)
+        .read_to_end(&mut bytes)?;
+    if bytes.len() as u64 > metadata_limit {
         return Ok(Metadata::default());
     }
     let probe = String::from_utf8_lossy(&bytes[..bytes.len().min(2048)]).to_ascii_lowercase();
@@ -379,10 +398,14 @@ fn attributes(
         .collect()
 }
 
-fn non_empty(value: Option<String>) -> Option<String> {
+fn bounded_metadata(value: Option<String>) -> Option<String> {
     value.and_then(|value| {
-        let trimmed = value.trim().to_owned();
-        (!trimmed.is_empty()).then_some(trimmed)
+        let normalized = value.split_whitespace().collect::<Vec<_>>().join(" ");
+        if normalized.is_empty() {
+            None
+        } else {
+            Some(normalized.chars().take(MAX_METADATA_FIELD_CHARS).collect())
+        }
     })
 }
 
@@ -425,6 +448,17 @@ mod tests {
         assert!(!safe_archive_path(Path::new("../cover.png")));
         assert!(!safe_archive_path(Path::new("/cover.png")));
         assert!(safe_archive_path(Path::new("OPS/images/cover.png")));
+    }
+
+    #[test]
+    fn bounds_and_normalizes_embedded_metadata() {
+        let long = format!(
+            "  {}\n ignored tail  ",
+            "A".repeat(MAX_METADATA_FIELD_CHARS)
+        );
+        let value = bounded_metadata(Some(long)).expect("metadata");
+        assert_eq!(value.chars().count(), MAX_METADATA_FIELD_CHARS);
+        assert!(!value.contains('\n'));
     }
 
     #[test]

@@ -29,6 +29,8 @@ pub enum SpecialReaderError {
     InvalidPdf,
     #[error("encrypted or split comic archives are not supported")]
     UnsupportedArchive,
+    #[error("the app-local reader cache identity is invalid")]
+    InvalidCacheIdentity,
     #[error("the document is damaged or cannot be read: {0}")]
     Io(#[from] std::io::Error),
     #[error("the CBZ archive is invalid: {0}")]
@@ -86,15 +88,18 @@ pub fn prepare_special_document(
     if size > MAX_FIXED_FILE_SIZE {
         return Err(SpecialReaderError::TooLarge);
     }
-    let key = fingerprint.get(..24).unwrap_or(fingerprint);
+    let key = fingerprint
+        .get(..24)
+        .filter(|value| value.bytes().all(|byte| byte.is_ascii_hexdigit()))
+        .ok_or(SpecialReaderError::InvalidCacheIdentity)?;
     let document_cache = cache_root.join(key);
     match format.as_str() {
         "PDF" => {
             validate_pdf(source_path)?;
             fs::create_dir_all(&document_cache)?;
             let target = document_cache.join("document.pdf");
-            if !target.is_file() || fs::metadata(&target)?.len() != size {
-                fs::copy(source_path, &target)?;
+            if !cache_is_current(source_path, &target, size) {
+                copy_bounded_atomic(source_path, &target)?;
             }
             Ok(SpecialDocument {
                 book_id,
@@ -111,7 +116,9 @@ pub fn prepare_special_document(
         "CBZ" | "CBR" => {
             fs::create_dir_all(&document_cache)?;
             let marker = document_cache.join(".complete");
-            if !marker.is_file() {
+            if !marker.is_file() || is_newer(source_path, &marker) {
+                fs::remove_dir_all(&document_cache)?;
+                fs::create_dir_all(&document_cache)?;
                 if format == "CBZ" {
                     extract_cbz(source_path, &document_cache)?;
                 } else {
@@ -137,6 +144,40 @@ pub fn prepare_special_document(
         }
         _ => Err(SpecialReaderError::Unsupported),
     }
+}
+
+fn cache_is_current(source: &Path, target: &Path, expected_size: u64) -> bool {
+    target.is_file()
+        && fs::metadata(target).is_ok_and(|metadata| metadata.len() == expected_size)
+        && !is_newer(source, target)
+}
+
+fn is_newer(source: &Path, cached: &Path) -> bool {
+    let source_modified = fs::metadata(source).and_then(|metadata| metadata.modified());
+    let cached_modified = fs::metadata(cached).and_then(|metadata| metadata.modified());
+    match (source_modified, cached_modified) {
+        (Ok(source), Ok(cached)) => source > cached,
+        _ => true,
+    }
+}
+
+fn copy_bounded_atomic(source: &Path, target: &Path) -> Result<(), SpecialReaderError> {
+    let temporary = target.with_extension("part");
+    let result = (|| {
+        let source = File::open(source)?;
+        let mut writer = LimitedWriter::new(File::create(&temporary)?, MAX_FIXED_FILE_SIZE);
+        std::io::copy(&mut source.take(MAX_FIXED_FILE_SIZE + 1), &mut writer)?;
+        writer.flush()?;
+        if target.is_file() {
+            fs::remove_file(target)?;
+        }
+        fs::rename(&temporary, target)?;
+        Ok::<(), std::io::Error>(())
+    })();
+    if result.is_err() {
+        let _ = fs::remove_file(&temporary);
+    }
+    result.map_err(Into::into)
 }
 
 fn validate_pdf(path: &Path) -> Result<(), SpecialReaderError> {
@@ -495,5 +536,33 @@ mod tests {
             validate_pdf(&source),
             Err(SpecialReaderError::InvalidPdf)
         ));
+    }
+
+    #[test]
+    fn rejects_an_invalid_cache_identity_without_touching_the_cache_root() {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let source = directory.path().join("book.pdf");
+        let cache = directory.path().join("readers");
+        fs::create_dir(&cache).expect("cache root");
+        fs::write(cache.join("keep.txt"), b"keep").expect("sentinel");
+        fs::write(&source, b"%PDF-1.4\n%%EOF").expect("PDF");
+
+        let result = prepare_special_document(
+            1,
+            "Book".to_owned(),
+            String::new(),
+            "PDF".to_owned(),
+            &source,
+            "../../unsafe-cache-identity",
+            0.0,
+            0,
+            &cache,
+        );
+
+        assert!(matches!(
+            result,
+            Err(SpecialReaderError::InvalidCacheIdentity)
+        ));
+        assert_eq!(fs::read(cache.join("keep.txt")).expect("sentinel"), b"keep");
     }
 }

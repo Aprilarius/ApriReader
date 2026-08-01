@@ -14,6 +14,8 @@ use std::{
 };
 use thiserror::Error;
 
+const MAX_WATCHED_BOOK_FILES: usize = 100_000;
+
 const MIGRATIONS: &[(i64, &str)] = &[
     (
         1,
@@ -185,6 +187,8 @@ pub enum DatabaseError {
     SpecialReader(#[from] SpecialReaderError),
     #[error("the selected watched folder does not exist")]
     MissingFolder,
+    #[error("the watched folder contains more than 100,000 supported book files")]
+    TooManyWatchedBooks,
     #[error("the selected book does not exist")]
     MissingBook,
     #[error("the book selection is invalid")]
@@ -1195,8 +1199,8 @@ impl Database {
         let mut summary = ImportSummary::default();
         for path in paths {
             match self.import_one(path) {
-                Ok(true) => summary.imported += 1,
-                Ok(false) => summary.duplicates += 1,
+                Ok((_, true)) => summary.imported += 1,
+                Ok((_, false)) => summary.duplicates += 1,
                 Err(error) => {
                     summary.failed += 1;
                     summary
@@ -1211,20 +1215,47 @@ impl Database {
         Ok(summary)
     }
 
-    fn import_one(&mut self, path: &Path) -> Result<bool, DatabaseError> {
+    pub fn import_book_for_open(&mut self, path: &Path) -> Result<BookRecord, DatabaseError> {
+        let (book_id, imported) = self.import_one(path)?;
+        if imported {
+            self.create_backup()?;
+        }
+        self.book_by_id(book_id)
+    }
+
+    fn import_one(&mut self, path: &Path) -> Result<(i64, bool), DatabaseError> {
         let book = inspect_book(path, &self.cover_dir)?;
         let duplicate = self
             .connection
             .query_row(
-                "SELECT id FROM books WHERE fingerprint = ?1",
+                "SELECT id, source_path FROM books WHERE fingerprint = ?1",
                 [&book.fingerprint],
-                |row| row.get::<_, i64>(0),
+                |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?)),
             )
-            .optional()?
-            .is_some();
-        if duplicate {
-            return Ok(false);
+            .optional()?;
+        if let Some((book_id, existing_source)) = duplicate {
+            if !Path::new(&existing_source).is_file() && existing_source != book.source_path {
+                self.connection.execute(
+                    "UPDATE books SET
+                        source_path = ?1, file_size = ?2, format = ?3,
+                        embedded_cover_path = ?4,
+                        cover_path = CASE WHEN cover_source = 'open_library'
+                                          THEN cover_path ELSE ?4 END,
+                        last_seen_at = CURRENT_TIMESTAMP, is_available = 1
+                     WHERE id = ?5",
+                    params![
+                        book.source_path,
+                        book.file_size,
+                        book.format,
+                        book.cover_path,
+                        book_id,
+                    ],
+                )?;
+                return Ok((book_id, true));
+            }
+            return Ok((book_id, false));
         }
+        let source_path = book.source_path.clone();
         self.connection.execute(
             "INSERT INTO books (
                 source_path, fingerprint, title, author, format, file_size,
@@ -1256,7 +1287,12 @@ impl Database {
                 book.cover_path,
             ],
         )?;
-        Ok(true)
+        let book_id = self.connection.query_row(
+            "SELECT id FROM books WHERE source_path = ?1",
+            [source_path],
+            |row| row.get::<_, i64>(0),
+        )?;
+        Ok((book_id, true))
     }
 
     pub fn add_watched_folder(&mut self, path: &Path) -> Result<ImportSummary, DatabaseError> {
@@ -1568,7 +1604,16 @@ fn collect_supported_files(
     folder: &Path,
     depth: usize,
     files: &mut Vec<PathBuf>,
-) -> Result<(), std::io::Error> {
+) -> Result<(), DatabaseError> {
+    collect_supported_files_bounded(folder, depth, files, MAX_WATCHED_BOOK_FILES)
+}
+
+fn collect_supported_files_bounded(
+    folder: &Path,
+    depth: usize,
+    files: &mut Vec<PathBuf>,
+    max_files: usize,
+) -> Result<(), DatabaseError> {
     if depth > 12 {
         return Ok(());
     }
@@ -1579,8 +1624,11 @@ fn collect_supported_files(
             continue;
         }
         if file_type.is_dir() {
-            collect_supported_files(&entry.path(), depth + 1, files)?;
+            collect_supported_files_bounded(&entry.path(), depth + 1, files, max_files)?;
         } else if file_type.is_file() && supported_book_path(&entry.path()) {
+            if files.len() == max_files {
+                return Err(DatabaseError::TooManyWatchedBooks);
+            }
             files.push(entry.path());
         }
     }
@@ -1755,6 +1803,53 @@ mod tests {
             .next()
             .is_some());
         assert_eq!(fs::read(&source).expect("source remains readable"), fixture);
+    }
+
+    #[test]
+    fn shell_open_imports_once_and_reuses_the_existing_book_record() {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let source = directory.path().join("Explorer Book.txt");
+        let fixture = b"A safe Explorer fixture.";
+        fs::write(&source, fixture).expect("fixture");
+        let mut database = test_database(directory.path());
+
+        let first = database
+            .import_book_for_open(&source)
+            .expect("first shell open");
+        let second = database
+            .import_book_for_open(&source)
+            .expect("second shell open");
+
+        assert_eq!(first.id, second.id);
+        assert_eq!(database.list_books().expect("books").len(), 1);
+        assert_eq!(fs::read(&source).expect("source remains readable"), fixture);
+    }
+
+    #[test]
+    fn shell_open_reconnects_an_unavailable_duplicate_to_its_new_path() {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let original = directory.path().join("Original.txt");
+        let relocated = directory.path().join("Relocated.txt");
+        let fixture = b"The same safely relocated book.";
+        fs::write(&original, fixture).expect("original fixture");
+        let mut database = test_database(directory.path());
+        let imported = database
+            .import_book_for_open(&original)
+            .expect("initial import");
+
+        fs::remove_file(&original).expect("simulate moved source");
+        fs::write(&relocated, fixture).expect("relocated fixture");
+        let reopened = database
+            .import_book_for_open(&relocated)
+            .expect("reconnect duplicate");
+
+        assert_eq!(reopened.id, imported.id);
+        assert_eq!(
+            Path::new(&reopened.source_path),
+            relocated.canonicalize().unwrap()
+        );
+        assert!(reopened.is_available);
+        assert_eq!(fs::read(relocated).expect("relocated source"), fixture);
     }
 
     #[test]
@@ -2266,5 +2361,17 @@ mod tests {
         let summary = database.add_watched_folder(&watched).expect("scan");
         assert_eq!(summary.imported, 1);
         assert_eq!(database.list_watched_folders().expect("folders").len(), 1);
+    }
+
+    #[test]
+    fn watched_folder_scan_has_a_file_count_limit() {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        for name in ["one.txt", "two.epub", "three.md"] {
+            fs::write(directory.path().join(name), b"fixture").expect("fixture");
+        }
+        let mut files = Vec::new();
+        let result = collect_supported_files_bounded(directory.path(), 0, &mut files, 2);
+        assert!(matches!(result, Err(DatabaseError::TooManyWatchedBooks)));
+        assert_eq!(files.len(), 2);
     }
 }

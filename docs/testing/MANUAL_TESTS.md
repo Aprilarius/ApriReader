@@ -1,5 +1,37 @@
 # Manual tests — Stage 9 candidate
 
+## External selected-text translation
+
+1. Open a reflow book, select a short English phrase, choose Translate, then
+   Google Translate. Confirm the first use shows the privacy disclosure and no
+   browser opens before Continue.
+2. Continue and confirm the default browser opens Google Translate with the
+   exact selection and EN-RU direction. Return to ApriReader, select Russian
+   text, choose Yandex Translate, and confirm RU-EN direction without a second
+   disclosure.
+3. Cancel the first-use disclosure and confirm nothing opens and consent is not
+   remembered. Restart ApriReader and confirm the disclosure still appears.
+4. Select more than 2,000 characters and confirm ApriReader shows the limit
+   message without opening a browser. Confirm Settings has no dictionary or
+   language-package panel.
+5. Disconnect the network and confirm ApriReader itself remains responsive;
+   only the external browser page may fail to load.
+
+## Optional local profile
+
+1. Start with no `aprireader.localProfile` value. Confirm a focused welcome
+   screen asks how to address the user, explains local-only storage, offers
+   Continue and Skip, and keeps the language switch reachable.
+2. Confirm Continue is disabled for an empty or whitespace-only name. Enter a
+   name with leading, trailing, and repeated whitespace; continue and confirm
+   the library greeting uses the normalized name with the correct time of day.
+3. Reset the profile and choose Skip. Restart and confirm the welcome screen
+   does not repeat and the library uses a generic time-aware greeting.
+4. In Settings, change the display name and confirm the greeting updates.
+   Remove the name, restart, and confirm the generic greeting returns.
+5. Confirm the profile creates no network request, Windows identity prompt,
+   password, account selector, or change to books and reading data.
+
 ## Reading Now
 
 1. Start with a book that has never been opened. Confirm it is absent from
@@ -101,6 +133,26 @@
    also execute `docs/release/STEAM_RC_CHECKLIST.md` and
    `docs/steam/TEST_CHECKLIST.md`.
 
+## Windows file associations
+
+1. Install the NSIS candidate for the current user. In Windows Settings or
+   Explorer's Open with menu, confirm ApriReader is offered for EPUB, FB2, TXT,
+   HTML/HTM, Markdown/MD, PDF, CBZ, CBR, and DOCX.
+2. With ApriReader closed, double-click one valid disposable fixture in every
+   supported format. Confirm ApriReader starts, adds the book to its local
+   library only once, and opens the correct reflow or fixed-layout reader.
+3. Keep ApriReader open, then double-click a second fixture in Explorer.
+   Confirm the existing window is focused, no second ApriReader window remains,
+   and the selected book opens.
+4. Open the same book again and confirm the existing library record and saved
+   progress are reused. Confirm the source file hash and timestamp are
+   unchanged.
+5. Try a renamed executable, a missing path, an oversized fixture, and malformed
+   book containers under disposable extensions. Confirm ApriReader reports an
+   error, performs no external request, executes no content, and remains usable.
+6. Uninstall ApriReader and confirm its Explorer handler entries are removed
+   without deleting source books or app-local user data.
+
 The Rust integration suite complements step 7 with disposable valid and
 malformed fixtures for all nine public formats. It opens them through the real
 reader adapters, rejects unsafe or structurally invalid input, checks that HTML
@@ -111,17 +163,26 @@ manual oversized-input and external-request checks.
 ## Reader usability regression
 
 1. Start the release EXE and confirm no Command Prompt or console window opens.
+   Confirm the library greeting matches the local time, the sidebar contains no
+   roadmap stage or build-status copy, and the library search disappears on
+   every non-Library destination. Search for a missing title and confirm the UI
+   reports no matches rather than claiming that the whole library is empty.
 2. Open a reflow book and confirm focus starts on the toolbar back control.
    Press Tab and confirm focus follows the toolbar without scrolling to the
    chapter footer. Use the top toolbar arrows to move between chapters.
-3. In text settings, try every system-font profile and change size, line
-   height, width, weight, letter spacing, word spacing, paragraph spacing, and
-   alignment. Restart and confirm the choices persist.
+3. In text settings, try every system-font profile and the bundled Literata,
+   Lora, Merriweather, Source Serif 4, Charis SIL, and IBM Plex Serif families.
+   For each bundled family, switch between normal and italic and confirm the
+   weight selector exposes only its real Thin through Black range. Change size,
+   line height, width, letter spacing, word spacing, paragraph spacing, and
+   alignment. Confirm the preview changes with family, style, and weight.
+   Restart and confirm the choices persist and Cyrillic text keeps the selected
+   face.
 4. Import a disposable TTF/OTF/WOFF/WOFF2 fixture. Confirm it appears by its
    filename, applies to the book, and the original file remains unchanged.
    Confirm a renamed non-font and a file larger than 24 MB are rejected.
 5. Enable bionic highlighting. Confirm word beginnings become bold while
-   selection, highlighting, notes, quotes, dictionary, and search still use
+   selection, highlighting, notes, quotes, translation, and search still use
    the exact original text.
 6. With page-wheel navigation enabled, roll once to move about one viewport.
    At the end or beginning of a chapter, roll again and confirm the adjacent
@@ -139,3 +200,14 @@ manual oversized-input and external-request checks.
    `Pages N–N+1 of M` in a wide spread. Turn pages, resize the window, and
    change font size and spacing. Confirm the current range advances and the
    measured total updates without covering reader controls.
+10. Open a large/slow book and immediately open another book. Confirm only the
+    newest request reaches the reader. Scroll, close within 350 ms, reopen, and
+    confirm the last position was flushed. Switch chapters immediately after a
+    scroll and confirm the old chapter timer cannot overwrite the new chapter.
+11. Make an imported source unavailable, then open an identical relocated copy
+    through Explorer. Confirm the existing card reconnects to the new path and
+    opens without a duplicate. Replace a disposable cached PDF or comic with a
+    newer valid source at the same path and confirm its app-local cache rebuilds.
+12. Deny clipboard access, select text, and choose Copy quote. Confirm the quote
+    remains in Annotations and the status says copying was unavailable instead
+    of claiming clipboard success.

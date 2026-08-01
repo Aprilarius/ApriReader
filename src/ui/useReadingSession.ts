@@ -8,6 +8,12 @@ import {
 const heartbeatMilliseconds = 15_000;
 const recentInteractionMilliseconds = 60_000;
 
+type ReadingValue = {
+  progress: number;
+  words: number;
+  pages: number;
+};
+
 export function useReadingSession({
   bookId,
   progress,
@@ -19,14 +25,32 @@ export function useReadingSession({
   words: number;
   pages: number;
 }) {
-  const current = useRef({ progress, words, pages });
-  const initial = useRef({ progress, words, pages });
-  current.current = { progress, words, pages };
+  const valuesByBook = useRef(new Map<number, ReadingValue>());
+  valuesByBook.current.set(bookId, { progress, words, pages });
 
   useEffect(() => {
     let disposed = false;
     let token: string | null = null;
+    let finished = false;
     let lastInteraction = Date.now();
+    const startingValue = valuesByBook.current.get(bookId);
+    if (!startingValue) return;
+    const currentValue = () =>
+      valuesByBook.current.get(bookId) ?? startingValue;
+    const finishSession = async (sessionToken: string) => {
+      if (finished) return;
+      finished = true;
+      const value = currentValue();
+      await recordReadingActivity(
+        sessionToken,
+        false,
+        value.progress,
+        value.words,
+        value.pages,
+      ).catch(() => undefined);
+      await endReadingSession(sessionToken).catch(() => undefined);
+      valuesByBook.current.delete(bookId);
+    };
     const markInteraction = () => {
       lastInteraction = Date.now();
     };
@@ -41,7 +65,6 @@ export function useReadingSession({
       window.addEventListener(event, markInteraction, { passive: true });
     }
 
-    const startingValue = initial.current;
     void startReadingSession(
       bookId,
       startingValue.progress,
@@ -50,7 +73,7 @@ export function useReadingSession({
     )
       .then((sessionToken) => {
         if (disposed && sessionToken) {
-          void endReadingSession(sessionToken);
+          void finishSession(sessionToken);
           return;
         }
         token = sessionToken;
@@ -63,7 +86,7 @@ export function useReadingSession({
         document.visibilityState === "visible" &&
         document.hasFocus() &&
         Date.now() - lastInteraction <= recentInteractionMilliseconds;
-      const value = current.current;
+      const value = currentValue();
       void recordReadingActivity(
         token,
         active,
@@ -80,16 +103,7 @@ export function useReadingSession({
         window.removeEventListener(event, markInteraction);
       }
       if (token) {
-        const value = current.current;
-        void recordReadingActivity(
-          token,
-          false,
-          value.progress,
-          value.words,
-          value.pages,
-        ).finally(() => {
-          if (token) void endReadingSession(token);
-        });
+        void finishSession(token);
       }
     };
   }, [bookId]);

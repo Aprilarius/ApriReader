@@ -60,7 +60,10 @@ pub fn import_reader_font(
 
     file.rewind()?;
     let mut bytes = Vec::with_capacity(metadata.len() as usize);
-    file.read_to_end(&mut bytes)?;
+    file.take(MAX_FONT_BYTES + 1).read_to_end(&mut bytes)?;
+    if bytes.len() as u64 > MAX_FONT_BYTES {
+        return Err(FontImportError::InvalidSize);
+    }
     let digest = format!("{:x}", Sha256::digest(&bytes));
     fs::create_dir_all(destination_dir)?;
     let target = destination_dir.join(format!("{digest}.{extension}"));

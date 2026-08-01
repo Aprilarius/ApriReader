@@ -1,0 +1,212 @@
+@font-face {
+  font-family: "ApriReader Literata";
+  src: url("../assets/fonts/Literata-Variable.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 200 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "ApriReader Literata";
+  src: url("../assets/fonts/Literata-Italic-Variable.ttf") format("truetype");
+  font-style: italic;
+  font-weight: 200 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "ApriReader Lora";
+  src: url("../assets/fonts/Lora-Variable.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "ApriReader Lora";
+  src: url("../assets/fonts/Lora-Italic-Variable.ttf") format("truetype");
+  font-style: italic;
+  font-weight: 400 700;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "ApriReader Merriweather";
+  src: url("../assets/fonts/Merriweather-Variable.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 300 900;
+  font-stretch: 87% 112%;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "ApriReader Merriweather";
+  src: url("../assets/fonts/Merriweather-Italic-Variable.ttf")
+    format("truetype");
+  font-style: italic;
+  font-weight: 300 900;
+  font-stretch: 87% 112%;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "ApriReader Source Serif 4";
+  src: url("../assets/fonts/SourceSerif4-Variable.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 200 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "ApriReader Source Serif 4";
+  src: url("../assets/fonts/SourceSerif4-Italic-Variable.ttf")
+    format("truetype");
+  font-style: italic;
+  font-weight: 200 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "ApriReader Charis SIL";
+  src: url("../assets/fonts/CharisSIL-Regular.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "ApriReader Charis SIL";
+  src: url("../assets/fonts/CharisSIL-Italic.ttf") format("truetype");
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "ApriReader Charis SIL";
+  src: url("../assets/fonts/CharisSIL-Bold.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "ApriReader Charis SIL";
+  src: url("../assets/fonts/CharisSIL-BoldItalic.ttf") format("truetype");
+  font-style: italic;
+  font-weight: 700;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "ApriReader IBM Plex Serif";
+  src: url("../assets/fonts/IBMPlexSerif-Thin.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 100;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "ApriReader IBM Plex Serif";
+  src: url("../assets/fonts/IBMPlexSerif-ThinItalic.ttf") format("truetype");
+  font-style: italic;
+  font-weight: 100;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "ApriReader IBM Plex Serif";
+  src: url("../assets/fonts/IBMPlexSerif-ExtraLight.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 200;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "ApriReader IBM Plex Serif";
+  src: url("../assets/fonts/IBMPlexSerif-ExtraLightItalic.ttf")
+    format("truetype");
+  font-style: italic;
+  font-weight: 200;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "ApriReader IBM Plex Serif";
+  src: url("../assets/fonts/IBMPlexSerif-Light.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "ApriReader IBM Plex Serif";
+  src: url("../assets/fonts/IBMPlexSerif-LightItalic.ttf") format("truetype");
+  font-style: italic;
+  font-weight: 300;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "ApriReader IBM Plex Serif";
+  src: url("../assets/fonts/IBMPlexSerif-Regular.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "ApriReader IBM Plex Serif";
+  src: url("../assets/fonts/IBMPlexSerif-Italic.ttf") format("truetype");
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "ApriReader IBM Plex Serif";
+  src: url("../assets/fonts/IBMPlexSerif-Medium.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "ApriReader IBM Plex Serif";
+  src: url("../assets/fonts/IBMPlexSerif-MediumItalic.ttf") format("truetype");
+  font-style: italic;
+  font-weight: 500;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "ApriReader IBM Plex Serif";
+  src: url("../assets/fonts/IBMPlexSerif-SemiBold.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "ApriReader IBM Plex Serif";
+  src: url("../assets/fonts/IBMPlexSerif-SemiBoldItalic.ttf") format("truetype");
+  font-style: italic;
+  font-weight: 600;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "ApriReader IBM Plex Serif";
+  src: url("../assets/fonts/IBMPlexSerif-Bold.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "ApriReader IBM Plex Serif";
+  src: url("../assets/fonts/IBMPlexSerif-BoldItalic.ttf") format("truetype");
+  font-style: italic;
+  font-weight: 700;
+  font-display: swap;
+}

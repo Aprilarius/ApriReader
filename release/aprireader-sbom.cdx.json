@@ -1,13 +1,13 @@
 {
   "bomFormat": "CycloneDX",
   "specVersion": "1.5",
-  "serialNumber": "urn:uuid:eb3cfca2-5651-5337-adc3-e73650e7f1f7",
+  "serialNumber": "urn:uuid:bd77c277-79d4-57a6-8f67-996ee6bcb9b9",
   "version": 1,
   "metadata": {
     "component": {
       "type": "application",
       "name": "ApriReader",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "licenses": [
         {
           "license": {
@@ -19,7 +19,7 @@
     "properties": [
       {
         "name": "aprireader:lockfiles-sha256",
-        "value": "f91825c95e64acf14c9154534a4720883cd604cc2fb5fd54bb788c4b443262ff"
+        "value": "39e186f55a996cc0af8ee9f4e66b9f856b94e08dcb911636b901843353573872"
       },
       {
         "name": "aprireader:scope",
@@ -76,6 +76,76 @@
       "name": "anyhow",
       "version": "1.0.104",
       "purl": "pkg:cargo/anyhow@1.0.104"
+    },
+    {
+      "type": "library",
+      "group": "cargo",
+      "name": "async-broadcast",
+      "version": "0.7.2",
+      "purl": "pkg:cargo/async-broadcast@0.7.2"
+    },
+    {
+      "type": "library",
+      "group": "cargo",
+      "name": "async-channel",
+      "version": "2.5.0",
+      "purl": "pkg:cargo/async-channel@2.5.0"
+    },
+    {
+      "type": "library",
+      "group": "cargo",
+      "name": "async-executor",
+      "version": "1.14.0",
+      "purl": "pkg:cargo/async-executor@1.14.0"
+    },
+    {
+      "type": "library",
+      "group": "cargo",
+      "name": "async-io",
+      "version": "2.6.0",
+      "purl": "pkg:cargo/async-io@2.6.0"
+    },
+    {
+      "type": "library",
+      "group": "cargo",
+      "name": "async-lock",
+      "version": "3.4.2",
+      "purl": "pkg:cargo/async-lock@3.4.2"
+    },
+    {
+      "type": "library",
+      "group": "cargo",
+      "name": "async-process",
+      "version": "2.5.0",
+      "purl": "pkg:cargo/async-process@2.5.0"
+    },
+    {
+      "type": "library",
+      "group": "cargo",
+      "name": "async-recursion",
+      "version": "1.1.1",
+      "purl": "pkg:cargo/async-recursion@1.1.1"
+    },
+    {
+      "type": "library",
+      "group": "cargo",
+      "name": "async-signal",
+      "version": "0.2.14",
+      "purl": "pkg:cargo/async-signal@0.2.14"
+    },
+    {
+      "type": "library",
+      "group": "cargo",
+      "name": "async-task",
+      "version": "4.7.1",
+      "purl": "pkg:cargo/async-task@4.7.1"
+    },
+    {
+      "type": "library",
+      "group": "cargo",
+      "name": "async-trait",
+      "version": "0.1.91",
+      "purl": "pkg:cargo/async-trait@0.1.91"
     },
     {
       "type": "library",
@@ -167,6 +237,13 @@
       "name": "block2",
       "version": "0.6.2",
       "purl": "pkg:cargo/block2@0.6.2"
+    },
+    {
+      "type": "library",
+      "group": "cargo",
+      "name": "blocking",
+      "version": "1.6.2",
+      "purl": "pkg:cargo/blocking@1.6.2"
     },
     {
       "type": "library",
@@ -321,6 +398,13 @@
       "name": "combine",
       "version": "4.6.7",
       "purl": "pkg:cargo/combine@4.6.7"
+    },
+    {
+      "type": "library",
+      "group": "cargo",
+      "name": "concurrent-queue",
+      "version": "2.5.0",
+      "purl": "pkg:cargo/concurrent-queue@2.5.0"
     },
     {
       "type": "library",
@@ -654,6 +738,27 @@
     {
       "type": "library",
       "group": "cargo",
+      "name": "endi",
+      "version": "1.1.1",
+      "purl": "pkg:cargo/endi@1.1.1"
+    },
+    {
+      "type": "library",
+      "group": "cargo",
+      "name": "enumflags2",
+      "version": "0.7.12",
+      "purl": "pkg:cargo/enumflags2@0.7.12"
+    },
+    {
+      "type": "library",
+      "group": "cargo",
+      "name": "enumflags2_derive",
+      "version": "0.7.12",
+      "purl": "pkg:cargo/enumflags2_derive@0.7.12"
+    },
+    {
+      "type": "library",
+      "group": "cargo",
       "name": "equivalent",
       "version": "1.0.2",
       "purl": "pkg:cargo/equivalent@1.0.2"
@@ -671,6 +776,20 @@
       "name": "errno",
       "version": "0.3.14",
       "purl": "pkg:cargo/errno@0.3.14"
+    },
+    {
+      "type": "library",
+      "group": "cargo",
+      "name": "event-listener",
+      "version": "5.4.2",
+      "purl": "pkg:cargo/event-listener@5.4.2"
+    },
+    {
+      "type": "library",
+      "group": "cargo",
+      "name": "event-listener-strategy",
+      "version": "0.5.4",
+      "purl": "pkg:cargo/event-listener-strategy@0.5.4"
     },
     {
       "type": "library",
@@ -797,6 +916,13 @@
       "name": "futures-io",
       "version": "0.3.33",
       "purl": "pkg:cargo/futures-io@0.3.33"
+    },
+    {
+      "type": "library",
+      "group": "cargo",
+      "name": "futures-lite",
+      "version": "2.6.1",
+      "purl": "pkg:cargo/futures-lite@2.6.1"
     },
     {
       "type": "library",
@@ -1018,6 +1144,13 @@
     {
       "type": "library",
       "group": "cargo",
+      "name": "hermit-abi",
+      "version": "0.5.2",
+      "purl": "pkg:cargo/hermit-abi@0.5.2"
+    },
+    {
+      "type": "library",
+      "group": "cargo",
       "name": "hex",
       "version": "0.4.3",
       "purl": "pkg:cargo/hex@0.4.3"
@@ -1028,13 +1161,6 @@
       "name": "hmac",
       "version": "0.13.0",
       "purl": "pkg:cargo/hmac@0.13.0"
-    },
-    {
-      "type": "library",
-      "group": "cargo",
-      "name": "hmac-sha256",
-      "version": "1.1.14",
-      "purl": "pkg:cargo/hmac-sha256@1.1.14"
     },
     {
       "type": "library",
@@ -1228,6 +1354,20 @@
     {
       "type": "library",
       "group": "cargo",
+      "name": "is-docker",
+      "version": "0.2.0",
+      "purl": "pkg:cargo/is-docker@0.2.0"
+    },
+    {
+      "type": "library",
+      "group": "cargo",
+      "name": "is-wsl",
+      "version": "0.4.0",
+      "purl": "pkg:cargo/is-wsl@0.4.0"
+    },
+    {
+      "type": "library",
+      "group": "cargo",
       "name": "itoa",
       "version": "1.0.18",
       "purl": "pkg:cargo/itoa@1.0.18"
@@ -1389,23 +1529,9 @@
     {
       "type": "library",
       "group": "cargo",
-      "name": "lzma-rust2",
-      "version": "0.15.8",
-      "purl": "pkg:cargo/lzma-rust2@0.15.8"
-    },
-    {
-      "type": "library",
-      "group": "cargo",
       "name": "markup5ever",
       "version": "0.38.0",
       "purl": "pkg:cargo/markup5ever@0.38.0"
-    },
-    {
-      "type": "library",
-      "group": "cargo",
-      "name": "matrixmultiply",
-      "version": "0.3.11",
-      "purl": "pkg:cargo/matrixmultiply@0.3.11"
     },
     {
       "type": "library",
@@ -1452,13 +1578,6 @@
     {
       "type": "library",
       "group": "cargo",
-      "name": "ndarray",
-      "version": "0.17.2",
-      "purl": "pkg:cargo/ndarray@0.17.2"
-    },
-    {
-      "type": "library",
-      "group": "cargo",
       "name": "ndk",
       "version": "0.9.0",
       "purl": "pkg:cargo/ndk@0.9.0"
@@ -1480,23 +1599,9 @@
     {
       "type": "library",
       "group": "cargo",
-      "name": "num-complex",
-      "version": "0.4.6",
-      "purl": "pkg:cargo/num-complex@0.4.6"
-    },
-    {
-      "type": "library",
-      "group": "cargo",
       "name": "num-conv",
       "version": "0.2.2",
       "purl": "pkg:cargo/num-conv@0.2.2"
-    },
-    {
-      "type": "library",
-      "group": "cargo",
-      "name": "num-integer",
-      "version": "0.1.46",
-      "purl": "pkg:cargo/num-integer@0.1.46"
     },
     {
       "type": "library",
@@ -1648,6 +1753,13 @@
     {
       "type": "library",
       "group": "cargo",
+      "name": "open",
+      "version": "5.4.0",
+      "purl": "pkg:cargo/open@5.4.0"
+    },
+    {
+      "type": "library",
+      "group": "cargo",
       "name": "option-ext",
       "version": "0.2.0",
       "purl": "pkg:cargo/option-ext@0.2.0"
@@ -1655,16 +1767,9 @@
     {
       "type": "library",
       "group": "cargo",
-      "name": "ort",
-      "version": "2.0.0-rc.12",
-      "purl": "pkg:cargo/ort@2.0.0-rc.12"
-    },
-    {
-      "type": "library",
-      "group": "cargo",
-      "name": "ort-sys",
-      "version": "2.0.0-rc.12",
-      "purl": "pkg:cargo/ort-sys@2.0.0-rc.12"
+      "name": "ordered-stream",
+      "version": "0.2.0",
+      "purl": "pkg:cargo/ordered-stream@0.2.0"
     },
     {
       "type": "library",
@@ -1679,6 +1784,13 @@
       "name": "pango-sys",
       "version": "0.18.0",
       "purl": "pkg:cargo/pango-sys@0.18.0"
+    },
+    {
+      "type": "library",
+      "group": "cargo",
+      "name": "parking",
+      "version": "2.2.1",
+      "purl": "pkg:cargo/parking@2.2.1"
     },
     {
       "type": "library",
@@ -1746,6 +1858,13 @@
     {
       "type": "library",
       "group": "cargo",
+      "name": "piper",
+      "version": "0.2.5",
+      "purl": "pkg:cargo/piper@0.2.5"
+    },
+    {
+      "type": "library",
+      "group": "cargo",
       "name": "pkg-config",
       "version": "0.3.33",
       "purl": "pkg:cargo/pkg-config@0.3.33"
@@ -1774,16 +1893,9 @@
     {
       "type": "library",
       "group": "cargo",
-      "name": "portable-atomic",
-      "version": "1.14.0",
-      "purl": "pkg:cargo/portable-atomic@1.14.0"
-    },
-    {
-      "type": "library",
-      "group": "cargo",
-      "name": "portable-atomic-util",
-      "version": "0.2.7",
-      "purl": "pkg:cargo/portable-atomic-util@0.2.7"
+      "name": "polling",
+      "version": "3.11.0",
+      "purl": "pkg:cargo/polling@3.11.0"
     },
     {
       "type": "library",
@@ -1889,13 +2001,6 @@
       "name": "raw-window-handle",
       "version": "0.6.2",
       "purl": "pkg:cargo/raw-window-handle@0.6.2"
-    },
-    {
-      "type": "library",
-      "group": "cargo",
-      "name": "rawpointer",
-      "version": "0.2.1",
-      "purl": "pkg:cargo/rawpointer@0.2.1"
     },
     {
       "type": "library",
@@ -2208,6 +2313,13 @@
     {
       "type": "library",
       "group": "cargo",
+      "name": "signal-hook-registry",
+      "version": "1.4.8",
+      "purl": "pkg:cargo/signal-hook-registry@1.4.8"
+    },
+    {
+      "type": "library",
+      "group": "cargo",
       "name": "simd-adler32",
       "version": "0.3.10",
       "purl": "pkg:cargo/simd-adler32@0.3.10"
@@ -2239,13 +2351,6 @@
       "name": "socket2",
       "version": "0.6.5",
       "purl": "pkg:cargo/socket2@0.6.5"
-    },
-    {
-      "type": "library",
-      "group": "cargo",
-      "name": "socks",
-      "version": "0.3.4",
-      "purl": "pkg:cargo/socks@0.3.4"
     },
     {
       "type": "library",
@@ -2421,6 +2526,20 @@
       "name": "tauri-plugin-fs",
       "version": "2.5.1",
       "purl": "pkg:cargo/tauri-plugin-fs@2.5.1"
+    },
+    {
+      "type": "library",
+      "group": "cargo",
+      "name": "tauri-plugin-opener",
+      "version": "2.5.4",
+      "purl": "pkg:cargo/tauri-plugin-opener@2.5.4"
+    },
+    {
+      "type": "library",
+      "group": "cargo",
+      "name": "tauri-plugin-single-instance",
+      "version": "2.4.3",
+      "purl": "pkg:cargo/tauri-plugin-single-instance@2.4.3"
     },
     {
       "type": "library",
@@ -2663,6 +2782,13 @@
     {
       "type": "library",
       "group": "cargo",
+      "name": "tracing-attributes",
+      "version": "0.1.31",
+      "purl": "pkg:cargo/tracing-attributes@0.1.31"
+    },
+    {
+      "type": "library",
+      "group": "cargo",
       "name": "tracing-core",
       "version": "0.1.36",
       "purl": "pkg:cargo/tracing-core@0.1.36"
@@ -2701,6 +2827,13 @@
       "name": "typenum",
       "version": "1.20.1",
       "purl": "pkg:cargo/typenum@1.20.1"
+    },
+    {
+      "type": "library",
+      "group": "cargo",
+      "name": "uds_windows",
+      "version": "1.2.1",
+      "purl": "pkg:cargo/uds_windows@1.2.1"
     },
     {
       "type": "library",
@@ -3412,6 +3545,27 @@
     {
       "type": "library",
       "group": "cargo",
+      "name": "zbus",
+      "version": "5.18.0",
+      "purl": "pkg:cargo/zbus@5.18.0"
+    },
+    {
+      "type": "library",
+      "group": "cargo",
+      "name": "zbus_macros",
+      "version": "5.18.0",
+      "purl": "pkg:cargo/zbus_macros@5.18.0"
+    },
+    {
+      "type": "library",
+      "group": "cargo",
+      "name": "zbus_names",
+      "version": "4.3.4",
+      "purl": "pkg:cargo/zbus_names@4.3.4"
+    },
+    {
+      "type": "library",
+      "group": "cargo",
       "name": "zerofrom",
       "version": "0.1.8",
       "purl": "pkg:cargo/zerofrom@0.1.8"
@@ -3485,6 +3639,27 @@
       "name": "zopfli",
       "version": "0.8.3",
       "purl": "pkg:cargo/zopfli@0.8.3"
+    },
+    {
+      "type": "library",
+      "group": "cargo",
+      "name": "zvariant",
+      "version": "5.13.1",
+      "purl": "pkg:cargo/zvariant@5.13.1"
+    },
+    {
+      "type": "library",
+      "group": "cargo",
+      "name": "zvariant_derive",
+      "version": "5.13.1",
+      "purl": "pkg:cargo/zvariant_derive@5.13.1"
+    },
+    {
+      "type": "library",
+      "group": "cargo",
+      "name": "zvariant_utils",
+      "version": "3.5.0",
+      "purl": "pkg:cargo/zvariant_utils@3.5.0"
     },
     {
       "type": "library",
@@ -4381,6 +4556,13 @@
       "name": "@tauri-apps/plugin-dialog",
       "version": "2.7.2",
       "purl": "pkg:npm/%40tauri-apps/plugin-dialog@2.7.2"
+    },
+    {
+      "type": "library",
+      "group": "npm",
+      "name": "@tauri-apps/plugin-opener",
+      "version": "2.5.4",
+      "purl": "pkg:npm/%40tauri-apps/plugin-opener@2.5.4"
     },
     {
       "type": "library",

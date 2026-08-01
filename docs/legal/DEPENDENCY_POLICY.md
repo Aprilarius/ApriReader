@@ -46,16 +46,12 @@ or unrestricted network endpoint is included.
 No Steamworks SDK, telemetry, catalog, TTS engine, model, generated cover, font,
 or media binary is included.
 
-Stage 6 adds:
-
-- `ort` — MIT OR Apache-2.0, compiled with `std` and the ONNX Runtime 1.24 API
-  contract. Its verified CPU runtime is bundled by the dependency build; user
-  packages cannot supply native libraries.
-
-Imported language packages accept only MIT, Apache-2.0, BSD-2-Clause,
-BSD-3-Clause, ISC, or Zlib SPDX identifiers. The user-provided package must
-include source URL and attribution. ApriReader does not redistribute imported
-payloads.
+External translation adds `@tauri-apps/plugin-opener` and
+`tauri-plugin-opener` — MIT OR Apache-2.0. Their sole reviewed use is opening
+fixed HTTPS URLs for Google Translate and Yandex Translate after an explicit
+selection action and first-use disclosure. The capability scope permits no
+other URL host. ApriReader bundles no translation model, language package, or
+external-service code.
 
 Stage 8 adds no dependency. The public build does not link or redistribute the
 Steamworks SDK. `steam-build` is an empty compile-time feature that enables an
@@ -63,20 +59,35 @@ adapter for a separately supplied protected bridge ABI. The following files
 must never be committed: `aprireader_steam_bridge.dll`, `steam_api64.dll`,
 `steam_appid.txt`, App IDs, publisher keys, or Steamworks headers/libraries.
 
-Stage 9 adds no runtime or build dependency. The reviewed direct dependency set
-is enforced by `scripts/release_audit.py`, and the exact Cargo/pnpm lockfile
-inventory is stored as `release/aprireader-sbom.cdx.json`. A changed manifest
-or lockfile requires regenerating the SBOM and repeating the license review
-before a candidate may be distributed.
+Windows file-association support adds `tauri-plugin-single-instance` —
+MIT OR Apache-2.0. It forwards Windows shell activation arguments to the
+existing process and adds no network, file parsing, registry-writing, or
+telemetry capability. Installer-owned associations use Tauri's existing
+bundler.
+
+Stage 9 otherwise adds no runtime or build dependency. The reviewed direct
+dependency set is enforced by `scripts/release_audit.py`, and the exact
+Cargo/pnpm lockfile inventory is stored as
+`release/aprireader-sbom.cdx.json`. A changed manifest or lockfile requires
+regenerating the SBOM and repeating the license review before a candidate may
+be distributed.
+
+The optional local profile and first-launch welcome screen add no dependency.
+They use React and app-local WebView storage already present in ApriReader and
+perform no operating-system identity lookup or network request.
 
 The NSIS candidate is produced by Tauri's existing bundler and adds no package
 dependency. Its evidence folder includes the Apache-2.0 license, notices, and
 current SBOM. Code signing remains an external release credential and is never
 stored in the public repository.
 
-Reader polish adds no dependency and bundles no additional font. A font chosen
-by the user is private local content, is never redistributed by ApriReader, and
-is copied only after the documented format, signature, and size checks.
+Reader polish adds no executable dependency. ApriReader bundles Literata, Lora,
+Merriweather, Source Serif 4, Charis SIL, and IBM Plex Serif under the SIL Open
+Font License 1.1. Only the reviewed variable or static faces required by the
+family/style/weight selectors are packaged, and every complete OFL text ships
+under `licenses/fonts`. A font chosen by the user remains private local content,
+is never redistributed by ApriReader, and is copied only after the documented
+format, signature, and size checks.
 
 Genre metadata and the expanded achievement registry add no dependency.
 Parsing uses the existing bounded XML and JSON adapters, and all genre values

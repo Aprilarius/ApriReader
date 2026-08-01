@@ -4,8 +4,8 @@ This deterministic report covers the installed production npm dependency
 graph and the locked Cargo dependency graph used to build ApriReader.
 Absolute local paths are intentionally omitted.
 
-- Components: 307
-- Unique license or notice texts: 180
+- Components: 302
+- Unique license or notice texts: 177
 - Components without a packaged license file: 9
 
 ## Component inventory
@@ -97,7 +97,6 @@ Absolute local paths are intentionally omitted.
 | `cargo:hashlink@0.10.0` | MIT OR Apache-2.0 | kyren <kerriganw@gmail.com> | https://github.com/kyren/hashlink |
 | `cargo:heck@0.5.0` | MIT OR Apache-2.0 |  | https://github.com/withoutboats/heck |
 | `cargo:hmac@0.13.0` | MIT OR Apache-2.0 | RustCrypto Developers | https://github.com/RustCrypto/MACs |
-| `cargo:hmac-sha256@1.1.14` | ISC | Frank Denis <github@pureftpd.org> | https://github.com/jedisct1/rust-hmac-sha256 |
 | `cargo:html5ever@0.38.0` | MIT OR Apache-2.0 | The html5ever Project Developers | https://github.com/servo/html5ever |
 | `cargo:http@1.4.2` | MIT OR Apache-2.0 | Alex Crichton <alex@alexcrichton.com>, Carl Lerche <me@carllerche.com>, Sean McArthur <sean@seanmonstar.com> | https://github.com/hyperium/http |
 | `cargo:http-range@0.1.5` | MIT | Luka Zakrajšek <luka@bancek.net> | https://github.com/bancek/rust-http-range.git |
@@ -127,23 +126,17 @@ Absolute local paths are intentionally omitted.
 | `cargo:litemap@0.8.2` | Unicode-3.0 | The ICU4X Project Developers | https://github.com/unicode-org/icu4x |
 | `cargo:lock_api@0.4.14` | MIT OR Apache-2.0 | Amanieu d'Antras <amanieu@gmail.com> | https://github.com/Amanieu/parking_lot |
 | `cargo:log@0.4.33` | MIT OR Apache-2.0 | The Rust Project Developers | https://github.com/rust-lang/log |
-| `cargo:lzma-rust2@0.15.8` | Apache-2.0 |  | https://github.com/hasenbanck/lzma-rust2/ |
 | `cargo:markup5ever@0.38.0` | MIT OR Apache-2.0 | The html5ever Project Developers | https://github.com/servo/html5ever |
-| `cargo:matrixmultiply@0.3.11` | MIT/Apache-2.0 | bluss, R. Janis Goldschmidt | https://github.com/bluss/matrixmultiply/ |
 | `cargo:memchr@2.8.3` | Unlicense OR MIT | Andrew Gallant <jamslam@gmail.com>, bluss | https://github.com/BurntSushi/memchr |
 | `cargo:mime@0.3.17` | MIT OR Apache-2.0 | Sean McArthur <sean@seanmonstar.com> | https://github.com/hyperium/mime |
 | `cargo:miniz_oxide@0.8.9` | MIT OR Zlib OR Apache-2.0 | Frommi <daniil.liferenko@gmail.com>, oyvindln <oyvindln@users.noreply.github.com>, Rich Geldreich richgel99@gmail.com | https://github.com/Frommi/miniz_oxide/tree/master/miniz_oxide |
+| `cargo:mio@1.2.2` | MIT | Carl Lerche <me@carllerche.com>, Thomas de Zeeuw <thomasdezeeuw@gmail.com>, Tokio Contributors <team@tokio.rs> | https://github.com/tokio-rs/mio |
 | `cargo:muda@0.19.3` | Apache-2.0 OR MIT |  | https://github.com/tauri-apps/muda |
-| `cargo:ndarray@0.17.2` | MIT OR Apache-2.0 | Ulrik Sverdrup "bluss", Jim Turner | https://github.com/rust-ndarray/ndarray |
 | `cargo:new_debug_unreachable@1.0.6` | MIT | Matt Brubeck <mbrubeck@limpet.net>, Jonathan Reem <jonathan.reem@gmail.com> | https://github.com/mbrubeck/rust-debug-unreachable |
-| `cargo:num-complex@0.4.6` | MIT OR Apache-2.0 | The Rust Project Developers | https://github.com/rust-num/num-complex |
 | `cargo:num-conv@0.2.2` | MIT OR Apache-2.0 | Jacob Pratt <jacob@jhpratt.dev> | https://github.com/jhpratt/num-conv |
-| `cargo:num-integer@0.1.46` | MIT OR Apache-2.0 | The Rust Project Developers | https://github.com/rust-num/num-integer |
-| `cargo:num-traits@0.2.19` | MIT OR Apache-2.0 | The Rust Project Developers | https://github.com/rust-num/num-traits |
 | `cargo:once_cell@1.21.4` | MIT OR Apache-2.0 | Aleksey Kladov <aleksey.kladov@gmail.com> | https://github.com/matklad/once_cell |
+| `cargo:open@5.4.0` | MIT | Sebastian Thiel <byronimo@gmail.com> | https://github.com/Byron/open-rs |
 | `cargo:option-ext@0.2.0` | MPL-2.0 | Simon Ochsenreither <simon@ochsenreither.de> | https://github.com/soc/option-ext |
-| `cargo:ort@2.0.0-rc.12` | MIT OR Apache-2.0 | pyke.io <contact@pyke.io>, Nicolas Bigaouette <nbigaouette@gmail.com> | https://ort.pyke.io/ |
-| `cargo:ort-sys@2.0.0-rc.12` | MIT OR Apache-2.0 | pyke.io <contact@pyke.io> | https://ort.pyke.io/ |
 | `cargo:parking_lot@0.12.5` | MIT OR Apache-2.0 | Amanieu d'Antras <amanieu@gmail.com> | https://github.com/Amanieu/parking_lot |
 | `cargo:parking_lot_core@0.9.12` | MIT OR Apache-2.0 | Amanieu d'Antras <amanieu@gmail.com> | https://github.com/Amanieu/parking_lot |
 | `cargo:percent-encoding@2.3.2` | MIT OR Apache-2.0 | The rust-url developers | https://github.com/servo/rust-url/ |
@@ -164,7 +157,6 @@ Absolute local paths are intentionally omitted.
 | `cargo:quote@1.0.47` | MIT OR Apache-2.0 | David Tolnay <dtolnay@gmail.com> | https://github.com/dtolnay/quote |
 | `cargo:rars@0.4.7` | MIT OR Apache-2.0 |  | https://github.com/bitplane/rars |
 | `cargo:raw-window-handle@0.6.2` | MIT OR Apache-2.0 OR Zlib | Osspial <osspial@gmail.com> | https://github.com/rust-windowing/raw-window-handle |
-| `cargo:rawpointer@0.2.1` | MIT/Apache-2.0 | bluss | https://github.com/bluss/rawpointer/ |
 | `cargo:regex@1.13.1` | MIT OR Apache-2.0 | The Rust Project Developers, Andrew Gallant <jamslam@gmail.com> | https://github.com/rust-lang/regex |
 | `cargo:regex-automata@0.4.16` | MIT OR Apache-2.0 | The Rust Project Developers, Andrew Gallant <jamslam@gmail.com> | https://github.com/rust-lang/regex/tree/master/regex-automata |
 | `cargo:regex-syntax@0.8.11` | MIT OR Apache-2.0 | The Rust Project Developers, Andrew Gallant <jamslam@gmail.com> | https://github.com/rust-lang/regex/tree/master/regex-syntax |
@@ -202,7 +194,7 @@ Absolute local paths are intentionally omitted.
 | `cargo:simd-adler32@0.3.10` | MIT | Marvin Countryman <me@maar.vin> | https://github.com/mcountryman/simd-adler32 |
 | `cargo:siphasher@1.0.3` | MIT/Apache-2.0 | Frank Denis <github@pureftpd.org> | https://docs.rs/siphasher |
 | `cargo:smallvec@1.15.2` | MIT OR Apache-2.0 | The Servo Project Developers | https://github.com/servo/rust-smallvec |
-| `cargo:socks@0.3.4` | MIT/Apache-2.0 | Steven Fackler <sfackler@gmail.com> | https://github.com/sfackler/rust-socks |
+| `cargo:socket2@0.6.5` | MIT OR Apache-2.0 | Alex Crichton <alex@alexcrichton.com>, Thomas de Zeeuw <thomasdezeeuw@gmail.com> | https://github.com/rust-lang/socket2 |
 | `cargo:softbuffer@0.4.8` | MIT OR Apache-2.0 |  | https://github.com/rust-windowing/softbuffer |
 | `cargo:stable_deref_trait@1.2.1` | MIT OR Apache-2.0 | Robert Grosse <n210241048576@gmail.com> | https://github.com/storyyeller/stable_deref_trait |
 | `cargo:string_cache@0.9.0` | MIT OR Apache-2.0 | The Servo Project Developers | https://github.com/servo/string-cache |
@@ -220,6 +212,8 @@ Absolute local paths are intentionally omitted.
 | `cargo:tauri-plugin@2.6.3` | Apache-2.0 OR MIT | Tauri Programme within The Commons Conservancy | https://tauri.app/ |
 | `cargo:tauri-plugin-dialog@2.7.2` | Apache-2.0 OR MIT | Tauri Programme within The Commons Conservancy | https://github.com/tauri-apps/plugins-workspace |
 | `cargo:tauri-plugin-fs@2.5.1` | Apache-2.0 OR MIT | Tauri Programme within The Commons Conservancy | https://github.com/tauri-apps/plugins-workspace |
+| `cargo:tauri-plugin-opener@2.5.4` | Apache-2.0 OR MIT | Tauri Programme within The Commons Conservancy | https://github.com/tauri-apps/plugins-workspace |
+| `cargo:tauri-plugin-single-instance@2.4.3` | Apache-2.0 OR MIT | Tauri Programme within The Commons Conservancy | https://github.com/tauri-apps/plugins-workspace |
 | `cargo:tauri-runtime@2.11.3` | Apache-2.0 OR MIT | Tauri Programme within The Commons Conservancy | https://tauri.app/ |
 | `cargo:tauri-runtime-wry@2.11.4` | Apache-2.0 OR MIT | Tauri Programme within The Commons Conservancy | https://tauri.app/ |
 | `cargo:tauri-utils@2.9.3` | Apache-2.0 OR MIT | Tauri Programme within The Commons Conservancy | https://tauri.app/ |
@@ -241,6 +235,7 @@ Absolute local paths are intentionally omitted.
 | `cargo:toml_parser@1.1.3+spec-1.1.0` | MIT OR Apache-2.0 |  | https://github.com/toml-rs/toml |
 | `cargo:toml_writer@1.1.2+spec-1.1.0` | MIT OR Apache-2.0 |  | https://github.com/toml-rs/toml |
 | `cargo:tracing@0.1.44` | MIT | Eliza Weisman <eliza@buoyant.io>, Tokio Contributors <team@tokio.rs> | https://tokio.rs |
+| `cargo:tracing-attributes@0.1.31` | MIT | Tokio Contributors <team@tokio.rs>, Eliza Weisman <eliza@buoyant.io>, David Barsky <dbarsky@amazon.com> | https://tokio.rs |
 | `cargo:tracing-core@0.1.36` | MIT | Tokio Contributors <team@tokio.rs> | https://tokio.rs |
 | `cargo:typed-path@0.12.3` | MIT OR Apache-2.0 | Chip Senkbeil <chip@senkbeil.org> | https://github.com/chipsenkbeil/typed-path |
 | `cargo:typeid@1.0.3` | MIT OR Apache-2.0 | David Tolnay <dtolnay@gmail.com> | https://github.com/dtolnay/typeid |
@@ -270,7 +265,6 @@ Absolute local paths are intentionally omitted.
 | `cargo:webview2-com@0.38.2` | MIT |  | https://github.com/wravery/webview2-rs |
 | `cargo:webview2-com-macros@0.8.1` | MIT |  | https://github.com/wravery/webview2-rs |
 | `cargo:webview2-com-sys@0.38.2` | MIT |  | https://github.com/wravery/webview2-rs |
-| `cargo:winapi@0.3.9` | MIT/Apache-2.0 | Peter Atashian <retep998@gmail.com> | https://github.com/retep998/winapi-rs |
 | `cargo:winapi-util@0.1.11` | Unlicense OR MIT | Andrew Gallant <jamslam@gmail.com> | https://github.com/BurntSushi/winapi-util |
 | `cargo:window-vibrancy@0.6.0` | Apache-2.0 OR MIT | Tauri Programme within The Commons Conservancy | https://github.com/tauri-apps/tauri-plugin-vibrancy |
 | `cargo:windows@0.61.3` | MIT OR Apache-2.0 | Microsoft | https://github.com/microsoft/windows-rs |
@@ -315,6 +309,7 @@ Absolute local paths are intentionally omitted.
 | `npm:@napi-rs/canvas-win32-x64-msvc@0.1.100` | MIT |  | https://github.com/Brooooooklyn/canvas#readme |
 | `npm:@tauri-apps/api@2.8.0` | Apache-2.0 OR MIT |  | https://github.com/tauri-apps/tauri#readme |
 | `npm:@tauri-apps/plugin-dialog@2.7.2` | MIT OR Apache-2.0 |  | https://github.com/tauri-apps/plugins-workspace#readme |
+| `npm:@tauri-apps/plugin-opener@2.5.4` | MIT OR Apache-2.0 |  | https://github.com/tauri-apps/plugins-workspace#readme |
 | `npm:pdfjs-dist@5.7.284` | Apache-2.0 |  | https://mozilla.github.io/pdf.js/ |
 | `npm:react@19.1.1` | MIT |  | https://react.dev/ |
 | `npm:react-dom@19.1.1` | MIT |  | https://react.dev/ |
@@ -605,9 +600,6 @@ Applies to:
 - `cargo:bitflags@2.13.1`
 - `cargo:glob@0.3.4`
 - `cargo:log@0.4.33`
-- `cargo:num-complex@0.4.6`
-- `cargo:num-integer@0.1.46`
-- `cargo:num-traits@0.2.19`
 - `cargo:regex-automata@0.4.16`
 - `cargo:regex-syntax@0.8.11`
 - `cargo:regex@1.13.1`
@@ -1420,16 +1412,13 @@ Creator: Person: Daniel Thompson-Yvetot
 
 ### SHA-256 `283EA6CC2997A1A70DA0049E09ADF9317BB60CA1B51279B65196B83A69E1996B`
 
-Files: `LICENSE`, `LICENSE-APACHE`
+Files: `LICENSE-APACHE`
 
 Applies to:
 
 - `cargo:cmov@0.5.4`
 - `cargo:ctutils@0.4.2`
 - `cargo:encoding_rs@0.8.35`
-- `cargo:lzma-rust2@0.15.8`
-- `cargo:ort-sys@2.0.0-rc.12`
-- `cargo:ort@2.0.0-rc.12`
 - `cargo:serialize-to-javascript-impl@0.1.2`
 - `cargo:serialize-to-javascript@0.1.2`
 - `cargo:ureq@3.3.0`
@@ -1766,36 +1755,6 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
-```
-
-### SHA-256 `2D01145596179AB6C55EADE02EE8AD2C2172DE88F2232625A00F17BB254B8C3A`
-
-Files: `LICENSE-MIT`
-
-Applies to:
-
-- `cargo:winapi@0.3.9`
-
-```text
-Copyright (c) 2015-2018 The winapi-rs Developers
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
 ```
 
 ### SHA-256 `2FF0B8901359CE9BB419096F7761F0AC53B4C0F90755901161DC2CDDDC8A7671`
@@ -2629,44 +2588,6 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-```
-
-### SHA-256 `4592FDB8AC55589FB8E47EF7B772C8987A16992FBB778047897C71FE9C0FBC61`
-
-Files: `LICENSE-MIT`
-
-Applies to:
-
-- `cargo:ndarray@0.17.2`
-
-```text
-Copyright (c) 2015 - 2021 Ulrik Sverdrup "bluss",
-			  Jim Turner,
-			  and ndarray developers
-
-Permission is hereby granted, free of charge, to any
-person obtaining a copy of this software and associated
-documentation files (the "Software"), to deal in the
-Software without restriction, including without
-limitation the rights to use, copy, modify, merge,
-publish, distribute, sublicense, and/or sell copies of
-the Software, and to permit persons to whom the Software
-is furnished to do so, subject to the following
-conditions:
-
-The above copyright notice and this permission notice
-shall be included in all copies or substantial portions
-of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
-ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
-TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
-PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
-SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
-IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-DEALINGS IN THE SOFTWARE.
 ```
 
 ### SHA-256 `473867FCF89F75954018EE72124015779A1B9CA0D1A33328F2DDCF538690C067`
@@ -3672,6 +3593,8 @@ Applies to:
 - `cargo:tauri-macros@2.6.3`
 - `cargo:tauri-plugin-dialog@2.7.2`
 - `cargo:tauri-plugin-fs@2.5.1`
+- `cargo:tauri-plugin-opener@2.5.4`
+- `cargo:tauri-plugin-single-instance@2.4.3`
 - `cargo:tauri-plugin@2.6.3`
 - `cargo:tauri-runtime-wry@2.11.4`
 - `cargo:tauri-runtime@2.11.3`
@@ -4798,32 +4721,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ```
 
-### SHA-256 `6781F9695963130F7C955DA55A3779134AD61038E88D8207774363F4A8FA2EBF`
-
-Files: `LICENSE`
-
-Applies to:
-
-- `cargo:hmac-sha256@1.1.14`
-
-```text
-ISC License
-
-Copyright (c) 2019-2026, Frank Denis.
-
-Permission to use, copy, modify, and/or distribute this software for any
-purpose with or without fee is hereby granted, provided that the above
-copyright notice and this permission notice appear in all copies.
-
-THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
-WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
-MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
-ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
-WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
-ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
-OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
-```
-
 ### SHA-256 `692B1604961DD580CFCDE8CC33D2C587F5F6349B00C449662194FB1586E850C5`
 
 Files: `LICENSE-MIT`
@@ -5128,7 +5025,6 @@ Applies to:
 - `cargo:fallible-streaming-iterator@0.1.9`
 - `cargo:json-patch@3.0.1`
 - `cargo:serde_spanned@1.1.1`
-- `cargo:socks@0.3.4`
 - `cargo:tao@0.35.3`
 - `cargo:toml@0.9.12+spec-1.1.0`
 - `cargo:toml@1.1.3+spec-1.1.0`
@@ -5136,7 +5032,6 @@ Applies to:
 - `cargo:toml_datetime@1.1.1+spec-1.1.0`
 - `cargo:toml_parser@1.1.3+spec-1.1.0`
 - `cargo:toml_writer@1.1.2+spec-1.1.0`
-- `cargo:winapi@0.3.9`
 
 ```text
 Apache License
@@ -6555,6 +6450,7 @@ Applies to:
 - `cargo:cfg-if@1.0.4`
 - `cargo:find-msvc-tools@0.1.9`
 - `cargo:pkg-config@0.3.33`
+- `cargo:socket2@0.6.5`
 
 ```text
 Copyright (c) 2014 Alex Crichton
@@ -7560,6 +7456,7 @@ Applies to:
 - `cargo:tauri-macros@2.6.3`
 - `cargo:tauri-plugin-dialog@2.7.2`
 - `cargo:tauri-plugin-fs@2.5.1`
+- `cargo:tauri-plugin-opener@2.5.4`
 - `cargo:tauri-plugin@2.6.3`
 - `cargo:tauri-runtime-wry@2.11.4`
 - `cargo:tauri-runtime@2.11.3`
@@ -7777,20 +7674,14 @@ Applies to:
 - `cargo:lock_api@0.4.14`
 - `cargo:log@0.4.33`
 - `cargo:markup5ever@0.38.0`
-- `cargo:matrixmultiply@0.3.11`
 - `cargo:mime@0.3.17`
 - `cargo:muda@0.19.3`
-- `cargo:ndarray@0.17.2`
-- `cargo:num-complex@0.4.6`
-- `cargo:num-integer@0.1.46`
-- `cargo:num-traits@0.2.19`
 - `cargo:once_cell@1.21.4`
 - `cargo:parking_lot@0.12.5`
 - `cargo:parking_lot_core@0.9.12`
 - `cargo:percent-encoding@2.3.2`
 - `cargo:pkg-config@0.3.33`
 - `cargo:png@0.17.16`
-- `cargo:rawpointer@0.2.1`
 - `cargo:regex-automata@0.4.16`
 - `cargo:regex-syntax@0.8.11`
 - `cargo:regex@1.13.1`
@@ -7802,6 +7693,7 @@ Applies to:
 - `cargo:serde_with_macros@3.21.0`
 - `cargo:servo_arc@0.4.3`
 - `cargo:smallvec@1.15.2`
+- `cargo:socket2@0.6.5`
 - `cargo:stable_deref_trait@1.2.1`
 - `cargo:string_cache@0.9.0`
 - `cargo:string_cache_codegen@0.6.1`
@@ -8600,40 +8492,6 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
-### SHA-256 `B2653ABD3FA13FFAB682A75B4EB3400AFBC313F55241D8C0A13737B8C3287AC1`
-
-Files: `LICENSE-MIT`
-
-Applies to:
-
-- `cargo:ort-sys@2.0.0-rc.12`
-- `cargo:ort@2.0.0-rc.12`
-
-```text
-MIT License
-
-Copyright (c) 2023-2026 pyke.io
-Copyright (c) 2020 Nicolas Bigaouette
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-```
-
 ### SHA-256 `B46700117441967DCCAA4F348E7D774953A3863861EFE1FE86F5AF8AD73FA1BE`
 
 Files: `LICENSE-MIT`
@@ -8876,6 +8734,38 @@ Apache License
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
+```
+
+### SHA-256 `B7F455413BFE5F9D7DA501A4468D4C5F866A432C325947E98CC9535E8B26CD6D`
+
+Files: `LICENSE_MIT`
+
+Applies to:
+
+- `cargo:tauri-plugin-single-instance@2.4.3`
+
+```text
+MIT License
+
+Copyright (c) 2017 - Present The Tauri Programme in the Commons Conservancy
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 ```
 
 ### SHA-256 `B969AB4BE2F63A5D3CA347EBFEF198A59EF386D94FF2E32756FC544FE7D9BC11`
@@ -9153,44 +9043,6 @@ PackageDownloadLocation: git+ssh://github.com/tauri-apps/muda.git
 Creator: Person: Daniel Thompson-Yvetot
 ```
 
-### SHA-256 `BA688422EEC320F9C4EFAE1A8FD54216DC2A0C077B8FF5B2A259912C8BC6C456`
-
-Files: `LICENSE-MIT`
-
-Applies to:
-
-- `cargo:matrixmultiply@0.3.11`
-
-```text
-Copyright (c) 2016 - 2023 Ulrik Sverdrup "bluss"
-Copyirhgt (c) 2018 R. Janis Goldschmidt
-Copyright (c) 2021 DutchGhost [constparse.rs]
-
-Permission is hereby granted, free of charge, to any
-person obtaining a copy of this software and associated
-documentation files (the "Software"), to deal in the
-Software without restriction, including without
-limitation the rights to use, copy, modify, merge,
-publish, distribute, sublicense, and/or sell copies of
-the Software, and to permit persons to whom the Software
-is furnished to do so, subject to the following
-conditions:
-
-The above copyright notice and this permission notice
-shall be included in all copies or substantial portions
-of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
-ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
-TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
-PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
-SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
-IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-DEALINGS IN THE SOFTWARE.
-```
-
 ### SHA-256 `BB8278137F730FD0445C79E2144DF32B6A4A8226EC01194A50A7DED93A070A2D`
 
 Files: `LICENSE.spdx`
@@ -9262,6 +9114,7 @@ Files: `LICENSE`
 
 Applies to:
 
+- `cargo:tracing-attributes@0.1.31`
 - `cargo:tracing-core@0.1.36`
 - `cargo:tracing@0.1.44`
 
@@ -9291,6 +9144,42 @@ CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
+```
+
+### SHA-256 `C3CA23514163A6FE592466D3A6C4DD28BA8998DC1F012916EBF64BDB7764C1D4`
+
+Files: `LICENSE.md`
+
+Applies to:
+
+- `cargo:open@5.4.0`
+
+```text
+The MIT License (MIT)
+=====================
+
+Copyright © `2015` `Sebastian Thiel`
+
+Permission is hereby granted, free of charge, to any person
+obtaining a copy of this software and associated documentation
+files (the “Software”), to deal in the Software without
+restriction, including without limitation the rights to use,
+copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the
+Software is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+OTHER DEALINGS IN THE SOFTWARE.
 ```
 
 ### SHA-256 `C48B7333C00B9776F5571ECAAABF73B9A5343B049BDAD89ED05894B45CDC7CC5`
@@ -9395,6 +9284,36 @@ CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
+```
+
+### SHA-256 `C804065B0956D00A65CE119456EC48EE456F5446B904B07EE85225BA5A88CE41`
+
+Files: `LICENSE`
+
+Applies to:
+
+- `cargo:mio@1.2.2`
+
+```text
+Copyright (c) 2014 Carl Lerche and other MIO contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
 ```
 
 ### SHA-256 `C859D211879E327DDAF0D0956E4E4E09B0C18BDBD895B033D5BE627F0AF3B64F`
@@ -9821,36 +9740,6 @@ SPDX-License-Identifier: Unicode-3.0
 
 Portions of ICU4X may have been adapted from ICU4C and/or ICU4J.
 ICU 1.8.1 to ICU 57.1 © 1995-2016 International Business Machines Corporation and others.
-```
-
-### SHA-256 `CED1357FD5945152C9428CCB214D5A5C7B206FF2B511872A2B855C2AB41EB0D7`
-
-Files: `LICENSE-MIT`
-
-Applies to:
-
-- `cargo:socks@0.3.4`
-
-```text
-Copyright (c) 2015 The rust-socks Developers
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
 ```
 
 ### SHA-256 `CF9B17822D1FCD4FF32CCBE14183386FB3ADF6F2FF92DC184130823F7FC28173`
@@ -11351,7 +11240,10 @@ Applies to:
 
 - `cargo:tauri-plugin-dialog@2.7.2`
 - `cargo:tauri-plugin-fs@2.5.1`
+- `cargo:tauri-plugin-opener@2.5.4`
+- `cargo:tauri-plugin-single-instance@2.4.3`
 - `npm:@tauri-apps/plugin-dialog@2.7.2`
+- `npm:@tauri-apps/plugin-opener@2.5.4`
 
 ```text
 SPDXVersion: SPDX-2.1
@@ -11846,7 +11738,6 @@ Files: `LICENSE-MIT`
 
 Applies to:
 
-- `cargo:rawpointer@0.2.1`
 - `cargo:serde_with@3.21.0`
 - `cargo:serde_with_macros@3.21.0`
 

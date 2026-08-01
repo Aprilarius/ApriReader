@@ -1,17 +1,24 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { emptyStatistics } from "../application/statistics";
 import type { Book } from "../application/library";
 import { App } from "./App";
+import { greetingKeyForHour } from "./greeting";
+import { localProfileKey } from "./useLocalProfile";
 
 const invokeMock = vi.hoisted(() => vi.fn());
+const listenMock = vi.hoisted(() => vi.fn());
 vi.mock("@tauri-apps/api/core", () => ({
   convertFileSrc: (path: string) => path,
   invoke: invokeMock,
   isTauri: () => true,
 }));
+vi.mock("@tauri-apps/api/event", () => ({
+  listen: listenMock,
+}));
 
 let mockBooks: Book[] = [];
+let launchPaths: string[] = [];
 
 function bookFixture(overrides: Partial<Book>): Book {
   return {
@@ -46,9 +53,20 @@ function bookFixture(overrides: Partial<Book>): Book {
 describe("App", () => {
   beforeEach(() => {
     localStorage.clear();
+    localStorage.setItem(
+      localProfileKey,
+      JSON.stringify({ onboardingComplete: true, displayName: "" }),
+    );
     mockBooks = [];
+    launchPaths = [];
+    listenMock.mockResolvedValue(vi.fn());
     invokeMock.mockImplementation((command: string, invokeArgs?: unknown) => {
       if (command === "list_books") return Promise.resolve(mockBooks);
+      if (command === "take_launch_book_paths") {
+        const paths = launchPaths;
+        launchPaths = [];
+        return Promise.resolve(paths);
+      }
       if (command === "list_watched_folders") return Promise.resolve([]);
       if (command === "get_statistics") return Promise.resolve(emptyStatistics);
       if (command === "get_startup_health")
@@ -87,6 +105,237 @@ describe("App", () => {
         name: "Ваша библиотека пока пуста",
       }),
     ).toBeInTheDocument();
+  });
+
+  it("uses a greeting that matches the local time of day", () => {
+    expect(greetingKeyForHour(6)).toBe("greetingMorning");
+    expect(greetingKeyForHour(12)).toBe("greetingAfternoon");
+    expect(greetingKeyForHour(18)).toBe("greetingEvening");
+  });
+
+  it("creates an optional local profile on first launch", async () => {
+    localStorage.setItem("aprireader.locale", "en");
+    localStorage.removeItem(localProfileKey);
+    render(<App />);
+
+    expect(
+      screen.getByRole("heading", { name: "What should we call you?" }),
+    ).toBeInTheDocument();
+    const continueButton = screen.getByRole("button", { name: "Continue" });
+    expect(continueButton).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText("Your name"), {
+      target: { value: "  Bahadur   Ali  " },
+    });
+    fireEvent.click(continueButton);
+
+    expect(
+      await screen.findByRole("heading", {
+        name: /Good (morning|afternoon|evening), Bahadur Ali!/,
+      }),
+    ).toBeInTheDocument();
+    expect(JSON.parse(localStorage.getItem(localProfileKey) ?? "")).toEqual({
+      onboardingComplete: true,
+      displayName: "Bahadur Ali",
+    });
+  });
+
+  it("allows first-launch onboarding to be skipped", async () => {
+    localStorage.setItem("aprireader.locale", "en");
+    localStorage.removeItem(localProfileKey);
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Skip" }));
+    expect(await screen.findByRole("searchbox")).toBeInTheDocument();
+    expect(JSON.parse(localStorage.getItem(localProfileKey) ?? "")).toEqual({
+      onboardingComplete: true,
+      displayName: "",
+    });
+  });
+
+  it("changes and removes the local greeting name in Settings", () => {
+    localStorage.setItem("aprireader.locale", "en");
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+
+    fireEvent.change(screen.getByLabelText("Your name"), {
+      target: { value: "Alex" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Local profile saved.",
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Library" }));
+    expect(
+      screen.getByRole("heading", {
+        name: /Good (morning|afternoon|evening), Alex!/,
+      }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    fireEvent.click(screen.getByRole("button", { name: "Remove name" }));
+    fireEvent.click(screen.getByRole("button", { name: "Library" }));
+    expect(
+      screen.getByRole("heading", {
+        name: /Good (morning|afternoon|evening)!/,
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps development labels out of the shell and hides library search elsewhere", async () => {
+    localStorage.setItem("aprireader.locale", "en");
+    render(<App />);
+    expect(
+      screen.queryByText(/release quality|stage 9/i),
+    ).not.toBeInTheDocument();
+    expect(await screen.findByRole("searchbox")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    expect(screen.queryByRole("searchbox")).not.toBeInTheDocument();
+  });
+
+  it("shows a truthful empty state when a library search has no matches", async () => {
+    localStorage.setItem("aprireader.locale", "en");
+    mockBooks = [bookFixture({ title: "A visible book" })];
+    render(<App />);
+    fireEvent.change(await screen.findByRole("searchbox"), {
+      target: { value: "missing title" },
+    });
+    expect(
+      await screen.findByRole("heading", { name: "No books found" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Your library is empty")).not.toBeInTheDocument();
+  });
+
+  it("imports and opens a book passed by a Windows file association", async () => {
+    localStorage.setItem("aprireader.locale", "en");
+    const launchedBook = bookFixture({
+      id: 91,
+      sourcePath: "C:\\Books\\Opened from Explorer.txt",
+      title: "Opened from Explorer",
+    });
+    launchPaths = [launchedBook.sourcePath];
+    invokeMock.mockImplementation((command: string) => {
+      if (command === "list_books") return Promise.resolve(mockBooks);
+      if (command === "list_watched_folders") return Promise.resolve([]);
+      if (command === "get_statistics") return Promise.resolve(emptyStatistics);
+      if (command === "get_startup_health")
+        return Promise.resolve({
+          previousExitUnclean: false,
+          recoveredFromBackup: false,
+          quarantinedDatabase: null,
+        });
+      if (command === "take_launch_book_paths") {
+        const paths = launchPaths;
+        launchPaths = [];
+        return Promise.resolve(paths);
+      }
+      if (command === "open_book_path") {
+        mockBooks = [launchedBook];
+        return Promise.resolve(launchedBook);
+      }
+      if (command === "load_document") {
+        return Promise.resolve({
+          bookId: launchedBook.id,
+          title: launchedBook.title,
+          author: launchedBook.author,
+          format: launchedBook.format,
+          progress: 0,
+          lastSection: 0,
+          sectionProgress: 0,
+          sections: [
+            {
+              id: "main",
+              title: "Opened from Explorer",
+              blocks: [{ kind: "paragraph", text: "Associated file content" }],
+            },
+          ],
+        });
+      }
+      return Promise.reject(new Error(`Unavailable in unit test: ${command}`));
+    });
+
+    render(<App />);
+
+    expect(
+      (await screen.findAllByText("Associated file content")).length,
+    ).toBeGreaterThan(0);
+    expect(invokeMock).toHaveBeenCalledWith("open_book_path", {
+      path: launchedBook.sourcePath,
+    });
+    expect(invokeMock).toHaveBeenCalledWith("load_document", {
+      bookId: launchedBook.id,
+    });
+  });
+
+  it("keeps the newest reader request when two books are opened quickly", async () => {
+    localStorage.setItem("aprireader.locale", "en");
+    const first = bookFixture({ id: 1, title: "First book" });
+    const second = bookFixture({ id: 2, title: "Second book" });
+    mockBooks = [first, second];
+    let resolveFirst!: (document: unknown) => void;
+    const firstLoad = new Promise((resolve) => {
+      resolveFirst = resolve;
+    });
+    const fallback = invokeMock.getMockImplementation() as (
+      command: string,
+      invokeArgs?: unknown,
+    ) => Promise<unknown>;
+    invokeMock.mockImplementation((command: string, invokeArgs?: unknown) => {
+      if (command !== "load_document") return fallback(command, invokeArgs);
+      const bookId = (invokeArgs as { bookId: number }).bookId;
+      if (bookId === first.id) return firstLoad;
+      return Promise.resolve({
+        bookId: second.id,
+        title: second.title,
+        author: second.author,
+        format: second.format,
+        progress: 0,
+        lastSection: 0,
+        sectionProgress: 0,
+        sections: [
+          {
+            id: "second",
+            title: second.title,
+            blocks: [{ kind: "paragraph", text: "Second content" }],
+          },
+        ],
+      });
+    });
+
+    render(<App />);
+    fireEvent.doubleClick(
+      await screen.findByRole("button", { name: /First book —/ }),
+    );
+    fireEvent.doubleClick(
+      screen.getByRole("button", { name: /Second book —/ }),
+    );
+    expect(
+      (await screen.findAllByText("Second content")).length,
+    ).toBeGreaterThan(0);
+
+    await act(async () => {
+      resolveFirst({
+        bookId: first.id,
+        title: first.title,
+        author: first.author,
+        format: first.format,
+        progress: 0,
+        lastSection: 0,
+        sectionProgress: 0,
+        sections: [
+          {
+            id: "first",
+            title: first.title,
+            blocks: [{ kind: "paragraph", text: "First content" }],
+          },
+        ],
+      });
+      await firstLoad;
+    });
+    expect(screen.queryByText("First content")).not.toBeInTheDocument();
+    expect(screen.getAllByText("Second content").length).toBeGreaterThan(0);
   });
 
   it("shows watched folders as a real collection source", () => {
@@ -379,6 +628,9 @@ describe("App", () => {
       name: /Announce reading changes/,
     });
     expect(toggle).toBeChecked();
+    expect(
+      screen.queryByRole("heading", { name: "Steam achievements" }),
+    ).not.toBeInTheDocument();
 
     fireEvent.click(toggle);
     expect(toggle).not.toBeChecked();

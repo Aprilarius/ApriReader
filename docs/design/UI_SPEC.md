@@ -13,6 +13,18 @@ desktop-first. Centralized tokens live in `src/ui/styles.css`.
 - Interactive targets are at least 44 px and keyboard focus is always visible.
 - Empty states must be truthful. Do not invent books, progress, covers, or
   statistics.
+- The shell never exposes roadmap stages, build profiles, candidate status, or
+  other development-process labels. The sidebar footer contains only the
+  language action.
+- The library greeting follows the local time of day. Library search is shown
+  only on the Library destination, and an empty filtered result is distinct
+  from an empty library.
+- The first launch uses one calm, focused welcome card asking how to address
+  the user, with Continue and Skip actions. It states that the optional name
+  stays on the device, keeps the language switch reachable, and never resembles
+  account registration. Settings expose the same single field plus an explicit
+  Remove name action. A saved name extends the time-aware greeting; a skipped
+  or removed name leaves the greeting natural and generic.
 - Covers come from user files; missing covers use a programmatic 2:3 fallback.
   Do not download or generate demonstration cover art.
 
@@ -57,12 +69,13 @@ The manual editor includes a comma-separated Genres field and candidate cards
 show provider genres when present. The details view displays the normalized
 local values without turning them into an online catalog.
 
-Stage 6 extends the existing text-selection action bar with Dictionary and
-Translate. Results remain inside the temporary selection surface and never
-replace the reading page. A verified-package manager lives in Settings and
-uses the established warm surface cards, plain empty states, visible license
-and attribution, and an explicit removal confirmation. It must never resemble
-an online model catalog or imply that a package is bundled.
+The text-selection action bar includes Translate. Activating it reveals two
+plain choices, Google Translate and Yandex Translate, without leaving the
+selection surface. The first provider choice expands a concise privacy notice
+in place with Continue and Cancel; only Continue sends the selected text by
+opening the fixed translator URL in the default browser. Selections above
+2,000 characters receive a clear limit message. Settings contain no language
+package manager or development-facing translator diagnostics.
 
 Stage 7 replaces the Statistics and Achievements placeholders with real local
 data. Statistics use the existing four-card rhythm, a restrained 12-week brass
@@ -76,12 +89,11 @@ each metric family, shows an unlocked/total summary, and preserves visible
 progress for all locked long-term goals. Time thresholds use readable hours
 and minutes rather than raw seconds.
 
-Stage 8 adds a restrained Steam integration card to Settings. It always names
-the active GitHub or Steam build profile, pending and synchronized unlock
-counts, provider availability, and Overlay state. The public build explains
-that local achievements remain available without Steamworks. Synchronization
-is automatic only when the protected provider is available and is also exposed
-as a clear manual retry action.
+Stage 8 keeps Steam synchronization out of the user-facing Settings page.
+Synchronization is automatic only when the protected provider is available;
+build profile, queue, provider, and Overlay diagnostics remain implementation
+details rather than user controls. The public build continues to provide local
+achievements without Steamworks.
 
 Steam capsule artwork reuses the approved ivory, charcoal, brass, and walnut
 palette. Base capsules contain only original artwork and the ApriReader name;
@@ -93,13 +105,17 @@ and Windows forced-colors support. Compact navigation must scroll instead of
 hiding destinations at high Windows scaling. Library cards render in batches
 of 120 with a plain “show more” action and an announced visible/total count.
 
-Reader typography remains in the existing right-side panel. Font profiles,
-local import, fine spacing and weight controls, alignment, bionic highlighting,
-page-wheel behavior, themes, and their short explanations form one scrollable
-settings surface. Previous/next chapter arrows remain visible in the top
-toolbar so chapter navigation never depends on reaching the document footer.
-On reader entry, keyboard focus starts on the labelled back control in that
-toolbar without scrolling the document.
+Reader typography remains in the existing right-side panel. The font-family
+selector keeps the system profiles and adds Literata, Lora, Merriweather,
+Source Serif 4, Charis SIL, and IBM Plex Serif. Separate selectors expose
+normal/italic style and only the named weights genuinely available for the
+selected family. A local Cyrillic/Latin preview reflects the active family,
+style, and weight. Local import, fine spacing controls, alignment, bionic
+highlighting, page-wheel behavior, themes, and their short explanations form
+one scrollable settings surface. Previous/next chapter arrows remain visible
+in the top toolbar so chapter navigation never depends on reaching the
+document footer. On reader entry, keyboard focus starts on the labelled back
+control in that toolbar without scrolling the document.
 
 The same panel begins with a two-choice reading-layout control. Continuous text
 keeps the approved centered vertical column. Book spread uses two equal
@@ -158,7 +174,7 @@ Below 520 CSS pixels, the reflow reader keeps book identity on the first toolbar
 row and exposes every reading action in a second horizontally scrollable row.
 The page counter truncates only as a last visual fallback while retaining its
 full accessible text. Settings cards reduce padding and reflow actions;
-statistics, achievements, language packages, PDF, and comic controls remain
+statistics, achievements, PDF, and comic controls remain
 inside their own scrollable surfaces.
 
 Windows High Contrast Black and High Contrast White map the interface to

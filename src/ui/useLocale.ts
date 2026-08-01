@@ -1,10 +1,11 @@
 import { useCallback, useState } from "react";
 import { translations, type Locale, type TranslationKey } from "./i18n";
+import { readLocalValue, writeLocalValue } from "./localStorage";
 
 const storageKey = "aprireader.locale";
 
 function initialLocale(): Locale {
-  const stored = localStorage.getItem(storageKey);
+  const stored = readLocalValue(storageKey);
   return stored === "en" || stored === "ru" ? stored : "ru";
 }
 
@@ -13,7 +14,7 @@ export function useLocale() {
   const toggleLocale = useCallback(() => {
     setLocale((current) => {
       const next = current === "ru" ? "en" : "ru";
-      localStorage.setItem(storageKey, next);
+      writeLocalValue(storageKey, next);
       document.documentElement.lang = next;
       return next;
     });

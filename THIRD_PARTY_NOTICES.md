@@ -23,8 +23,9 @@ Stage 5 adds ureq (MIT OR Apache-2.0) with its Rustls HTTPS stack and
 serde_json (MIT OR Apache-2.0) for explicit Open Library requests and cached
 responses.
 
-Stage 6 adds ort (MIT OR Apache-2.0) and the Microsoft ONNX Runtime (MIT) CPU
-runtime. ApriReader does not bundle models or dictionary data.
+Selected-text browser translation uses Tauri Opener (MIT OR Apache-2.0). Its
+reviewed capability is limited to fixed Google Translate and Yandex Translate
+HTTPS URLs. ApriReader bundles no translation model or dictionary data.
 
 Stage 9 adds no dependency. The release inventory generated from both lockfiles
 is `release/aprireader-sbom.cdx.json`. The deterministic Windows production
@@ -32,3 +33,8 @@ license report is `release/THIRD_PARTY_LICENSES.md`; it collects installed
 license and notice texts and identifies packages that expose only a package
 metadata license declaration. `pnpm release:audit` verifies that both reports
 are current and that the reviewed direct dependency set has not changed.
+
+Reader typography bundles Literata, Lora, Merriweather, Source Serif 4, Charis
+SIL, and IBM Plex Serif under the SIL Open Font License 1.1. Their complete
+license texts ship in `licenses/fonts`; ApriReader does not download fonts at
+runtime.

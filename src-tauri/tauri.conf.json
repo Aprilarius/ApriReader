@@ -37,6 +37,26 @@
   "bundle": {
     "active": true,
     "targets": ["nsis"],
+    "fileAssociations": [
+      {
+        "ext": [
+          "epub",
+          "fb2",
+          "txt",
+          "html",
+          "htm",
+          "md",
+          "markdown",
+          "pdf",
+          "cbz",
+          "cbr",
+          "docx"
+        ],
+        "name": "ApriReader Book",
+        "description": "Book readable with ApriReader",
+        "role": "Viewer"
+      }
+    ],
     "useLocalToolsDir": true,
     "publisher": "Bahadur",
     "license": "Apache-2.0",

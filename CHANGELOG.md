@@ -1,5 +1,36 @@
 # Changelog
 
+## 1.1.0 - 2026-08-01
+
+- Hardened file handling with bounded post-open reads for books and fonts,
+  bounded metadata responses and folder scans, validated fixed-reader cache
+  identities, atomic PDF caching, and stale comic/PDF cache refresh.
+- Fixed reader lifecycle races so a slower earlier open cannot replace the
+  newest book, pending positions are flushed on close, chapter changes cannot
+  be overwritten by an old scroll timer, and reading sessions stay isolated
+  per book.
+- Reconnect an unavailable duplicate to its relocated source, tolerate blocked
+  WebView storage without breaking controls, and report quote clipboard failure
+  without losing the saved annotation.
+- Replaced the unavailable custom language-package workflow with a selected
+  text Translate menu for Google and Yandex, automatic EN-RU/RU-EN direction,
+  a 2,000-character limit, fixed URL permissions, and first-use consent.
+- Removed the language-package Settings panel and bundled ONNX runtime.
+- Added a skippable first-launch local profile with an optional display name,
+  personalized time-aware greeting, and edit/removal controls in Settings. It
+  uses no account, password, OS identity lookup, dependency, or network access.
+- Added bundled Literata, Lora, Merriweather, Source Serif 4, Charis SIL, and
+  IBM Plex Serif reading families with separate normal/italic and real-weight
+  selectors while preserving system profiles and local font import.
+- Removed roadmap/build-status copy from the user interface, made greetings
+  time-aware, made filtered-library empty states truthful, localized book-detail
+  closing controls, and limited library search to its relevant destination.
+- Recalculate reader pagination after font style changes and after the selected
+  bundled face has actually loaded; added a live multilingual font preview.
+- Register all supported book extensions in the Windows NSIS installer and
+  safely import/open Explorer-launched books in the existing ApriReader
+  instance.
+
 ## 1.0.0
 
 - Released the complete privacy-first Windows library and reader for EPUB, PDF,

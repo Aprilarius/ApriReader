@@ -8,7 +8,8 @@
 - [x] Stage 3 — annotations, locators, bookmarks, notes, quotes, and FTS5.
 - [x] Stage 4 — PDF, CBZ/CBR, DOCX and format-specific UX.
 - [x] Stage 5 — opt-in metadata providers and manual metadata editing.
-- [x] Stage 6 — licensed offline dictionaries and translation packages.
+- [x] Stage 6 — explicit selected-text handoff to Google or Yandex Translate
+      in the default browser, limited to EN-RU and RU-EN with first-use consent.
 - [x] Stage 7 — active reading statistics and canonical achievements.
       Achievement depth now includes 42 progressive goals, completed-book
       discovery rules, and local multi-value genres.
@@ -51,7 +52,18 @@
       GitHub release was published and its anonymous installer download was
       verified on 2026-07-30.
 
+## Windows shell integration
+
+- [x] Book file associations — the NSIS installer registers all supported
+      extensions as ApriReader viewer types; Explorer activation imports and
+      opens the selected local book in the existing single application
+      instance through the normal untrusted-book boundary.
+
 ## Library navigation completion
+
+- [x] Optional local profile — a skippable first-launch name prompt,
+      personalized time-aware greeting, and local Settings edit/removal without
+      accounts, passwords, OS identity access, or network integration.
 
 - [x] Library removal — confirmed single-book and batch removal while source
       files remain untouched.

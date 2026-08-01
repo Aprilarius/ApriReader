@@ -10,6 +10,12 @@ import type { DocumentModel } from "../application/reader";
 import { translations, type TranslationKey } from "./i18n";
 import { ReaderScreen } from "./ReaderScreen";
 
+const { openUrl } = vi.hoisted(() => ({
+  openUrl: vi.fn<(url: string) => Promise<void>>().mockResolvedValue(undefined),
+}));
+
+vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl }));
+
 const document: DocumentModel = {
   bookId: 1,
   title: "A quiet fixture",
@@ -38,7 +44,80 @@ const document: DocumentModel = {
 const t = (key: TranslationKey) => translations.en[key];
 
 describe("ReaderScreen", () => {
-  beforeEach(() => localStorage.clear());
+  beforeEach(() => {
+    localStorage.clear();
+    openUrl.mockReset();
+  });
+
+  it("asks for consent once before opening a selected phrase in a translator", async () => {
+    render(
+      <ReaderScreen
+        document={document}
+        t={t}
+        onClose={vi.fn()}
+        onProgress={vi.fn()}
+      />,
+    );
+    const paragraph = within(screen.getByRole("main")).getByText(
+      "Only safe text is rendered.",
+    );
+    const range = window.document.createRange();
+    range.setStart(paragraph.firstChild!, 0);
+    range.setEnd(paragraph.firstChild!, 9);
+    const selected = window.getSelection()!;
+    selected.removeAllRanges();
+    selected.addRange(range);
+    fireEvent.mouseUp(paragraph);
+
+    fireEvent.click(screen.getByRole("button", { name: "Translate" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Google Translate" }));
+    expect(
+      screen.getByRole("group", { name: "Open an external translator?" }),
+    ).toHaveTextContent("The selected text will be sent to Google Translate");
+    expect(openUrl).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    await waitFor(() => expect(openUrl).toHaveBeenCalledOnce());
+    const opened = new URL(openUrl.mock.calls[0]![0]);
+    expect(opened.origin).toBe("https://translate.google.com");
+    expect(opened.searchParams.get("text")).toBe("Only safe");
+    expect(opened.searchParams.get("sl")).toBe("en");
+    expect(opened.searchParams.get("tl")).toBe("ru");
+    expect(
+      localStorage.getItem("aprireader.external-translation-consent.v1"),
+    ).toBe("accepted");
+  });
+
+  it("keeps a quote saved when clipboard access is unavailable", async () => {
+    render(
+      <ReaderScreen
+        document={document}
+        t={t}
+        onClose={vi.fn()}
+        onProgress={vi.fn()}
+      />,
+    );
+    const paragraph = within(screen.getByRole("main")).getByText(
+      "Only safe text is rendered.",
+    );
+    const range = window.document.createRange();
+    range.setStart(paragraph.firstChild!, 0);
+    range.setEnd(paragraph.firstChild!, 9);
+    const selected = window.getSelection()!;
+    selected.removeAllRanges();
+    selected.addRange(range);
+    fireEvent.mouseUp(paragraph);
+
+    fireEvent.click(screen.getByRole("button", { name: "Copy quote" }));
+
+    expect(
+      await screen.findByText(
+        "Quote saved, but clipboard access was unavailable",
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Annotations" }));
+    expect(await screen.findAllByText("Only safe")).toHaveLength(2);
+  });
 
   it("places initial keyboard focus on the reader toolbar", () => {
     render(
@@ -113,7 +192,13 @@ describe("ReaderScreen", () => {
       '"fontSize":24',
     );
     fireEvent.change(screen.getByLabelText("Reading font"), {
-      target: { value: "clear" },
+      target: { value: "literata" },
+    });
+    fireEvent.change(screen.getByLabelText("Font style"), {
+      target: { value: "italic" },
+    });
+    fireEvent.change(screen.getByLabelText("Font weight"), {
+      target: { value: "800" },
     });
     fireEvent.click(
       screen.getByRole("checkbox", { name: /Bionic highlighting/ }),
@@ -123,7 +208,13 @@ describe("ReaderScreen", () => {
     fireEvent.click(spread);
     expect(spread).toHaveAttribute("aria-pressed", "true");
     expect(localStorage.getItem("aprireader.reader.preferences")).toContain(
-      '"fontChoice":"clear"',
+      '"fontChoice":"literata"',
+    );
+    expect(localStorage.getItem("aprireader.reader.preferences")).toContain(
+      '"fontStyle":"italic"',
+    );
+    expect(localStorage.getItem("aprireader.reader.preferences")).toContain(
+      '"fontWeight":800',
     );
     expect(localStorage.getItem("aprireader.reader.preferences")).toContain(
       '"bionicReading":true',
@@ -136,6 +227,42 @@ describe("ReaderScreen", () => {
       globalThis.document.querySelector(".reader-document-spread"),
     ).toBeInTheDocument();
     expect(screen.getByText("Pages 1–2 of 4")).toBeInTheDocument();
+  });
+
+  it("offers bundled families and only real weights for the selected font", () => {
+    render(
+      <ReaderScreen
+        document={document}
+        t={t}
+        onClose={vi.fn()}
+        onProgress={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Text settings" }));
+    const family = screen.getByLabelText("Reading font");
+    for (const name of [
+      "Literata",
+      "Lora",
+      "Merriweather",
+      "Source Serif 4",
+      "Charis SIL",
+      "IBM Plex Serif",
+    ]) {
+      expect(within(family).getByRole("option", { name })).toBeInTheDocument();
+    }
+
+    fireEvent.change(family, { target: { value: "lora" } });
+    const weight = screen.getByLabelText("Font weight");
+    expect(within(weight).getAllByRole("option")).toHaveLength(4);
+    expect(
+      within(weight).queryByRole("option", { name: "Black" }),
+    ).not.toBeInTheDocument();
+    expect(within(weight).getByRole("option", { name: "Bold" })).toHaveValue(
+      "700",
+    );
+    expect(
+      screen.getByText(/The quick brown fox jumps over the lazy dog/),
+    ).toHaveClass("reader-font-preview");
   });
 
   it("renders optional focus highlighting without changing the text", () => {

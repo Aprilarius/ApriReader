@@ -5,6 +5,7 @@ const SEARCH_ENDPOINT: &str = "https://openlibrary.org/search.json";
 const COVER_ENDPOINT: &str = "https://covers.openlibrary.org/b/id";
 const USER_AGENT: &str = "ApriReader/0.1 (interactive desktop metadata lookup)";
 const MAX_RESULTS: usize = 8;
+const MAX_SEARCH_RESPONSE_BYTES: u64 = 2 * 1024 * 1024;
 const MAX_COVER_BYTES: usize = 10 * 1024 * 1024;
 
 #[derive(Debug, Error)]
@@ -68,7 +69,11 @@ pub fn search_open_library(query: &str) -> Result<Vec<MetadataCandidate>, Metada
         )
         .query("limit", MAX_RESULTS.to_string())
         .call()?;
-    let body = response.body_mut().read_to_string()?;
+    let body = response
+        .body_mut()
+        .with_config()
+        .limit(MAX_SEARCH_RESPONSE_BYTES)
+        .read_to_string()?;
     parse_search_response(&body)
 }
 
@@ -92,24 +97,67 @@ pub fn parse_search_response(json: &str) -> Result<Vec<MetadataCandidate>, Metad
     Ok(response
         .docs
         .into_iter()
-        .filter(|document| !document.title.trim().is_empty() && !document.key.trim().is_empty())
+        .filter(|document| {
+            let key = document.key.trim();
+            !document.title.trim().is_empty()
+                && key.chars().count() <= 128
+                && (key.starts_with("/works/") || key.starts_with("/books/"))
+        })
         .take(MAX_RESULTS)
         .map(|document| MetadataCandidate {
             provider: "Open Library".to_owned(),
-            provider_id: document.key,
-            title: document.title,
-            author: document.author_name.first().cloned().unwrap_or_default(),
-            isbn: document.isbn.first().cloned().unwrap_or_default(),
-            publisher: document.publisher.first().cloned().unwrap_or_default(),
+            provider_id: document.key.trim().to_owned(),
+            title: bounded_provider_text(&document.title, 512),
+            author: bounded_provider_text(
+                document
+                    .author_name
+                    .first()
+                    .map(String::as_str)
+                    .unwrap_or_default(),
+                512,
+            ),
+            isbn: bounded_provider_text(
+                document
+                    .isbn
+                    .first()
+                    .map(String::as_str)
+                    .unwrap_or_default(),
+                64,
+            ),
+            publisher: bounded_provider_text(
+                document
+                    .publisher
+                    .first()
+                    .map(String::as_str)
+                    .unwrap_or_default(),
+                512,
+            ),
             published_year: document
                 .first_publish_year
                 .map(|year| year.to_string())
                 .unwrap_or_default(),
-            language: document.language.first().cloned().unwrap_or_default(),
+            language: bounded_provider_text(
+                document
+                    .language
+                    .first()
+                    .map(String::as_str)
+                    .unwrap_or_default(),
+                64,
+            ),
             genres: normalize_subjects(document.subject),
             cover_id: document.cover_i.filter(|id| *id > 0),
         })
         .collect())
+}
+
+fn bounded_provider_text(value: &str, max_chars: usize) -> String {
+    value
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .chars()
+        .take(max_chars)
+        .collect()
 }
 
 fn normalize_subjects(subjects: Vec<String>) -> String {
@@ -177,5 +225,16 @@ mod tests {
     fn validates_downloaded_cover_signatures() {
         assert_eq!(image_extension(b"\xff\xd8\xffpayload"), Some("jpg"));
         assert_eq!(image_extension(b"<html>not an image</html>"), None);
+    }
+
+    #[test]
+    fn bounds_remote_metadata_before_it_reaches_the_ui() {
+        let title = "T".repeat(700);
+        let json = format!(
+            r#"{{"docs":[{{"key":"/works/OL1W","title":"{title}","author_name":["  Long   Author  "]}}]}}"#,
+        );
+        let candidates = parse_search_response(&json).expect("metadata");
+        assert_eq!(candidates[0].title.chars().count(), 512);
+        assert_eq!(candidates[0].author, "Long Author");
     }
 }

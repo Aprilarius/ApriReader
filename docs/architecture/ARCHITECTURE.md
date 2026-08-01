@@ -22,6 +22,9 @@ free of parent traversal, symbolic links are skipped during folder scans, XML
 and cover extraction have size limits, and no embedded script or external
 resource is executed. Only validated embedded image bytes are written to the
 app-local cover cache. Source files are opened read-only and never moved.
+Size limits are enforced again while streaming from the opened handle, so a
+file that changes after its initial metadata check cannot force an unbounded
+allocation. Watched-folder discovery also has a global file-count ceiling.
 
 SQLite backups use `VACUUM INTO` after a WAL checkpoint and retain the ten most
 recent app-generated copies.
@@ -38,6 +41,13 @@ traversal. SQLite stores overall progress, last section, and section progress.
 Typography preferences stay local in the WebView profile. Future annotations
 use `ReadingLocator` and `AnnotationAnchor` without changing the normalized
 document boundary.
+
+The optional local profile is deliberately frontend-only. `useLocalProfile`
+stores one bounded, normalized display name and an onboarding-complete flag in
+the same app-local WebView storage used for locale and reader preferences.
+React renders the value as text, never authored markup. No Windows identity
+API, database migration, native command, dependency, network request, or
+multi-user account model is involved.
 
 Stage 3 implements `ReadingLocator` as a stable section identifier, normalized
 block index, and UTF-16 text range. The saved selected text is the
@@ -58,6 +68,10 @@ the project. CBR uses the pure-Rust `rars` adapter for RAR3/RAR5 families.
 Archive entries must have safe relative paths, valid image extensions, bounded
 per-page and aggregate sizes, and recognized image signatures before they are
 exposed through the scoped asset protocol.
+Cache identities are accepted only when derived from a valid hexadecimal book
+fingerprint. PDF copies are streamed through a bounded atomic temporary file;
+PDF and comic derivatives are rebuilt when the source is newer, and an
+interrupted comic extraction is never treated as complete.
 
 DOCX remains inside the normalized reflow boundary. Rust reads only
 `word/document.xml`, converts paragraphs, headings, quotes, and list items to
@@ -84,20 +98,19 @@ Migration 10 adds the bounded `books.genres` text field. EPUB `dc:subject`, FB2
 64-character-per-value normalization boundary. Repeated values are removed
 case-insensitively and stored as a canonical comma-separated local string.
 
-Stage 6 adds `LanguagePackageManager` in
-`src-tauri/src/language_tools.rs`. A language package is a ZIP container with a
-bounded `manifest.json` and a closed set of payload names. Import checks
-archive paths, entry count, declared and actual sizes, SHA-256, engine
-compatibility, and an allowlist of permissive SPDX licenses before an atomic
-move into app-local storage. Installed files are reverified before use.
+External translation is a narrow, explicit browser-handoff boundary. The
+frontend accepts at most 2,000 selected Unicode characters, counts Cyrillic
+and Latin letters to choose RU-EN or EN-RU, and uses `URL.searchParams` to
+encode the text. It can construct only `https://translate.google.com/` or
+`https://translate.yandex.com/` URLs. Tauri opener permissions repeat that
+exact host allowlist, so neither book content nor application state can supply
+an arbitrary destination.
 
-`DictionaryProvider` reads only normalized JSON entries from verified packages.
-`TranslationProvider` is an explicit boundary; its ONNX implementation uses the
-application-bundled ONNX Runtime with a hash-verified, text-in/text-out
-`model.onnx`. Packages cannot supply native libraries or custom helpers. No
-package URL crosses into the provider, no model is loaded at startup, and
-selected book text never leaves the process. Package format details are
-documented in `docs/language/PACKAGE_FORMAT.md`.
+The first handoff requires a local consent flag set only by the user's
+Continue action. No translation happens at startup or in the background, and
+the WebView never loads translator HTML. The operating system opens the URL in
+the default browser. ApriReader bundles no model, dictionary, language pack,
+or ONNX runtime and keeps no copy of the external result.
 
 Stage 7 adds append-only `reading_activity_events` and bounded
 `reading_sessions` in SQLite. React reports visibility, focus, recent
@@ -105,6 +118,11 @@ interaction, reading progress, normalized word position, or fixed page
 position every 15 seconds. Rust owns the clock and credits at most 30 seconds
 only when the previous heartbeat is no more than 45 seconds old. Stale,
 duplicate, hidden, blurred, or idle heartbeats add no time or volume.
+The frontend keeps session metrics per book and closes each asynchronous
+session idempotently, preventing rapid book switches from attributing progress
+to the wrong title. Reader-open requests use a monotonic generation, while
+pending position writes are cancelled or flushed at navigation and close
+boundaries.
 
 Statistics are rebuilt from local events, including an 84-day calendar,
 current and longest streaks, words, pages, opened/completed books, and a local
@@ -163,6 +181,14 @@ WOFF2 signature, hashes its bytes, and writes an app-managed immutable copy
 under the scoped local `fonts` directory. The WebView receives only the
 generated local path and family identifier. No font parser dependency,
 download, catalog, or source-book mutation is introduced.
+
+Bundled reading fonts live under `src/assets/fonts` and are emitted as hashed
+Vite assets. Variable normal/italic pairs cover Literata, Lora, Merriweather,
+and Source Serif 4; reviewed static faces cover Charis SIL and IBM Plex Serif.
+The reader registry owns each family's CSS stack and available weights, clamps
+a persisted weight to the closest supported value when the family changes,
+and persists normal/italic style separately. Optical sizing remains automatic,
+and the Merriweather width axis stays at its normal default.
 
 Typography preferences, focus highlighting, and page-wheel behavior remain
 local WebView preferences. Focus highlighting preserves the exact concatenated
@@ -233,6 +259,17 @@ Windows system colors, then reinforces state with borders and line styles.
 Choice controls expose `aria-pressed` independently of their visual treatment.
 Only document imagery and fixed-reader canvases opt out of forced recoloring;
 book bytes and rendered page content are never transformed or rewritten.
+
+Windows file associations are installer-owned declarations under
+`bundle.fileAssociations`; the application never writes association registry
+keys at runtime. The single-instance plugin is registered before every other
+plugin. Initial command-line book paths and paths forwarded by a later Windows
+shell activation enter one bounded, deduplicated native queue. Only recognized
+book extensions enter that queue. React drains it through typed commands, and
+Rust sends each path through the same bounded `inspect_book` and database
+import boundary used by manual import before returning a `BookRecord`. The
+existing normalized reflow or fixed-layout adapter then opens that record.
+No shell argument becomes authored HTML, a URL request, or an executable path.
 
 Closed-beta provenance is produced from Git's tracked and non-ignored
 untracked source set. The candidate builder hashes each source file into
