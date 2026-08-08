@@ -10,6 +10,7 @@ use thiserror::Error;
 use zip::ZipArchive;
 
 const MAX_BOOK_SIZE: u64 = 2 * 1024 * 1024 * 1024;
+const MAX_COMIC_BOOK_SIZE: u64 = 4 * 1024 * 1024 * 1024;
 const MAX_XML_SIZE: u64 = 4 * 1024 * 1024;
 const MAX_COVER_SIZE: u64 = 10 * 1024 * 1024;
 const MAX_METADATA_FIELD_CHARS: usize = 512;
@@ -23,7 +24,7 @@ pub enum ImportError {
     Unsupported,
     #[error("the file does not exist or is not a regular file")]
     Missing,
-    #[error("the file is larger than the 2 GB safety limit")]
+    #[error("the file is larger than the safety limit for this format")]
     TooLarge,
     #[error("the file is damaged or cannot be read: {0}")]
     Io(#[from] std::io::Error),
@@ -68,16 +69,17 @@ pub fn inspect_book(path: &Path, cover_dir: &Path) -> Result<ImportedBook, Impor
     if !supported_book_path(path) {
         return Err(ImportError::Unsupported);
     }
-    let file_size = fs::metadata(path)?.len();
-    if file_size > MAX_BOOK_SIZE {
-        return Err(ImportError::TooLarge);
-    }
-    let fingerprint = sha256(path)?;
     let extension = path
         .extension()
         .and_then(|value| value.to_str())
         .unwrap_or_default()
         .to_ascii_lowercase();
+    let max_size = max_book_size(&extension);
+    let file_size = fs::metadata(path)?.len();
+    if file_size > max_size {
+        return Err(ImportError::TooLarge);
+    }
+    let fingerprint = sha256(path, max_size)?;
     let metadata = match extension.as_str() {
         "epub" => inspect_epub(path)?,
         "fb2" => inspect_fb2(path)?,
@@ -111,7 +113,14 @@ pub fn inspect_book(path: &Path, cover_dir: &Path) -> Result<ImportedBook, Impor
     })
 }
 
-fn sha256(path: &Path) -> Result<String, ImportError> {
+fn max_book_size(extension: &str) -> u64 {
+    match extension {
+        "cbz" | "cbr" => MAX_COMIC_BOOK_SIZE,
+        _ => MAX_BOOK_SIZE,
+    }
+}
+
+fn sha256(path: &Path, max_size: u64) -> Result<String, ImportError> {
     let mut file = File::open(path)?;
     let mut digest = Sha256::new();
     let mut buffer = [0_u8; 64 * 1024];
@@ -124,7 +133,7 @@ fn sha256(path: &Path) -> Result<String, ImportError> {
         total = total
             .checked_add(count as u64)
             .ok_or(ImportError::TooLarge)?;
-        if total > MAX_BOOK_SIZE {
+        if total > max_size {
             return Err(ImportError::TooLarge);
         }
         digest.update(&buffer[..count]);
@@ -466,6 +475,13 @@ mod tests {
         assert!(supported_book_path(Path::new("Book.EPUB")));
         assert!(supported_book_path(Path::new("notes.md")));
         assert!(!supported_book_path(Path::new("program.exe")));
+    }
+
+    #[test]
+    fn comic_imports_use_the_larger_source_limit() {
+        assert_eq!(max_book_size("pdf"), 2 * 1024 * 1024 * 1024);
+        assert_eq!(max_book_size("cbz"), 4 * 1024 * 1024 * 1024);
+        assert_eq!(max_book_size("cbr"), 4 * 1024 * 1024 * 1024);
     }
 
     #[test]

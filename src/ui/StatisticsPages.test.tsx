@@ -2,6 +2,8 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   clearReadingStatistics,
+  getAudiobookAchievements,
+  getAudiobookStatistics,
   getAchievements,
   getStatistics,
   setDailyGoal,
@@ -12,6 +14,8 @@ import { AchievementsPage, StatisticsPage } from "./StatisticsPages";
 
 vi.mock("../application/statistics", () => ({
   clearReadingStatistics: vi.fn(),
+  getAudiobookAchievements: vi.fn(),
+  getAudiobookStatistics: vi.fn(),
   getAchievements: vi.fn(),
   getStatistics: vi.fn(),
   setDailyGoal: vi.fn(),
@@ -35,6 +39,13 @@ describe("statistics and achievements", () => {
   beforeEach(() => {
     vi.mocked(getStatistics).mockResolvedValue(snapshot);
     vi.mocked(getAchievements).mockResolvedValue([]);
+    vi.mocked(getAudiobookAchievements).mockResolvedValue([]);
+    vi.mocked(getAudiobookStatistics).mockResolvedValue({
+      totalActiveSeconds: 1_800,
+      todayActiveSeconds: 300,
+      audiobooksStarted: 2,
+      audiobooksCompleted: 1,
+    });
     vi.mocked(setDailyGoal).mockResolvedValue();
     vi.mocked(clearReadingStatistics).mockResolvedValue();
   });
@@ -43,6 +54,8 @@ describe("statistics and achievements", () => {
     render(<StatisticsPage t={t} onChanged={vi.fn()} />);
     expect(await screen.findByText("1 h 2 min")).toBeInTheDocument();
     expect(screen.getByText(/8.500/u)).toBeInTheDocument();
+    expect(screen.getByText("Audiobook statistics")).toBeInTheDocument();
+    expect(screen.getByText("Audiobooks started")).toBeInTheDocument();
     const goal = screen.getByRole("spinbutton", { name: "Minutes per day" });
     fireEvent.change(goal, { target: { value: "30" } });
     fireEvent.click(screen.getByRole("button", { name: "Save goal" }));
@@ -82,12 +95,23 @@ describe("statistics and achievements", () => {
         unlockedAt: null,
       },
     ]);
+    vi.mocked(getAudiobookAchievements).mockResolvedValue([
+      {
+        id: "audio_30_minutes",
+        category: "audio_time",
+        current: 1_800,
+        target: 1_800,
+        unlockedAt: 456,
+      },
+    ]);
     render(<AchievementsPage t={t} />);
     expect(await screen.findByText("First book")).toBeInTheDocument();
-    expect(screen.getByText("Unlocked")).toBeInTheDocument();
+    expect(screen.getAllByText("Unlocked")).toHaveLength(2);
     expect(screen.getByText("25 finished books")).toBeInTheDocument();
     expect(screen.getByText("7 / 25")).toBeInTheDocument();
     expect(screen.getByText("1 h 0 min / 10 h 0 min")).toBeInTheDocument();
-    expect(screen.getByText("Unlocked 1 of 3")).toBeInTheDocument();
+    expect(screen.getByText("Unlocked 2 of 4")).toBeInTheDocument();
+    expect(screen.getByText("Audiobook achievements")).toBeInTheDocument();
+    expect(screen.getByText("By ear")).toBeInTheDocument();
   });
 });

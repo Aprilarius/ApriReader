@@ -1,5 +1,24 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  chooseAndImportAudiobookFolder,
+  chooseAndImportAudiobooks,
+  chooseAndWatchAudioFolder,
+  listAudiobookParts,
+  listAudiobooks,
+  listWatchedAudioFolders,
+  scanWatchedAudioFolders,
+  type AudioImportSummary,
+  type AudiobookPartRecord,
+  type AudiobookRecord,
+  type WatchedAudioFolder,
+} from "../application/audiobooks";
+import {
+  readAudioCloseBehavior,
+  setAudioCloseBehavior,
+  syncAudioCloseBehavior,
+  type AudioCloseBehavior,
+} from "../application/audioLifecycle";
+import {
   loadSpecialDocument,
   type SpecialDocument,
 } from "../application/fixedReader";
@@ -17,18 +36,20 @@ import {
   type WatchedFolder,
 } from "../application/library";
 import {
-  listenForLaunchBooks,
-  openBookPath,
-  takeLaunchBookPaths,
+  listenForLaunchFiles,
+  openLaunchPath,
+  takeLaunchPaths,
 } from "../application/launchBooks";
 import {
   applyMetadataCandidate,
+  chooseAndSetLocalCover,
   metadataFromBook,
   removeExternalCover,
   searchMetadata,
   updateBookMetadata,
   type BookMetadataInput,
   type MetadataCandidate,
+  type MetadataLanguage,
 } from "../application/metadata";
 import { loadDocument, type DocumentModel } from "../application/reader";
 import { getStartupHealth, type StartupHealth } from "../application/health";
@@ -44,6 +65,8 @@ import type { TranslationKey } from "./i18n";
 import { ReaderScreen } from "./ReaderScreen";
 import { SpecialReaderScreen } from "./SpecialReaderScreen";
 import { AchievementsPage, StatisticsPage } from "./StatisticsPages";
+import { AudiobookDetails, AudiobooksPage } from "./AudiobooksPage";
+import { AudiobookPlayer } from "./AudiobookPlayer";
 import { useLocale } from "./useLocale";
 import { useCurrentHour } from "./useCurrentHour";
 import {
@@ -59,6 +82,7 @@ import {
 type Route = { id: string; label: TranslationKey; icon: IconName };
 const routes: Route[] = [
   { id: "library", label: "library", icon: "library" },
+  { id: "audiobooks", label: "audiobooks", icon: "audio" },
   { id: "reading", label: "readingNow", icon: "reading" },
   { id: "collections", label: "collections", icon: "collections" },
   { id: "authors", label: "authors", icon: "authors" },
@@ -80,9 +104,23 @@ export function App() {
   } = useLocalProfile();
   const { screenReaderSupport, setScreenReaderSupport } =
     useScreenReaderSupport();
+  const [audioCloseBehavior, setAudioCloseBehaviorState] =
+    useState<AudioCloseBehavior>(readAudioCloseBehavior);
   const [route, setRoute] = useState("library");
   const [books, setBooks] = useState<Book[]>([]);
   const [folders, setFolders] = useState<WatchedFolder[]>([]);
+  const [audiobooks, setAudiobooks] = useState<AudiobookRecord[]>([]);
+  const [audioFolders, setAudioFolders] = useState<WatchedAudioFolder[]>([]);
+  const [selectedAudiobookId, setSelectedAudiobookId] = useState<number | null>(
+    null,
+  );
+  const [selectedAudioParts, setSelectedAudioParts] = useState<
+    AudiobookPartRecord[]
+  >([]);
+  const [audioLoading, setAudioLoading] = useState(false);
+  const [audioPartsLoading, setAudioPartsLoading] = useState(false);
+  const [activeAudiobook, setActiveAudiobook] =
+    useState<AudiobookRecord | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [query, setQuery] = useState("");
   const [format, setFormat] = useState("ALL");
@@ -102,10 +140,13 @@ export function App() {
   );
   const mainRef = useRef<HTMLElement>(null);
   const previousRoute = useRef(route);
-  const launchBookWork = useRef<Promise<void>>(Promise.resolve());
+  const launchFileWork = useRef<Promise<void>>(Promise.resolve());
   const readerRequest = useRef(0);
+  const audioRequest = useRef(0);
   const current = routes.find((item) => item.id === route) ?? routes[0]!;
   const selected = books.find((book) => book.id === selectedId) ?? null;
+  const selectedAudiobook =
+    audiobooks.find((book) => book.id === selectedAudiobookId) ?? null;
 
   const refresh = useCallback(async () => {
     try {
@@ -128,6 +169,26 @@ export function App() {
     }
   }, []);
 
+  const refreshAudiobooks = useCallback(async () => {
+    setAudioLoading(true);
+    try {
+      const [nextBooks, nextFolders] = await Promise.all([
+        listAudiobooks(),
+        listWatchedAudioFolders(),
+      ]);
+      setAudiobooks(nextBooks);
+      setAudioFolders(nextFolders);
+      setSelectedAudiobookId((currentId) =>
+        nextBooks.some((book) => book.id === currentId) ? currentId : null,
+      );
+      setError("");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : String(reason));
+    } finally {
+      setAudioLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     void refresh();
     void syncSteamIfAvailable().catch(() => undefined);
@@ -135,6 +196,16 @@ export function App() {
       .then(setStartupHealth)
       .catch(() => undefined);
   }, [refresh]);
+
+  useEffect(() => {
+    void syncAudioCloseBehavior(audioCloseBehavior).catch(() => undefined);
+  }, [audioCloseBehavior]);
+
+  useEffect(() => {
+    if (route === "audiobooks") void refreshAudiobooks();
+    if (route === "settings")
+      setAudioCloseBehaviorState(readAudioCloseBehavior());
+  }, [refreshAudiobooks, route]);
 
   useEffect(() => {
     const preventBrowserMenu = (event: Event) => event.preventDefault();
@@ -204,6 +275,51 @@ export function App() {
       setBusy(false);
     }
   };
+
+  const runAudioImport = async (
+    operation: () => Promise<AudioImportSummary | null>,
+  ) => {
+    setBusy(true);
+    setMessage("");
+    setError("");
+    try {
+      const summary = await operation();
+      if (summary) {
+        setMessage(audioSummaryMessage(t("audioImportDone"), summary));
+        if (summary.errors.length > 0) setError(summary.errors.join("\n"));
+        await refreshAudiobooks();
+      }
+    } catch (reason) {
+      setError(
+        `${t("audioImportError")}: ${reason instanceof Error ? reason.message : String(reason)}`,
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const selectAudiobook = useCallback(async (id: number) => {
+    const request = ++audioRequest.current;
+    setSelectedAudiobookId(id);
+    setSelectedAudioParts([]);
+    setAudioPartsLoading(true);
+    try {
+      const parts = await listAudiobookParts(id);
+      if (request === audioRequest.current) setSelectedAudioParts(parts);
+    } catch (reason) {
+      if (request === audioRequest.current) {
+        setError(reason instanceof Error ? reason.message : String(reason));
+      }
+    } finally {
+      if (request === audioRequest.current) setAudioPartsLoading(false);
+    }
+  }, []);
+
+  const updateAudiobookProgress = useCallback((updated: AudiobookRecord) => {
+    setAudiobooks((items) =>
+      items.map((item) => (item.id === updated.id ? updated : item)),
+    );
+  }, []);
 
   const toggleFavorite = async (book: Book) => {
     setError("");
@@ -307,15 +423,31 @@ export function App() {
     let disposed = false;
     let unlisten: (() => void) | undefined;
 
-    const consumeLaunchBooks = () => {
-      launchBookWork.current = launchBookWork.current
+    const consumeLaunchFiles = () => {
+      launchFileWork.current = launchFileWork.current
         .then(async () => {
-          const paths = await takeLaunchBookPaths();
+          const paths = await takeLaunchPaths();
           for (const path of paths) {
             if (disposed) return;
-            const book = await openBookPath(path);
-            await refresh();
-            await openBook(book);
+            const opened = await openLaunchPath(path);
+            if (opened.kind === "book") {
+              setActiveAudiobook(null);
+              await refresh();
+              await openBook(opened.item);
+              continue;
+            }
+
+            readerRequest.current += 1;
+            setDocument(null);
+            setSpecialDocument(null);
+            setReaderLoading(false);
+            setRoute("audiobooks");
+            const parts = await listAudiobookParts(opened.item.id);
+            if (disposed) return;
+            await refreshAudiobooks();
+            setSelectedAudiobookId(opened.item.id);
+            setSelectedAudioParts(parts);
+            setActiveAudiobook(opened.item);
           }
         })
         .catch((reason: unknown) => {
@@ -327,19 +459,19 @@ export function App() {
         });
     };
 
-    void listenForLaunchBooks(consumeLaunchBooks).then((stopListening) => {
+    void listenForLaunchFiles(consumeLaunchFiles).then((stopListening) => {
       if (disposed) {
         stopListening();
         return;
       }
       unlisten = stopListening;
-      consumeLaunchBooks();
+      consumeLaunchFiles();
     });
     return () => {
       disposed = true;
       unlisten?.();
     };
-  }, [openBook, refresh, t]);
+  }, [openBook, refresh, refreshAudiobooks, t]);
 
   if (!onboardingComplete) {
     return (
@@ -391,6 +523,18 @@ export function App() {
     );
   }
 
+  if (activeAudiobook) {
+    return (
+      <AudiobookPlayer
+        book={activeAudiobook}
+        parts={selectedAudioParts}
+        t={t}
+        onProgress={updateAudiobookProgress}
+        onClose={() => setActiveAudiobook(null)}
+      />
+    );
+  }
+
   return (
     <div className="app-shell">
       <a className="skip-link" href="#main-content">
@@ -412,7 +556,11 @@ export function App() {
               aria-label={t(item.label)}
               aria-current={route === item.id ? "page" : undefined}
               title={t(item.label)}
-              onClick={() => setRoute(item.id)}
+              onClick={() => {
+                setRoute(item.id);
+                if (item.id === "audiobooks") setSelectedId(null);
+                else setSelectedAudiobookId(null);
+              }}
             >
               <Icon name={item.icon} />
               <span className="nav-label">{t(item.label)}</span>
@@ -508,6 +656,29 @@ export function App() {
               onImport={() => void runImport(chooseAndImportBooks)}
               onWatch={() => void runImport(chooseAndWatchFolder)}
             />
+          ) : route === "audiobooks" ? (
+            <AudiobooksPage
+              audiobooks={audiobooks}
+              folders={audioFolders}
+              selectedId={selectedAudiobookId}
+              loading={audioLoading}
+              busy={busy}
+              locale={locale}
+              t={t}
+              onSelect={(id) => void selectAudiobook(id)}
+              onImportFiles={() =>
+                void runAudioImport(chooseAndImportAudiobooks)
+              }
+              onImportFolder={() =>
+                void runAudioImport(chooseAndImportAudiobookFolder)
+              }
+              onWatchFolder={() =>
+                void runAudioImport(chooseAndWatchAudioFolder)
+              }
+              onScan={() =>
+                void runAudioImport(async () => scanWatchedAudioFolders())
+              }
+            />
           ) : route === "reading" ? (
             <ReadingNowPage
               books={readingNowBooks}
@@ -535,6 +706,15 @@ export function App() {
               onDisplayNameChange={saveDisplayName}
               screenReaderSupport={screenReaderSupport}
               onScreenReaderSupportChange={setScreenReaderSupport}
+              audioCloseBehavior={audioCloseBehavior}
+              onAudioCloseBehaviorChange={(behavior) => {
+                setAudioCloseBehaviorState(behavior);
+                void setAudioCloseBehavior(behavior).catch((reason: unknown) =>
+                  setError(
+                    reason instanceof Error ? reason.message : String(reason),
+                  ),
+                );
+              }}
             />
           ) : route === "statistics" ? (
             <StatisticsPage t={t} onChanged={setStatistics} />
@@ -579,27 +759,54 @@ export function App() {
         </section>
       </main>
 
-      <BookDetails
-        key={selected?.id ?? "empty-details"}
-        book={selected}
-        t={t}
-        busy={readerLoading}
-        onRead={(book) => void openBook(book)}
-        onFavorite={toggleFavorite}
-        onRemove={(book) => confirmAndRemoveBooks([book])}
-        onUpdated={(book) =>
-          setBooks((items) =>
-            items.map((item) => (item.id === book.id ? book : item)),
-          )
-        }
-        onClose={() => setSelectedId(null)}
-      />
-      {selected && (
+      {route === "audiobooks" ? (
+        <AudiobookDetails
+          key={selectedAudiobook?.id ?? "empty-audio-details"}
+          book={selectedAudiobook}
+          parts={selectedAudioParts}
+          loading={audioPartsLoading}
+          locale={locale}
+          t={t}
+          onOpenPlayer={setActiveAudiobook}
+          onChanged={updateAudiobookProgress}
+          onClose={() => {
+            audioRequest.current += 1;
+            setSelectedAudiobookId(null);
+            setSelectedAudioParts([]);
+          }}
+        />
+      ) : (
+        <BookDetails
+          key={selected?.id ?? "empty-details"}
+          book={selected}
+          locale={locale}
+          t={t}
+          busy={readerLoading}
+          onRead={(book) => void openBook(book)}
+          onFavorite={toggleFavorite}
+          onRemove={(book) => confirmAndRemoveBooks([book])}
+          onUpdated={(book) =>
+            setBooks((items) =>
+              items.map((item) => (item.id === book.id ? book : item)),
+            )
+          }
+          onClose={() => setSelectedId(null)}
+        />
+      )}
+      {(route === "audiobooks" ? selectedAudiobook : selected) && (
         <button
           className="drawer-scrim"
           type="button"
-          aria-label={t("closeDetails")}
-          onClick={() => setSelectedId(null)}
+          aria-label={
+            route === "audiobooks" ? t("closeAudioDetails") : t("closeDetails")
+          }
+          onClick={() => {
+            if (route === "audiobooks") {
+              audioRequest.current += 1;
+              setSelectedAudiobookId(null);
+              setSelectedAudioParts([]);
+            } else setSelectedId(null);
+          }}
         />
       )}
     </div>
@@ -680,12 +887,16 @@ export function SettingsPage({
   onDisplayNameChange,
   screenReaderSupport,
   onScreenReaderSupportChange,
+  audioCloseBehavior,
+  onAudioCloseBehaviorChange,
 }: {
   t: Translator;
   displayName: string;
   onDisplayNameChange: (displayName: string) => void;
   screenReaderSupport: boolean;
   onScreenReaderSupportChange: (enabled: boolean) => void;
+  audioCloseBehavior: AudioCloseBehavior;
+  onAudioCloseBehaviorChange: (behavior: AudioCloseBehavior) => void;
 }) {
   const [profileName, setProfileName] = useState(displayName);
   const [profileSaved, setProfileSaved] = useState(false);
@@ -741,6 +952,27 @@ export function SettingsPage({
             </p>
           )}
         </form>
+      </section>
+      <section className="audio-settings settings-section">
+        <p className="eyebrow">{t("audiobooks")}</p>
+        <h2>{t("audioCloseBehavior")}</h2>
+        <p className="settings-hint">{t("audioCloseBehaviorHint")}</p>
+        <label className="settings-select" htmlFor="audio-close-behavior">
+          <span>{t("audioCloseBehavior")}</span>
+          <select
+            id="audio-close-behavior"
+            value={audioCloseBehavior}
+            onChange={(event) =>
+              onAudioCloseBehaviorChange(
+                event.target.value as AudioCloseBehavior,
+              )
+            }
+          >
+            <option value="ask">{t("audioCloseAsk")}</option>
+            <option value="tray">{t("audioCloseTray")}</option>
+            <option value="exit">{t("audioCloseExit")}</option>
+          </select>
+        </label>
       </section>
       <section className="accessibility-settings settings-section">
         <div className="section-heading">
@@ -1773,6 +2005,7 @@ function formatLastOpened(
 
 export function BookDetails({
   book,
+  locale = "en",
   t,
   busy,
   onRead,
@@ -1782,6 +2015,7 @@ export function BookDetails({
   onClose,
 }: {
   book: Book | null;
+  locale?: MetadataLanguage;
   t: Translator;
   busy: boolean;
   onRead: (book: Book) => void;
@@ -1799,6 +2033,8 @@ export function BookDetails({
   );
   const [candidates, setCandidates] = useState<MetadataCandidate[]>([]);
   const [metadataSearched, setMetadataSearched] = useState(false);
+  const [metadataLanguage, setMetadataLanguage] =
+    useState<MetadataLanguage>(locale);
   const [actionBusy, setActionBusy] = useState(false);
   const [status, setStatus] = useState("");
   const [actionError, setActionError] = useState("");
@@ -1818,6 +2054,32 @@ export function BookDetails({
       setActionBusy(false);
     }
   };
+
+  const runCoverAction = async (action: () => Promise<Book | null>) => {
+    setActionBusy(true);
+    setActionError("");
+    try {
+      const updated = await action();
+      if (updated) {
+        onUpdated(updated);
+        setStatus(t("coverUpdated"));
+      }
+    } catch (reason) {
+      setActionError(reason instanceof Error ? reason.message : String(reason));
+    } finally {
+      setActionBusy(false);
+    }
+  };
+
+  const cover = book?.coverPath ? (
+    <img className="details-cover" src={coverUrl(book.coverPath)} alt="" />
+  ) : book ? (
+    <div className="details-cover fallback-cover">
+      <Icon name="reading" />
+      <strong>{book.title}</strong>
+      <small>{book.author || t("unknownAuthor")}</small>
+    </div>
+  ) : null;
 
   return (
     <aside
@@ -1843,18 +2105,25 @@ export function BookDetails({
           >
             ×
           </button>
-          {book.coverPath ? (
-            <img
-              className="details-cover"
-              src={coverUrl(book.coverPath)}
-              alt=""
-            />
+          {mode === "edit" ? (
+            <>
+              <button
+                type="button"
+                className="details-cover-button"
+                aria-label={t("changeCover")}
+                title={t("changeCover")}
+                disabled={actionBusy}
+                onClick={() =>
+                  void runCoverAction(() => chooseAndSetLocalCover(book.id))
+                }
+              >
+                {cover}
+                <span>{t("changeCover")}</span>
+              </button>
+              <p className="cover-edit-hint">{t("coverEditHint")}</p>
+            </>
           ) : (
-            <div className="details-cover fallback-cover">
-              <Icon name="reading" />
-              <strong>{book.title}</strong>
-              <small>{book.author || t("unknownAuthor")}</small>
-            </div>
+            cover
           )}
           {mode === "edit" && metadata ? (
             <MetadataEditor
@@ -1864,6 +2133,10 @@ export function BookDetails({
               error={actionError}
               onChange={setMetadata}
               onCancel={() => setMode("view")}
+              hasCustomCover={book.coverSource !== "embedded"}
+              onRestoreCover={() =>
+                void runCoverAction(() => removeExternalCover(book.id))
+              }
               onSave={() =>
                 void runAction(
                   () => updateBookMetadata(book.id, metadata),
@@ -1874,17 +2147,19 @@ export function BookDetails({
           ) : mode === "search" ? (
             <MetadataSearch
               query={metadataQuery}
+              language={metadataLanguage}
               candidates={candidates}
               searched={metadataSearched}
               t={t}
               busy={actionBusy}
               error={actionError}
               onQuery={setMetadataQuery}
+              onLanguage={setMetadataLanguage}
               onCancel={() => setMode("view")}
               onSearch={() => {
                 setActionBusy(true);
                 setActionError("");
-                void searchMetadata(book.id, metadataQuery)
+                void searchMetadata(book.id, metadataQuery, metadataLanguage)
                   .then(setCandidates)
                   .catch((reason: unknown) =>
                     setActionError(
@@ -2016,24 +2291,6 @@ export function BookDetails({
                   {t("findMetadata")}
                 </button>
               </div>
-              {book.coverSource === "open_library" && (
-                <div className="external-cover-policy">
-                  <p>{t("externalCoverPolicy")}</p>
-                  <button
-                    type="button"
-                    className="text-button danger"
-                    disabled={actionBusy}
-                    onClick={() =>
-                      void runAction(
-                        () => removeExternalCover(book.id),
-                        t("metadataSaved"),
-                      )
-                    }
-                  >
-                    {t("removeExternalCover")}
-                  </button>
-                </div>
-              )}
               {isReaderFormat(book.format) && (
                 <button
                   className="primary-button details-read"
@@ -2074,6 +2331,8 @@ function MetadataEditor({
   error,
   onChange,
   onCancel,
+  hasCustomCover,
+  onRestoreCover,
   onSave,
 }: {
   value: BookMetadataInput;
@@ -2082,6 +2341,8 @@ function MetadataEditor({
   error: string;
   onChange: (value: BookMetadataInput) => void;
   onCancel: () => void;
+  hasCustomCover: boolean;
+  onRestoreCover: () => void;
   onSave: () => void;
 }) {
   const field = (
@@ -2137,6 +2398,19 @@ function MetadataEditor({
           {error}
         </p>
       )}
+      <div className="external-cover-policy">
+        <p>{t("localCoverPolicy")}</p>
+        {hasCustomCover && (
+          <button
+            type="button"
+            className="text-button danger"
+            disabled={busy}
+            onClick={onRestoreCover}
+          >
+            {t("restoreEmbeddedCover")}
+          </button>
+        )}
+      </div>
       <div className="dialog-actions">
         <button type="button" onClick={onCancel}>
           {t("cancel")}
@@ -2151,23 +2425,27 @@ function MetadataEditor({
 
 function MetadataSearch({
   query,
+  language,
   candidates,
   searched,
   t,
   busy,
   error,
   onQuery,
+  onLanguage,
   onCancel,
   onSearch,
   onApply,
 }: {
   query: string;
+  language: MetadataLanguage;
   candidates: MetadataCandidate[];
   searched: boolean;
   t: Translator;
   busy: boolean;
   error: string;
   onQuery: (query: string) => void;
+  onLanguage: (language: MetadataLanguage) => void;
   onCancel: () => void;
   onSearch: () => void;
   onApply: (candidate: MetadataCandidate) => void;
@@ -2176,6 +2454,29 @@ function MetadataSearch({
     <section className="metadata-search-panel">
       <h2>{t("findMetadata")}</h2>
       <p>{t("metadataSearchHint")}</p>
+      <fieldset className="metadata-language-switch">
+        <legend>{t("metadataLanguage")}</legend>
+        <label>
+          <input
+            type="radio"
+            name="metadata-language"
+            value="ru"
+            checked={language === "ru"}
+            onChange={() => onLanguage("ru")}
+          />
+          <span>{t("metadataLanguageRussian")}</span>
+        </label>
+        <label>
+          <input
+            type="radio"
+            name="metadata-language"
+            value="en"
+            checked={language === "en"}
+            onChange={() => onLanguage("en")}
+          />
+          <span>{t("metadataLanguageEnglish")}</span>
+        </label>
+      </fieldset>
       <form
         onSubmit={(event) => {
           event.preventDefault();
@@ -2205,7 +2506,7 @@ function MetadataSearch({
       )}
       <div className="metadata-candidates">
         {candidates.map((candidate) => (
-          <article key={candidate.providerId}>
+          <article key={`${candidate.provider}:${candidate.providerId}`}>
             <small>{candidate.provider}</small>
             <h3>{candidate.title}</h3>
             <p>{candidate.author || t("unknownAuthor")}</p>
@@ -2226,6 +2527,12 @@ function MetadataSearch({
                 <div>
                   <dt>{t("isbn")}</dt>
                   <dd>{candidate.isbn}</dd>
+                </div>
+              )}
+              {candidate.series && (
+                <div>
+                  <dt>{t("seriesField")}</dt>
+                  <dd>{candidate.series}</dd>
                 </div>
               )}
               {candidate.genres && (
@@ -2259,6 +2566,7 @@ function MetadataSearch({
 function metadataSourceLabel(source: string, t: Translator) {
   if (source === "manual") return t("manualMetadata");
   if (source === "open_library") return t("openLibrary");
+  if (source === "fantlab") return t("fantlab");
   return t("embeddedMetadata");
 }
 
@@ -2316,6 +2624,14 @@ function summaryMessage(template: string, summary: ImportSummary) {
   return template
     .replace("{imported}", String(summary.imported))
     .replace("{duplicates}", String(summary.duplicates))
+    .replace("{failed}", String(summary.failed));
+}
+
+function audioSummaryMessage(template: string, summary: AudioImportSummary) {
+  return template
+    .replace("{books}", String(summary.importedBooks))
+    .replace("{parts}", String(summary.importedParts))
+    .replace("{duplicates}", String(summary.duplicateParts))
     .replace("{failed}", String(summary.failed));
 }
 

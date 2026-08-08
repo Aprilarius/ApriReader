@@ -14,7 +14,15 @@ export type IconName =
   | "folder"
   | "refresh"
   | "bookmark"
-  | "notes";
+  | "notes"
+  | "audio"
+  | "play"
+  | "pause"
+  | "previous"
+  | "next"
+  | "rewind"
+  | "forward"
+  | "volume";
 
 const paths: Record<IconName, React.ReactNode> = {
   library: (
@@ -58,6 +66,24 @@ const paths: Record<IconName, React.ReactNode> = {
   ),
   bookmark: <path d="M6 3h12v18l-6-4-6 4V3Z" />,
   notes: <path d="M5 3h14v18H5zM8 8h8M8 12h8M8 16h5" />,
+  audio: (
+    <>
+      <path d="M4 13v-2a8 8 0 0 1 16 0v2" />
+      <path d="M4 12h3v7H5a1 1 0 0 1-1-1v-6Zm16 0h-3v7h2a1 1 0 0 0 1-1v-6Z" />
+    </>
+  ),
+  play: <path d="m8 5 11 7-11 7V5Z" />,
+  pause: <path d="M7 5h4v14H7zM13 5h4v14h-4z" />,
+  previous: <path d="M6 5v14M18 6 9 12l9 6V6Z" />,
+  next: <path d="M18 5v14M6 6l9 6-9 6V6Z" />,
+  rewind: <path d="M11 6 4 12l7 6V6Zm9 0-7 6 7 6V6Z" />,
+  forward: <path d="m4 6 7 6-7 6V6Zm9 0 7 6-7 6V6Z" />,
+  volume: (
+    <>
+      <path d="M4 10h4l5-4v12l-5-4H4v-4Z" />
+      <path d="M16 9c1.6 1.6 1.6 4.4 0 6M18.5 6.5c3 3 3 8 0 11" />
+    </>
+  ),
 };
 
 export function Icon({ name }: { name: IconName }) {

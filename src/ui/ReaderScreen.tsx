@@ -25,6 +25,7 @@ import {
   type DocumentBlock,
   type DocumentModel,
 } from "../application/reader";
+import type { TtsHighlightRange } from "../application/ttsQueue";
 import {
   externalTranslationConsentKey,
   externalTranslationMaxCharacters,
@@ -39,6 +40,7 @@ import {
 import { Icon } from "./icons";
 import type { TranslationKey } from "./i18n";
 import { readLocalValue, writeLocalValue } from "./localStorage";
+import { TextToSpeechPanel } from "./TextToSpeechPanel";
 import { useReadingSession } from "./useReadingSession";
 
 type Translator = (key: TranslationKey) => string;
@@ -57,7 +59,13 @@ type ReaderFontChoice =
   | "custom";
 type ReaderFontStyle = "normal" | "italic";
 type ReaderLayout = "continuous" | "spread";
-type ReaderPanel = "contents" | "search" | "annotations" | "settings" | null;
+type ReaderPanel =
+  | "contents"
+  | "search"
+  | "annotations"
+  | "tts"
+  | "settings"
+  | null;
 
 type ReaderPreferences = {
   fontSize: number;
@@ -223,6 +231,9 @@ export function ReaderScreen({
   const [searching, setSearching] = useState(false);
   const [searchSubmitted, setSearchSubmitted] = useState(false);
   const [message, setMessage] = useState("");
+  const [ttsHighlight, setTtsHighlight] = useState<TtsHighlightRange | null>(
+    null,
+  );
   const [translationMenuOpen, setTranslationMenuOpen] = useState(false);
   const [pendingTranslationProvider, setPendingTranslationProvider] =
     useState<ExternalTranslationProvider | null>(null);
@@ -363,6 +374,25 @@ export function ReaderScreen({
       });
     });
   }, [preferences.layout, sectionIndex]);
+
+  useEffect(() => {
+    if (!ttsHighlight) return;
+    const container = scrollRef.current;
+    const target = container?.querySelector<HTMLElement>(
+      ".reader-speech-focus",
+    );
+    if (!container || !target) return;
+    const containerRect = container.getBoundingClientRect();
+    const targetRect = target.getBoundingClientRect();
+    if (
+      targetRect.top < containerRect.top + 24 ||
+      targetRect.bottom > containerRect.bottom - 24 ||
+      targetRect.left < containerRect.left + 24 ||
+      targetRect.right > containerRect.right - 24
+    ) {
+      target.scrollIntoView?.({ block: "center", inline: "center" });
+    }
+  }, [ttsHighlight]);
 
   useEffect(() => {
     const container = scrollRef.current;
@@ -548,10 +578,14 @@ export function ReaderScreen({
     }, 350);
   };
 
-  const selectSection = (index: number, blockIndex?: number) => {
+  const selectSection = (
+    index: number,
+    blockIndex?: number,
+    preservePanel = false,
+  ) => {
     cancelPendingPositionSave();
     setSectionIndex(index);
-    setPanel(null);
+    if (!preservePanel) setPanel(null);
     setSelection(null);
     setSectionProgress(0);
     const progress = index / document.sections.length;
@@ -967,6 +1001,14 @@ export function ReaderScreen({
             }
           />
           <ReaderAction
+            active={panel === "tts"}
+            icon="volume"
+            label={t("ttsReadAloud")}
+            onClick={() =>
+              setPanel((value) => (value === "tts" ? null : "tts"))
+            }
+          />
+          <ReaderAction
             active={panel === "settings"}
             icon="settings"
             label={t("typography")}
@@ -1083,6 +1125,26 @@ export function ReaderScreen({
               />
             ))}
           </div>
+        )}
+      </ReaderSidePanel>
+
+      <ReaderSidePanel
+        open={panel === "tts"}
+        side="right"
+        title={t("ttsReadAloud")}
+        closeLabel={t("ttsClose")}
+        onClose={() => setPanel(null)}
+      >
+        {panel === "tts" && (
+          <TextToSpeechPanel
+            title={document.title}
+            sections={document.sections}
+            currentSectionIndex={sectionIndex}
+            language={language}
+            t={t}
+            onNavigate={(index) => selectSection(index, undefined, true)}
+            onHighlight={setTtsHighlight}
+          />
         )}
       </ReaderSidePanel>
 
@@ -1351,7 +1413,19 @@ export function ReaderScreen({
           <p className="reader-kicker">
             {sectionIndex + 1} / {document.sections.length}
           </p>
-          <h1>{section.title}</h1>
+          <h1>
+            <AnnotatedText
+              text={section.title}
+              annotations={[]}
+              bionic={false}
+              speechRange={
+                ttsHighlight?.sectionIndex === sectionIndex &&
+                ttsHighlight.blockIndex === -1
+                  ? ttsHighlight
+                  : null
+              }
+            />
+          </h1>
           <div className="reader-blocks" onMouseUp={captureSelection}>
             {section.blocks.map((block, index) => (
               <ReaderBlock
@@ -1363,6 +1437,12 @@ export function ReaderScreen({
                 )}
                 bionic={preferences.bionicReading}
                 blockIndex={index}
+                speechRange={
+                  ttsHighlight?.sectionIndex === sectionIndex &&
+                  ttsHighlight.blockIndex === index
+                    ? ttsHighlight
+                    : null
+                }
                 key={`${section.id}-${index}-${block.kind}`}
               />
             ))}
@@ -1421,6 +1501,7 @@ export function ReaderScreen({
                 annotations={[]}
                 bionic={preferences.bionicReading}
                 blockIndex={index}
+                speechRange={null}
                 key={`measure-${measurementSection.id}-${index}-${block.kind}`}
               />
             ))}
@@ -1578,7 +1659,7 @@ function ReaderAction({
   onClick,
 }: {
   active: boolean;
-  icon: "collections" | "search" | "bookmark" | "notes" | "settings";
+  icon: "collections" | "search" | "bookmark" | "notes" | "volume" | "settings";
   label: string;
   onClick: () => void;
 }) {
@@ -1678,17 +1759,20 @@ function ReaderBlock({
   blockIndex,
   annotations,
   bionic,
+  speechRange,
 }: {
   block: DocumentBlock;
   blockIndex: number;
   annotations: AnnotationRecord[];
   bionic: boolean;
+  speechRange: Pick<TtsHighlightRange, "startOffset" | "endOffset"> | null;
 }) {
   const text = (
     <AnnotatedText
       text={block.text}
       annotations={annotations}
       bionic={bionic}
+      speechRange={speechRange}
     />
   );
   const data = { "data-reader-block": blockIndex };
@@ -1716,10 +1800,12 @@ function AnnotatedText({
   text,
   annotations,
   bionic,
+  speechRange = null,
 }: {
   text: string;
   annotations: AnnotationRecord[];
   bionic: boolean;
+  speechRange?: Pick<TtsHighlightRange, "startOffset" | "endOffset"> | null;
 }) {
   const ranges = annotations
     .map((annotation) => ({
@@ -1729,32 +1815,48 @@ function AnnotatedText({
     }))
     .filter((range) => range.end > range.start)
     .sort((left, right) => left.start - right.start);
-  const output: ReactNode[] = [];
-  let cursor = 0;
+  const speech = speechRange
+    ? {
+        start: Math.min(text.length, speechRange.startOffset),
+        end: Math.min(text.length, speechRange.endOffset),
+      }
+    : null;
+  const boundaries = new Set([0, text.length]);
   for (const range of ranges) {
-    if (range.start < cursor) continue;
-    output.push(
-      <span key={`plain-${cursor}`}>
-        {renderFocusText(text.slice(cursor, range.start), bionic)}
-      </span>,
-    );
-    output.push(
-      <mark
-        className={`reader-annotation kind-${range.annotation.kind}`}
-        key={range.annotation.id}
-        title={range.annotation.note || range.annotation.kind}
-      >
-        {renderFocusText(text.slice(range.start, range.end), bionic)}
-      </mark>,
-    );
-    cursor = range.end;
+    boundaries.add(range.start);
+    boundaries.add(range.end);
   }
-  output.push(
-    <span key={`plain-${cursor}-end`}>
-      {renderFocusText(text.slice(cursor), bionic)}
-    </span>,
-  );
-  return output;
+  if (speech && speech.end > speech.start) {
+    boundaries.add(speech.start);
+    boundaries.add(speech.end);
+  }
+  const points = Array.from(boundaries).sort((left, right) => left - right);
+  return points.slice(0, -1).map((start, index) => {
+    const end = points[index + 1]!;
+    const annotation = ranges.find(
+      (range) => range.start <= start && range.end >= end,
+    )?.annotation;
+    const spoken = speech && speech.start <= start && speech.end >= end;
+    let content: ReactNode = renderFocusText(text.slice(start, end), bionic);
+    if (spoken) {
+      content = (
+        <mark className="reader-speech-focus" aria-current="true">
+          {content}
+        </mark>
+      );
+    }
+    if (annotation) {
+      content = (
+        <mark
+          className={`reader-annotation kind-${annotation.kind}`}
+          title={annotation.note || annotation.kind}
+        >
+          {content}
+        </mark>
+      );
+    }
+    return <span key={`${start}-${end}`}>{content}</span>;
+  });
 }
 
 function renderFocusText(text: string, enabled: boolean): ReactNode {

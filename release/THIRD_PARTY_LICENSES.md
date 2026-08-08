@@ -4,8 +4,8 @@ This deterministic report covers the installed production npm dependency
 graph and the locked Cargo dependency graph used to build ApriReader.
 Absolute local paths are intentionally omitted.
 
-- Components: 302
-- Unique license or notice texts: 177
+- Components: 303
+- Unique license or notice texts: 178
 - Components without a packaged license file: 9
 
 ## Component inventory
@@ -237,6 +237,7 @@ Absolute local paths are intentionally omitted.
 | `cargo:tracing@0.1.44` | MIT | Eliza Weisman <eliza@buoyant.io>, Tokio Contributors <team@tokio.rs> | https://tokio.rs |
 | `cargo:tracing-attributes@0.1.31` | MIT | Tokio Contributors <team@tokio.rs>, Eliza Weisman <eliza@buoyant.io>, David Barsky <dbarsky@amazon.com> | https://tokio.rs |
 | `cargo:tracing-core@0.1.36` | MIT | Tokio Contributors <team@tokio.rs> | https://tokio.rs |
+| `cargo:tray-icon@0.24.2` | MIT OR Apache-2.0 |  | https://github.com/tauri-apps/tray-icon |
 | `cargo:typed-path@0.12.3` | MIT OR Apache-2.0 | Chip Senkbeil <chip@senkbeil.org> | https://github.com/chipsenkbeil/typed-path |
 | `cargo:typeid@1.0.3` | MIT OR Apache-2.0 | David Tolnay <dtolnay@gmail.com> | https://github.com/dtolnay/typeid |
 | `cargo:typenum@1.20.1` | MIT OR Apache-2.0 |  | https://github.com/paholg/typenum |
@@ -307,7 +308,7 @@ Absolute local paths are intentionally omitted.
 | `cargo:zopfli@0.8.3` | Apache-2.0 |  | https://github.com/zopfli-rs/zopfli |
 | `npm:@napi-rs/canvas@0.1.100` | MIT |  | https://github.com/Brooooooklyn/canvas#readme |
 | `npm:@napi-rs/canvas-win32-x64-msvc@0.1.100` | MIT |  | https://github.com/Brooooooklyn/canvas#readme |
-| `npm:@tauri-apps/api@2.8.0` | Apache-2.0 OR MIT |  | https://github.com/tauri-apps/tauri#readme |
+| `npm:@tauri-apps/api@2.11.1` | Apache-2.0 OR MIT |  | https://github.com/tauri-apps/tauri#readme |
 | `npm:@tauri-apps/plugin-dialog@2.7.2` | MIT OR Apache-2.0 |  | https://github.com/tauri-apps/plugins-workspace#readme |
 | `npm:@tauri-apps/plugin-opener@2.5.4` | MIT OR Apache-2.0 |  | https://github.com/tauri-apps/plugins-workspace#readme |
 | `npm:pdfjs-dist@5.7.284` | Apache-2.0 |  | https://mozilla.github.io/pdf.js/ |
@@ -3603,7 +3604,7 @@ Applies to:
 - `cargo:time-core@0.1.9`
 - `cargo:time-macros@0.2.32`
 - `cargo:time@0.3.54`
-- `npm:@tauri-apps/api@2.8.0`
+- `npm:@tauri-apps/api@2.11.1`
 - `npm:pdfjs-dist@5.7.284`
 
 ```text
@@ -4851,6 +4852,36 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+```
+
+### SHA-256 `6C1E5D0CCF5E8951401CB964036AE664D52FC8D1148173B53BC54FC534F5D404`
+
+Files: `LICENSE.spdx`
+
+Applies to:
+
+- `cargo:tray-icon@0.24.2`
+
+```text
+SPDXVersion: SPDX-2.1
+DataLicense: CC0-1.0
+PackageName: tray-icon
+DataFormat: SPDXRef-1
+PackageSupplier: Organization: The Tauri Programme in the Commons Conservancy
+PackageHomePage: https://tauri.app
+PackageLicenseDeclared: Apache-2.0
+PackageLicenseDeclared: MIT
+PackageCopyrightText: 2020-2022, The Tauri Programme in the Commons Conservancy
+PackageSummary: <text>Create tray icons for desktop applications.
+                </text>
+PackageComment: <text>The package includes the following libraries; see
+Relationship information.
+                </text>
+Created: 2022-12-05T09:00:00Z
+PackageDownloadLocation: git://github.com/tauri-apps/tray-icon
+PackageDownloadLocation: git+https://github.com/tauri-apps/tray-icon.git
+PackageDownloadLocation: git+ssh://github.com/tauri-apps/tray-icon.git
+Creator: Person: Daniel Thompson-Yvetot
 ```
 
 ### SHA-256 `6C91EC82929F91FFA341A9928E5C98B44767C6A1BB8D7789EDAD88D3FA5681AF`
@@ -6517,6 +6548,7 @@ Files: `LICENSE-MIT`
 Applies to:
 
 - `cargo:muda@0.19.3`
+- `cargo:tray-icon@0.24.2`
 
 ```text
 MIT License
@@ -7462,7 +7494,7 @@ Applies to:
 - `cargo:tauri-runtime@2.11.3`
 - `cargo:tauri-utils@2.9.3`
 - `cargo:tauri@2.11.5`
-- `npm:@tauri-apps/api@2.8.0`
+- `npm:@tauri-apps/api@2.11.1`
 
 ```text
 MIT License
@@ -7698,6 +7730,7 @@ Applies to:
 - `cargo:string_cache@0.9.0`
 - `cargo:string_cache_codegen@0.6.1`
 - `cargo:tendril@0.5.1`
+- `cargo:tray-icon@0.24.2`
 - `cargo:unicode-segmentation@1.13.3`
 - `cargo:url@2.5.8`
 - `cargo:uuid@1.24.0`

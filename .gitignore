@@ -3,6 +3,9 @@ node_modules/
 dist/
 src-tauri/target/
 release/candidates/
+qa-output/
+contrast-audit.md
+design-qa.md
 *.log
 *.db
 *.db-shm

@@ -153,7 +153,30 @@
 6. Uninstall ApriReader and confirm its Explorer handler entries are removed
    without deleting source books or app-local user data.
 
-The Rust integration suite complements step 7 with disposable valid and
+### Audiobook associations
+
+1. Install the A6 NSIS candidate for the current user. Confirm Explorer offers
+   ApriReader Audiobook for AAC, FLAC, M4A/M4B, MP3, WAV, WMA, 3G2/3GP, AMR,
+   AIF/AIFF, ALAC, APE, CAF, MKA, MPC, OGA/OGG, OPUS, WV, CUE, M3U, and M3U8.
+   Confirm AAX, AAXC, M4P, executables, and unknown extensions are absent.
+2. With ApriReader closed, double-click a disposable PCM WAV or MP3 fixture.
+   Confirm one audiobook record is created and the populated player opens
+   immediately. Play, seek, pause, and confirm the source hash is unchanged.
+3. Keep ApriReader open and double-click a second audio fixture. Confirm the
+   existing window is focused, one process remains, and the new player opens.
+4. Open the first fixture again. Confirm its existing record and progress are
+   reused. Move an unavailable disposable fixture, open the relocated copy,
+   and confirm fingerprint reconnection rather than duplication.
+5. Open valid local CUE, M3U, and M3U8 fixtures. Confirm playlist order and CUE
+   chapters. Try remote URLs, directory traversal, missing references, more
+   than 10,000 entries, and a descriptor over 2 MiB; each must fail safely.
+6. Try at least one system-codec-tier format on Windows 10 and Windows 11. If
+   the OS lacks a decoder, confirm ApriReader reports that limitation without
+   crashing or claiming the format is natively bundled.
+7. Uninstall the candidate and confirm both ApriReader Book and ApriReader
+   Audiobook handlers are removed without deleting sources or local progress.
+
+The Rust integration suite complements the steps above with disposable valid and
 malformed fixtures for all nine public formats. It opens them through the real
 reader adapters, rejects unsafe or structurally invalid input, checks that HTML
 does not expose an external script URL, and verifies every source fixture
@@ -211,3 +234,108 @@ manual oversized-input and external-request checks.
 12. Deny clipboard access, select text, and choose Copy quote. Confirm the quote
     remains in Annotations and the status says copying was unavailable instead
     of claiming clipboard success.
+
+## Local read aloud
+
+1. Open an EPUB, FB2, TXT, HTML, Markdown, or DOCX section and choose Read
+   Aloud. Confirm only voices installed in Windows are listed and the section
+   character count is visible.
+2. Select Russian and English voices where installed, then test 0.5x, 1.0x,
+   and 2.0x. Confirm play, pause/resume, and stop work and the choices survive
+   an application restart.
+3. Change section or close the Read Aloud panel during playback. Confirm its
+   speech stops. Start an audiobook and then start Read Aloud; confirm only one
+   native playback owner remains active.
+4. Test an empty section and a disposable section over 20,000 Unicode
+   characters. Confirm empty text is rejected visibly and long text is split
+   into bounded fragments with no silent truncation, cloud request,
+   source-book change, or unbounded cache growth.
+5. On a Windows profile with no usable speech voice, confirm a visible error is
+   announced and ApriReader remains usable. Repeat on Windows 10 and Windows 11
+   because installed voice engines are operating-system components.
+6. Select Whole book from this section and start in a multi-section fixture.
+   Confirm the fragment counter advances, the next section opens
+   automatically, and the panel remains open. Confirm the next fragment starts
+   without synthesizing the whole book as one WAV.
+7. Confirm the active word is visibly marked and scrolls into view, including
+   inside an annotation and with bionic reading enabled. Pause and confirm the
+   mark stays stable; resume and confirm it advances. In forced-colors mode,
+   confirm the word uses the system Highlight treatment.
+8. During whole-book narration, navigate manually, close the panel, or change
+   voice, rate, and scope. Each action must stop the owned session and prevent
+   a stale prepared fragment from starting later.
+9. Select ElevenLabs without a key. Confirm no cloud voice or speech request is
+   possible. Save a disposable restricted/quota-limited key and confirm it is
+   present only as `ApriReader/ElevenLabsApiKey` in Windows Credential Manager,
+   never in WebView storage, logs, screenshots, status text, or error messages.
+10. With a configured key, select an ElevenLabs voice and start narration.
+    Confirm the first attempt shows the text-transfer/provider-policy/quota
+    disclosure and sends no fragment before Agree and start. Cancel and confirm
+    no speech request occurs.
+11. Accept disclosure and narrate a multi-sentence Russian/English fixture.
+    Confirm provider-timed word focus follows the returned MP3, the queue
+    continues across sections, and local Windows mode still works without a
+    network request.
+12. Test an invalid key, invalid voice ID, malformed JSON, inconsistent timing,
+    oversized response, invalid MP3, offline mode, and provider quota failure.
+    Each must fail visibly without caching unvalidated bytes, exposing the key,
+    retrying in the background, or sending text to another provider.
+13. Delete the key. Confirm Credential Manager no longer contains it, consent
+    is cleared, the provider returns to Windows, and a later ElevenLabs attempt
+    requires both a new key and new consent.
+14. Create local and ElevenLabs voice presets with different voices and rates.
+    Apply each, rename/update it, restart ApriReader, and confirm settings are
+    restored. Delete a preset and confirm no provider key or book text appears
+    in `aprireader.tts.preferences.v1`.
+15. Add, edit, and delete mixed Russian/English pronunciation rules. Confirm
+    matching ignores case but does not replace a word inside a longer word.
+    Disable the dictionary and confirm rules remain visible but synthesis uses
+    the original fragment.
+16. Narrate a cloud fragment with a shorter and a longer replacement. Confirm
+    the request contains the replacement while provider-timed focus still
+    marks the corresponding original word and the displayed/source book text
+    remains unchanged.
+17. Attempt 101 rules, 21 presets, control characters, duplicate source terms,
+    an invalid persisted JSON document, and replacement expansion above 2,000
+    UTF-16 units. Each must be rejected or ignored visibly without synthesis,
+    source modification, credential exposure, or unbounded storage growth.
+18. Enable Google Cloud Text-to-Speech and billing in a disposable restricted
+    project. Save an API-restricted key and confirm it exists only as
+    `ApriReader/GoogleCloudTtsApiKey` in Windows Credential Manager, never in a
+    URL, WebView storage, preset, log, screenshot, or error message.
+19. Select Google with Russian and English books. Confirm voice discovery uses
+    the book language, displays locale and Standard/WaveNet/Neural2/Studio/Chirp
+    family, and does not send book text. Cancel the first-send disclosure and
+    verify no synthesis request occurs; accept it and verify narration starts.
+20. Test a valid MP3, invalid key, disabled API, disabled billing, exhausted
+    quota, offline mode, malformed JSON/base64, non-MP3 bytes, response limits,
+    invalid voice/language, and input above 4,800 UTF-8 bytes. Each failure must
+    remain visible and must not cache bytes, reveal the key, or switch providers.
+21. Save Google in a voice preset, apply the A10 dictionary, narrate across
+    sections, change speed, and restart. Confirm the preset restores without a
+    key, replacements affect only synthesis, focus uses bounded position-based
+    fallback, and deleting the Google key clears only Google consent.
+22. Create a disposable Azure Speech resource. Select its exact allowlisted
+    region, save the key, and verify it exists only as
+    `ApriReader/AzureSpeechApiKey` in Credential Manager. A mismatched region
+    must fail visibly without trying another region.
+23. Verify Russian/English voice filtering, first-send cancellation and consent,
+    whole-book narration, presets with region restoration, dictionary text
+    containing `<`, `>`, `&`, quotes and apostrophes, offline/quota/401/429,
+    malformed voice JSON, non-MP3 audio and response limits. No test may expose
+    the key, accept a custom host, mutate a book, or cache invalid bytes.
+24. For ElevenLabs change stability, similarity, style, and speaker boost; for
+    Google test pitch at -20/0/+20; for Azure test -50%/0/+50%. Confirm a changed
+    value produces new audio, survives restart and preset apply, and out-of-range
+    persisted/native values fail closed without a provider request.
+25. Generate local and cloud speech, open Speech cache, and confirm truthful
+    per-provider counts and sizes. Clear only the selected provider, then all
+    providers. Unrelated app-local files and deliberately similar malformed
+    filenames must remain untouched; active narration must stop first.
+26. Export a current section and a disposable multi-section book. Confirm the
+    chosen M3U8 references a unique sibling media directory, parts are ordered
+    and playable, and source books/cache files remain unchanged. Cancel during
+    local and cloud generation and confirm only the partial export is removed.
+    Test 5,001 parts, a part over 64 MiB, aggregate data over 6 GiB, a cache path
+    escape, offline/401/429, and an existing playlist. Each must fail visibly,
+    with no silent cloud fallback or unbounded/quota-obscuring retry.

@@ -2,6 +2,145 @@
 
 ## Unreleased
 
+## 1.3.0-rc.1 - 2026-08-08
+
+- Reworked the audiobook player into a bounded responsive composition: the
+  cover and metadata remain in their own column, playback controls no longer
+  overflow into the queue, and parts, chapters, and bookmarks use consistent
+  cards that collapse to one column on narrow windows.
+- Fixed light-theme button contrast across dialogs and text-to-speech controls.
+  Primary and secondary variants now retain their own surfaces inside shared
+  action rows, and disabled actions remain readable without hover.
+- Fixed local Windows narration stopping after a short section title. Native
+  `MediaEnded` now takes precedence over Windows MediaPlayer's trailing paused
+  session state, so the TTS queue advances into the first text block and keeps
+  reading subsequent fragments.
+- Started the audiobook foundation with an isolated native Windows MediaPlayer
+  service and diagnostic Tauri commands for probing, loading, playback,
+  pause, seek, speed, volume, state inspection, and stop.
+- Added a 20 GiB per-file boundary, a safe local-audio allowlist, explicit DRM
+  rejection, and separate CUE/M3U/M3U8 classification ahead of audiobook
+  library import.
+- Added the separate SQLite audiobook/part model, bounded single and
+  multi-part import, natural part ordering, content-aware rescans, source
+  availability tracking, and dedicated watched audio folders.
+- Automatic grouping treats a selected folder as one audiobook while keeping
+  single files in the root of a watched collection separate; nested folders
+  remain stable groups even when only one part is temporarily available.
+- Added a dedicated Audiobooks destination with lazy database loading, local
+  search, library totals, availability-aware cards, ordered part details,
+  explicit file/folder import, watched-folder rescans, and localized status
+  reporting. The destination remains separate from text-book navigation.
+- Connected the audiobook-player destination to the isolated native Windows
+  MediaPlayer worker with play/pause, 15-second seeking, previous/next parts,
+  automatic part advance, an ordered queue, 0.5x–3.0x speed, and persistent
+  volume/speed preferences.
+- Added bounded durable audiobook progress. The player restores the last part
+  and position, records observed media durations, saves every five seconds and
+  at lifecycle boundaries, and derives whole-book progress atomically without
+  modifying source audio.
+- Added bounded local CUE, M3U, and M3U8 import. Playlist order is preserved,
+  CUE track titles and frame-accurate positions become chapters, remote URLs
+  and paths escaping the descriptor folder are rejected, and descriptors are
+  capped at 2 MiB and 10,000 parsed entries.
+- Added audiobook sleep timers for 15, 30, 45, or 60 minutes and the end of the
+  current part, plus local per-position bookmarks with optional notes.
+- Added configurable close behavior while audio is active: ask each time,
+  continue in the Windows system tray, or exit completely. The tray can reopen
+  ApriReader, toggle playback, or exit.
+- Added Windows audio-output selection to the player. The selected enabled
+  device is remembered locally, with an explicit return to the system default.
+- Added local audiobook metadata editing for title, author, narrator, series,
+  genres, language, year, and description, validated local cover replacement,
+  and explicit Russian/English online metadata search using the reviewed
+  provider pipeline.
+- Added bounded active-listening sessions, audiobook totals on Statistics, and
+  seven separate audiobook achievements. Audio goals remain local and do not
+  enter the text-reading Steam synchronization queue.
+- Added installer-owned Explorer associations for all reviewed native and
+  system-codec audiobook extensions plus local CUE/M3U/M3U8 descriptors. Shell
+  activation uses the bounded single-instance queue, imports or deduplicates in
+  Rust, and immediately opens the matching audiobook player.
+- Generalized the existing book launch queue into a 32-entry mixed book/audio
+  queue while retaining extension allowlists, case-insensitive deduplication,
+  source-file immutability, and rejection of DRM and executable paths.
+- Added explicit local read-aloud for the current section of a reflow book.
+  The reader lists installed Windows voices, remembers the selected voice and
+  0.5x–2.0x speech rate, and provides play, pause/resume, and stop without a
+  cloud request or bundled speech model.
+- Kept speech generation behind a dedicated Windows worker with a 20,000
+  character request limit, 64 MiB WAV limit, and 64-file app-local cache. The
+  Windows Runtime voice API is preferred, with classic desktop SAPI as a
+  compatibility fallback when Runtime voice discovery is unavailable.
+- Added continuous local narration from the current section through the rest
+  of a reflow book. Text is split on sentence and safe word boundaries into
+  fragments no larger than 1,200 UTF-16 units; the next fragment is prepared
+  in the background while the current WAV plays.
+- Added automatic reader navigation at section boundaries, remembered
+  current-section/whole-book scope, fragment progress, active-word focus, and
+  automatic scrolling. Word focus follows the real native playback position
+  within each short fragment and coexists with annotations and bionic text.
+- Added an optional ElevenLabs BYOK voice provider. Local Windows voices remain
+  the default; selecting ElevenLabs requires a user-supplied key and explicit
+  first-send consent that explains external processing and possible quota cost.
+- ElevenLabs keys are written only to Windows Credential Manager and never
+  returned to the WebView after saving. Requests use the fixed official API
+  host, 1,200-unit queue fragments, bounded JSON/audio responses, validated
+  MP3 data, and a 64-file provider cache.
+- ElevenLabs character alignment now drives exact provider-timed word focus.
+  Local Windows voices retain A8's position-based fallback, and changing or
+  deleting provider settings invalidates the active narration generation.
+- Added up to 20 local voice presets containing provider, voice, and speech
+  rate. Presets can be created, applied, renamed, updated, and deleted without
+  storing provider credentials.
+- Added an optional 100-entry local pronunciation dictionary for words and
+  phrases. Case-insensitive whole-word replacements affect only synthesized
+  text, never the source book, and can be disabled without deleting rules.
+- Pronunciation expansion is capped at 2,000 UTF-16 units per queue fragment.
+  A source-offset map returns ElevenLabs character timing to the original book
+  text so active-word focus remains accurate after substitutions.
+- Added optional Google Cloud Text-to-Speech BYOK with a separate protected
+  Credential Manager key, provider-specific first-send consent, and automatic
+  language filtering from the current book.
+- Google voice discovery labels Standard, WaveNet, Neural2, Studio, and Chirp
+  HD families. Synthesis uses the fixed official REST host, a native-only
+  `x-goog-api-key` header, bounded plain-text input, validated MP3 output, and
+  a separate 64-file cache. Keys never enter URLs, WebView storage, or presets.
+- Google narration reuses the A8 whole-book queue, A10 pronunciation rules and
+  presets, and native playback-rate control. Because synchronous Google REST
+  responses contain no character timing, active-word focus uses the existing
+  position-based fallback rather than claiming exact provider synchronization.
+- Added Azure AI Speech BYOK with a user-selected resource region from the
+  official 33-region allowlist, a separate Credential Manager key and consent,
+  and language-filtered neural voice discovery.
+- Azure requests use only the validated `*.tts.speech.microsoft.com` regional
+  host, native `Ocp-Apim-Subscription-Key`, fully escaped bounded SSML, validated
+  MP3 output, and a separate 64-file cache. The selected non-secret region is
+  stored locally and included in Azure voice presets.
+- Added provider-specific expressive controls: ElevenLabs stability, similarity,
+  style and speaker boost; Google pitch; and bounded Azure SSML pitch. The
+  values remain local, participate in cache identity, and are saved in presets.
+- Added per-provider TTS cache statistics and explicit clearing without recursive
+  cache-root deletion or access to unrelated app files.
+- Added explicit narration export to a user-selected M3U8 playlist plus a unique
+  sibling media directory. Up to 5,000 validated app-cache parts and 6 GiB are
+  copied incrementally, so normal 64-file cache pruning cannot break long exports.
+  Cancellation removes only the registered partial export; cloud export warns
+  about provider quota and does not claim to embed player-only speed changes.
+
+## 1.2.0 - 2026-08-02
+
+- Added an explicit Russian/English metadata switch. Russian searches combine
+  Russian-edition Open Library results with bounded public FantLab results,
+  label their source, remove duplicates, and cache by language.
+- Made the cover clickable only in manual edit mode, with validated local JPG,
+  PNG, and WebP import up to 10 MiB plus embedded-cover restoration. Source
+  books and selected source images remain unchanged.
+- Raised bounded fixed-layout limits for large local collections: PDF files up
+  to 2 GiB, CBZ/CBR archives up to 4 GiB, and comic image payloads up to 6 GiB
+  while retaining per-page, page-count, and archive-path protections.
+- Aligned the existing `@tauri-apps/api` package with the Tauri 2.11 runtime so
+  production NSIS packaging accepts the reviewed dependency set.
 - Updated the build-only Tauri CLI to 2.11.4 so NSIS bundle-type metadata is
   patched without the previous `__TAURI_BUNDLE_TYPE` warning.
 - Added a fail-closed Authenticode release profile that keeps credentials out

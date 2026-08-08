@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 import type { Book } from "../application/library";
 import {
   applyMetadataCandidate,
+  chooseAndSetLocalCover,
+  removeExternalCover,
   searchMetadata,
   updateBookMetadata,
 } from "../application/metadata";
@@ -17,6 +19,7 @@ vi.mock("../application/metadata", async (importOriginal) => {
     updateBookMetadata: vi.fn(),
     searchMetadata: vi.fn(),
     applyMetadataCandidate: vi.fn(),
+    chooseAndSetLocalCover: vi.fn(),
     removeExternalCover: vi.fn(),
   };
 });
@@ -95,6 +98,7 @@ describe("BookDetails", () => {
         publisher: "Catalog Press",
         publishedYear: "2020",
         language: "eng",
+        series: "",
         genres: "Science fiction, Adventure",
         coverId: 42,
       },
@@ -113,12 +117,86 @@ describe("BookDetails", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Find metadata" }));
     expect(searchMetadata).not.toHaveBeenCalled();
-    fireEvent.click(
-      screen.getByRole("button", { name: "Search Open Library" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Search metadata" }));
     expect(await screen.findByText("Catalog Author")).toBeInTheDocument();
+    expect(searchMetadata).toHaveBeenCalledWith(
+      4,
+      "Quiet Book Local Author",
+      "en",
+    );
     expect(screen.getByText("Cover available")).toBeInTheDocument();
     expect(applyMetadataCandidate).not.toHaveBeenCalled();
+  });
+
+  it("lets the user choose Russian metadata providers explicitly", async () => {
+    vi.mocked(searchMetadata).mockResolvedValue([]);
+    render(
+      <BookDetails
+        book={book}
+        locale="en"
+        t={t}
+        busy={false}
+        onRead={vi.fn()}
+        onFavorite={vi.fn()}
+        onRemove={vi.fn()}
+        onUpdated={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Find metadata" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Русский" }));
+    fireEvent.click(screen.getByRole("button", { name: "Search metadata" }));
+    await waitFor(() =>
+      expect(searchMetadata).toHaveBeenCalledWith(
+        4,
+        "Quiet Book Local Author",
+        "ru",
+      ),
+    );
+  });
+
+  it("changes and restores a local cover only from edit mode", async () => {
+    const localCover = {
+      ...book,
+      coverSource: "local",
+    };
+    vi.mocked(chooseAndSetLocalCover).mockResolvedValue(localCover);
+    vi.mocked(removeExternalCover).mockResolvedValue(book);
+    const onUpdated = vi.fn();
+    const { rerender } = render(
+      <BookDetails
+        book={book}
+        t={t}
+        busy={false}
+        onRead={vi.fn()}
+        onFavorite={vi.fn()}
+        onRemove={vi.fn()}
+        onUpdated={onUpdated}
+        onClose={vi.fn()}
+      />,
+    );
+    expect(screen.queryByRole("button", { name: "Change cover" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Edit metadata" }));
+    fireEvent.click(screen.getByRole("button", { name: "Change cover" }));
+    await waitFor(() => expect(chooseAndSetLocalCover).toHaveBeenCalledWith(4));
+    expect(onUpdated).toHaveBeenCalledWith(localCover);
+
+    rerender(
+      <BookDetails
+        book={localCover}
+        t={t}
+        busy={false}
+        onRead={vi.fn()}
+        onFavorite={vi.fn()}
+        onRemove={vi.fn()}
+        onUpdated={onUpdated}
+        onClose={vi.fn()}
+      />,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Restore embedded cover" }),
+    );
+    await waitFor(() => expect(removeExternalCover).toHaveBeenCalledWith(4));
   });
 
   it("toggles the local favorite marker", async () => {

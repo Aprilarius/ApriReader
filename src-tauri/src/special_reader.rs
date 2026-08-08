@@ -10,9 +10,10 @@ use std::{
 use thiserror::Error;
 use zip::ZipArchive;
 
-const MAX_FIXED_FILE_SIZE: u64 = 512 * 1024 * 1024;
+const MAX_PDF_FILE_SIZE: u64 = 2 * 1024 * 1024 * 1024;
+const MAX_COMIC_ARCHIVE_SIZE: u64 = 4 * 1024 * 1024 * 1024;
 const MAX_COMIC_PAGE_SIZE: u64 = 64 * 1024 * 1024;
-const MAX_COMIC_TOTAL_SIZE: u64 = 768 * 1024 * 1024;
+const MAX_COMIC_TOTAL_SIZE: u64 = 6 * 1024 * 1024 * 1024;
 const MAX_COMIC_PAGES: usize = 10_000;
 
 #[derive(Debug, Error)]
@@ -85,8 +86,12 @@ pub fn prepare_special_document(
         return Err(SpecialReaderError::Missing);
     }
     let size = fs::metadata(source_path)?.len();
-    if size > MAX_FIXED_FILE_SIZE {
-        return Err(SpecialReaderError::TooLarge);
+    match format.as_str() {
+        "PDF" if size > MAX_PDF_FILE_SIZE => return Err(SpecialReaderError::TooLarge),
+        "CBZ" | "CBR" if size > MAX_COMIC_ARCHIVE_SIZE => {
+            return Err(SpecialReaderError::TooLarge);
+        }
+        _ => {}
     }
     let key = fingerprint
         .get(..24)
@@ -165,8 +170,8 @@ fn copy_bounded_atomic(source: &Path, target: &Path) -> Result<(), SpecialReader
     let temporary = target.with_extension("part");
     let result = (|| {
         let source = File::open(source)?;
-        let mut writer = LimitedWriter::new(File::create(&temporary)?, MAX_FIXED_FILE_SIZE);
-        std::io::copy(&mut source.take(MAX_FIXED_FILE_SIZE + 1), &mut writer)?;
+        let mut writer = LimitedWriter::new(File::create(&temporary)?, MAX_PDF_FILE_SIZE);
+        std::io::copy(&mut source.take(MAX_PDF_FILE_SIZE + 1), &mut writer)?;
         writer.flush()?;
         if target.is_file() {
             fs::remove_file(target)?;
@@ -535,6 +540,27 @@ mod tests {
         assert!(matches!(
             validate_pdf(&source),
             Err(SpecialReaderError::InvalidPdf)
+        ));
+    }
+
+    #[test]
+    fn comic_limits_allow_large_high_resolution_volumes() {
+        assert_eq!(MAX_COMIC_ARCHIVE_SIZE, 4 * 1024 * 1024 * 1024);
+        assert!(validate_comic_entries([2 * 1024 * 1024; 907].into_iter()).is_ok());
+    }
+
+    #[test]
+    fn comic_limits_still_reject_oversized_pages_and_expanded_archives() {
+        assert!(matches!(
+            validate_comic_entries([MAX_COMIC_PAGE_SIZE + 1].into_iter()),
+            Err(SpecialReaderError::TooLarge)
+        ));
+        assert!(matches!(
+            validate_comic_entries(
+                [MAX_COMIC_PAGE_SIZE; (MAX_COMIC_TOTAL_SIZE / MAX_COMIC_PAGE_SIZE + 1) as usize]
+                    .into_iter()
+            ),
+            Err(SpecialReaderError::TooLarge)
         ));
     }
 

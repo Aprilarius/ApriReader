@@ -11,6 +11,199 @@ ApriReader uses Tauri 2, React with strict TypeScript, Rust stable, and SQLite.
 - `infrastructure`: SQLite, files, cache, backups, and opt-in network clients.
 - `integrations`: metadata, Steam, crash reports, TTS, and future sync.
 
+## Audiobook foundation
+
+Audiobook stage A0 adds `src-tauri/src/audio_prototype.rs` as an isolated
+native boundary. A dedicated MTA worker thread owns
+`Windows.Media.Playback.MediaPlayer`; React and the Tauri command dispatcher
+never own WinRT media objects. Typed commands provide probe, load, play, pause,
+seek, playback-rate, volume, snapshot, and stop operations. This serialization
+also gives later stages one place to coordinate persistence, sleep timers,
+chapters, output devices, and system media controls.
+
+Local input is canonicalized and checked before it reaches Windows Media. One
+part is limited to 20 GiB. AAX, AAXC, and M4P are rejected as DRM formats;
+CUE, M3U, and M3U8 are classified as descriptors and are never sent directly
+to the decoder. Baseline Windows formats and formats that may
+depend on an installed system codec are reported separately. Media-open and
+media-failure events feed a serializable state snapshot without exposing COM
+or WinRT handles to the frontend.
+
+Audiobook stage A1 adds migration 11 with separate `audiobooks`,
+`audiobook_parts`, and `watched_audio_folders` tables. A book owns up to 1,000
+ordered parts and no more than 100 GiB; each part independently keeps its
+canonical source path, SHA-256 fingerprint, format, size, availability, and
+future duration slot. Playback progress fields belong to the audiobook rather
+than to an individual file.
+
+Manual multi-selection groups files that share a directory. Importing a
+directory groups its direct audio files and treats nested directories as
+independent books. A watched root keeps its direct single-file books separate,
+while every nested directory has a stable folder identity even if only one
+part is currently available. Discovery is recursive to 12 levels, skips
+symbolic links, stops at 100,000 audio files, naturally orders numeric part
+names, and never edits source media. Rescans update changed paths, reconnect
+unavailable content, and retain missing parts as unavailable rather than
+silently deleting listening history.
+
+Audiobook stage A2 keeps the React integration behind the typed
+`application/audiobooks.ts` boundary. `App` loads audiobook rows and watched
+folders only after the dedicated route is entered, then requests parts for the
+currently selected card with a monotonic request token so a slower prior
+selection cannot replace a newer one. File import, directory import, watched
+directory registration, and rescans all return the same bounded summary
+contract. The player destination remains a separate screen.
+
+Audiobook stage A3 promotes the native prototype into the active playback
+boundary. A load command now waits for `MediaOpened` or a bounded failure and
+`MediaEnded` becomes an explicit serializable state used for automatic queue
+advance. React polls immutable snapshots without owning WinRT objects; all
+transport mutations remain serialized on the dedicated MTA worker.
+
+Audiobook stage A4 adds migration 12 with cascade-owned bookmark and chapter
+tables. Descriptor parsing is local and bounded to 2 MiB and 10,000 entries;
+resolved audio must stay within the descriptor directory, and the existing
+1,000-part and 100 GiB book limits still apply. M3U order bypasses natural
+sorting. CUE chapters map their source paths back to imported part ordinals and
+store frame-accurate 75 fps offsets.
+
+The native close coordinator only intercepts the main-window close request
+while playback is opening, buffering, or playing. It reads the synchronized
+device-local ask/tray/exit preference; ask emits a narrow frontend event, tray
+hides the window without stopping the serialized media worker, and exit pauses
+before application shutdown. A Tauri tray menu exposes reopen, play/pause, and
+exit without adding a second media owner.
+
+Audiobook stage A5 keeps output enumeration and switching on that same MTA
+worker. Windows `DeviceInformation` results are bounded to 128 audio-render
+devices, disabled endpoints stay visible but cannot be selected, and
+`MediaPlayer.SetAudioDevice` remains the only playback-owner mutation. The
+device identifier is a device-local preference and an empty value means the
+current Windows system default.
+
+Migration 13 extends audiobook rows with narrator, series, genres,
+description, language, publication year, provider provenance, and cover
+provenance. Manual updates and validated local JPG/PNG/WebP cover copies never
+modify source audio. Explicit Russian/English searches reuse the bounded
+metadata cache, rate limit, candidate contract, and reviewed provider clients
+already used for text books.
+
+The same migration adds separate listening sessions. Activity is credited only
+while native state is playing, accepts at most a 45-second event gap, and caps
+one event at 30 active seconds. Audiobook totals and seven `audio_*`
+achievements are derived locally; their unlocks deliberately bypass the text
+reading Steam synchronization queue.
+
+Audiobook stage A7 adds `src-tauri/src/tts.rs` as a second isolated native
+worker. It prefers `Windows.Media.SpeechSynthesis` and falls back to desktop
+SAPI voice tokens when Runtime voice discovery is unavailable. Requests are
+serialized, limited to 20,000 Unicode characters, and returned only as valid
+RIFF WAV data no larger than 64 MiB. At most 64 generated sections remain in
+the app-local TTS cache; source books are never written.
+
+React submits only the normalized text of the current reflow section through
+`application/tts.ts`. The selected installed voice and 0.5x–2.0x synthesis
+rate are device-local preferences. Generated WAV playback reuses the single
+native audio owner, so play, pause/resume, stop, reader changes, and audiobook
+playback cannot create competing media owners. Whole-book chunking, word
+highlighting, and network/BYOK voices are outside A7.
+
+Audiobook stage A8 builds a frontend-only queue of immutable references into
+the already bounded `DocumentModel`. Sentence and word boundaries produce
+fragments of at most 1,200 UTF-16 units; a session is capped at 50,000
+fragments. Only the current and next fragment are kept in the frontend
+prepared-audio map, while the native 20,000-character, 64 MiB, and 64-file
+cache limits remain authoritative.
+
+The current fragment owns its section, block, and UTF-16 offsets. Native audio
+position and duration select the active word range, which React composes with
+annotation and bionic spans without changing source text or stable locator
+offsets. The next fragment is synthesized while the current one plays.
+`MediaEnded` advances the queue and preserves the TTS side panel while an
+internal transition saves the new section position. Manual reader navigation,
+panel close, voice/rate/scope changes, or a playback failure invalidate the
+session generation and stop its audio. Exact engine-provided phoneme timing
+and network/BYOK voices remain later gates.
+
+Audiobook stage A9 adds `cloud_tts.rs` as a fixed-host ElevenLabs BYOK adapter.
+The WebView can query only configured/not-configured state; the API key is
+validated and stored as a Generic Credential named
+`ApriReader/ElevenLabsApiKey` in Windows Credential Manager. It is read only by
+Rust immediately before an explicit voice-list or speech request and is never
+serialized back to React, persisted in local storage, or included in errors.
+
+Voice discovery reads at most 4 MiB and 100 entries from the official v2 API.
+Speech accepts no more than 2,000 Unicode characters, while the A8 queue sends
+at most 1,200 UTF-16 units per request. The fixed official HTTPS endpoint
+returns a response capped at 48 MiB; decoded MP3 is capped at 32 MiB and
+validated by signature before an atomic app-local cache write. Provider audio
+and the 64-file provider cache never modify the source book.
+
+The original alignment must concatenate exactly to the submitted fragment and
+must provide equal, finite, monotonic character/time arrays. Rust converts the
+provider character sequence into UTF-16 offsets; React maps the active native
+playback time to the containing source word. Missing or inconsistent timing
+fails closed instead of silently claiming exact synchronization. Local Windows
+voices continue to use the A8 position-based fallback.
+
+Audiobook stage A10 keeps voice presets and pronunciation rules in a bounded,
+versioned local preference document. Presets contain only provider, voice ID,
+rate, and a user label; provider credentials remain exclusively in Windows
+Credential Manager. The dictionary accepts at most 100 unique case-insensitive
+whole words or phrases and can be disabled without discarding entries.
+
+Rules are applied to a temporary queue fragment immediately before synthesis,
+never to the document model or source book. Each generated UTF-16 boundary is
+mapped back to its source boundary. ElevenLabs timings are remapped through
+that table before active-word lookup; local voices retain proportional focus.
+Post-replacement text is capped at 2,000 UTF-16 units to prevent pathological
+expansion and to remain inside the reviewed cloud request boundary.
+
+Audiobook stage A11 adds `google_tts.rs` as a second isolated native BYOK
+adapter. Its only hosts are the Google Cloud v1 voices and synchronous
+synthesis endpoints. A distinct Generic Credential target prevents provider
+key confusion; the key is sent only through `x-goog-api-key`, never a URL or
+Tauri payload after saving. Voice and speech JSON, decoded MP3, voice count,
+input characters, UTF-8 input bytes, and provider cache are independently
+bounded and validated.
+
+Voice discovery optionally sends the current book's validated BCP-47 language
+as a filter and returns bounded identifiers, locale, gender, and inferred voice
+family. Synthesis uses plain text and MP3 without SSML or arbitrary effects.
+Google's synchronous REST response has no timing array, so the existing A8
+position fallback drives focus. Playback rate remains local, preserving
+compatibility with voice families that do not accept synthesis-rate controls.
+
+Audiobook stage A12 adds `azure_tts.rs`. The frontend can select only one of 33
+reviewed public Azure Speech regions; Rust validates that identifier before
+constructing the fixed `https://<region>.tts.speech.microsoft.com` host. The
+resource key has its own Generic Credential and is sent only through
+`Ocp-Apim-Subscription-Key`. Book text is XML-escaped into bounded SSML, and
+returned MP3 bytes are bounded and signature-checked before an atomic cache
+write. Azure REST has no timing array, so A8 position-based focus is retained.
+
+Audiobook stage A13 carries provider-specific expressive values through typed
+frontend adapters into Rust validation. Values participate in provider cache
+digests, so a changed pitch or ElevenLabs voice setting cannot reuse stale
+audio. The WebView stores only non-secret preferences and presets.
+
+`tts_assets.rs` owns cache enumeration, deletion, and export sessions. It
+recognizes only exact 64-hex ApriReader TTS filenames and direct children of the
+app-local TTS directory. Export is a bounded state machine: a selected M3U8
+path starts one of at most two sessions, each validated cache part is copied
+immediately into a unique partial media directory, and completion atomically
+publishes the directory and playlist. Cancellation can delete only the partial
+directory registered in the native session map. Limits are 5,000 parts,
+64 MiB per part, and 6 GiB total.
+
+Progress writes cross a separate database command. SQLite validates finite
+part indices, positions, and observed durations, updates the current part
+duration, and atomically derives whole-book progress. When every duration is
+known, progress is duration-weighted; otherwise it uses a bounded part-based
+estimate. The UI persists at five-second movement intervals and lifecycle
+boundaries, with monotonic load tokens preventing an older part request from
+replacing a newer selection.
+
 Stage 1 adds a Rust-owned library database and importer. React receives only
 serialized book records through explicit commands. The schema stores source
 paths, SHA-256 fingerprints, metadata, cached cover paths, availability, and
@@ -81,10 +274,14 @@ reading-position fields for a fixed-format page index and overall progress.
 
 Stage 5 adds an explicit `MetadataProvider` boundary in
 `src-tauri/src/metadata.rs`. Only the Rust backend can contact the fixed HTTPS
-Open Library Search and Covers endpoints. Requests use a named User-Agent,
-return bounded JSON/image bodies, are limited to one request per second, and
-cache normalized search results in SQLite for 30 days. No arbitrary provider
-URL crosses the command boundary.
+Open Library Search/Covers endpoints and FantLab edition-search endpoint.
+English search uses Open Library with an English-edition constraint; Russian
+search uses a Russian-edition constraint and merges bounded FantLab results.
+Requests use a named User-Agent, return bounded JSON/image bodies, are limited
+to one user-triggered search per second, and cache normalized results by query
+and language in SQLite for 30 days. One provider may fail without discarding
+valid results from the other. No arbitrary provider URL crosses the command
+boundary.
 
 Migration 5 stores editable bibliographic fields, provider provenance, the
 original embedded-cover path, active cover source, and the metadata cache.
@@ -92,6 +289,10 @@ Manual or provider-applied fields survive a later source rescan. External
 covers receive app-generated names under the existing scoped cover cache;
 signature validation happens before writing. Removing one restores the
 embedded cover path and deletes only a verified app-managed external file.
+The same managed-file boundary accepts a user-selected JPG, PNG, or WebP cover
+only from manual edit mode. Rust rechecks the suffix, 10 MiB limit, and image
+signature, copies the bytes locally, and never writes to the source image or
+book.
 
 Migration 10 adds the bounded `books.genres` text field. EPUB `dc:subject`, FB2
 `genre`, Open Library `subject`, and manual values pass through a 12-value,
@@ -263,13 +464,19 @@ book bytes and rendered page content are never transformed or rewritten.
 Windows file associations are installer-owned declarations under
 `bundle.fileAssociations`; the application never writes association registry
 keys at runtime. The single-instance plugin is registered before every other
-plugin. Initial command-line book paths and paths forwarded by a later Windows
-shell activation enter one bounded, deduplicated native queue. Only recognized
-book extensions enter that queue. React drains it through typed commands, and
-Rust sends each path through the same bounded `inspect_book` and database
-import boundary used by manual import before returning a `BookRecord`. The
-existing normalized reflow or fixed-layout adapter then opens that record.
-No shell argument becomes authored HTML, a URL request, or an executable path.
+plugin. Initial command-line book or audiobook paths and paths forwarded by a
+later Windows shell activation enter one bounded, case-insensitively
+deduplicated native queue capped at 32 entries. Only recognized book, safe
+audio, and local CUE/M3U/M3U8 extensions enter that queue.
+
+React drains the queue through one typed tagged result. Rust routes books
+through the same bounded `inspect_book` and database import boundary used by
+manual import. Audio routes through descriptor discovery, file/aggregate size
+limits, content fingerprinting, and the normal audiobook group transaction.
+Duplicate content returns its existing record; a valid new record is opened in
+the matching reader or audiobook player. DRM extensions, remote playlist
+entries, executable paths, and ambiguous launch groups are rejected. No shell
+argument becomes authored HTML, a URL request, or an executable path.
 
 Closed-beta provenance is produced from Git's tracked and non-ignored
 untracked source set. The candidate builder hashes each source file into

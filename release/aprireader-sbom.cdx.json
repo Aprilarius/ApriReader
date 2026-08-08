@@ -1,13 +1,13 @@
 {
   "bomFormat": "CycloneDX",
   "specVersion": "1.5",
-  "serialNumber": "urn:uuid:d4202a13-f575-5b0a-8302-80ae30b486d1",
+  "serialNumber": "urn:uuid:c680ab75-45b9-5141-b147-3bdca8f3649c",
   "version": 1,
   "metadata": {
     "component": {
       "type": "application",
       "name": "ApriReader",
-      "version": "1.1.0",
+      "version": "1.3.0-rc.1",
       "licenses": [
         {
           "license": {
@@ -19,7 +19,7 @@
     "properties": [
       {
         "name": "aprireader:lockfiles-sha256",
-        "value": "5953406ab5c8d782c30ea3bb8153ae6c69c2b70fcced1b75c07103270ec7a1a9"
+        "value": "ac6609c656bc7de9323ef9e793ce20863996a7d3bf99c9e156056853e39980af"
       },
       {
         "name": "aprireader:scope",
@@ -4458,13 +4458,6 @@
       "name": "@tauri-apps/api",
       "version": "2.11.1",
       "purl": "pkg:npm/%40tauri-apps/api@2.11.1"
-    },
-    {
-      "type": "library",
-      "group": "npm",
-      "name": "@tauri-apps/api",
-      "version": "2.8.0",
-      "purl": "pkg:npm/%40tauri-apps/api@2.8.0"
     },
     {
       "type": "library",

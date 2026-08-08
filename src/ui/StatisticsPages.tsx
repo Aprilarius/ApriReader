@@ -7,10 +7,13 @@ import {
 } from "react";
 import {
   clearReadingStatistics,
+  getAudiobookAchievements,
+  getAudiobookStatistics,
   getAchievements,
   getStatistics,
   setDailyGoal,
   type AchievementProgress,
+  type AudiobookStatisticsSnapshot,
   type StatisticsSnapshot,
 } from "../application/statistics";
 import { Icon } from "./icons";
@@ -26,15 +29,18 @@ export function StatisticsPage({
   onChanged: (snapshot: StatisticsSnapshot) => void;
 }) {
   const [statistics, setStatistics] = useState<StatisticsSnapshot | null>(null);
+  const [audioStatistics, setAudioStatistics] =
+    useState<AudiobookStatisticsSnapshot | null>(null);
   const [goal, setGoal] = useState(20);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
 
   const refresh = useCallback(
     () =>
-      getStatistics()
-        .then((value) => {
+      Promise.all([getStatistics(), getAudiobookStatistics()])
+        .then(([value, audioValue]) => {
           setStatistics(value);
+          setAudioStatistics(audioValue);
           setGoal(value.dailyGoalMinutes);
           onChanged(value);
         })
@@ -208,6 +214,35 @@ export function StatisticsPage({
           {t("clearStatistics")}
         </button>
       </section>
+      {audioStatistics && (
+        <section className="statistics-panel audio-statistics-panel">
+          <div className="section-heading">
+            <h2>{t("audioListeningStatistics")}</h2>
+          </div>
+          <div className="detail-statistics">
+            <div>
+              <span>{t("audioListeningTime")}</span>
+              <strong>
+                {formatDuration(audioStatistics.totalActiveSeconds, t)}
+              </strong>
+            </div>
+            <div>
+              <span>{t("audioListenedToday")}</span>
+              <strong>
+                {formatDuration(audioStatistics.todayActiveSeconds, t)}
+              </strong>
+            </div>
+            <div>
+              <span>{t("audioStarted")}</span>
+              <strong>{audioStatistics.audiobooksStarted}</strong>
+            </div>
+            <div>
+              <span>{t("audioCompleted")}</span>
+              <strong>{audioStatistics.audiobooksCompleted}</strong>
+            </div>
+          </div>
+        </section>
+      )}
       <p className="privacy-note">{t("statisticsPrivacy")}</p>
     </div>
   );
@@ -218,8 +253,8 @@ export function AchievementsPage({ t }: { t: Translator }) {
   const [message, setMessage] = useState("");
 
   useEffect(() => {
-    void getAchievements()
-      .then(setAchievements)
+    void Promise.all([getAchievements(), getAudiobookAchievements()])
+      .then(([reading, audio]) => setAchievements([...reading, ...audio]))
       .catch((reason) => {
         setMessage(String(reason));
       });
@@ -243,38 +278,58 @@ export function AchievementsPage({ t }: { t: Translator }) {
         </p>
       )}
       {message && <p className="error-message">{message}</p>}
-      <div className="achievement-grid">
-        {achievements.map((achievement) => {
-          const unlocked = achievement.unlockedAt !== null;
-          const percent = Math.min(
-            100,
-            Math.round((achievement.current / achievement.target) * 100),
-          );
-          return (
-            <article
-              className={`achievement-card ${unlocked ? "unlocked" : ""}`}
-              key={achievement.id}
-            >
-              <span className="achievement-emblem">
-                <Icon name="achievement" />
-              </span>
-              <div>
-                <small>{achievementCategory(achievement.category, t)}</small>
-                <h2>{achievementTitle(achievement.id, t)}</h2>
-                <p>{achievementDescription(achievement.id, t)}</p>
-                <div className="achievement-progress">
-                  <span style={{ width: `${percent}%` }} />
-                </div>
-                <output>
-                  {unlocked
-                    ? t("achievementUnlocked")
-                    : formatAchievementProgress(achievement, t)}
-                </output>
-              </div>
-            </article>
-          );
-        })}
-      </div>
+      {[
+        {
+          title: t("readingAchievements"),
+          items: achievements.filter(
+            (achievement) => !achievement.category.startsWith("audio_"),
+          ),
+        },
+        {
+          title: t("audioAchievements"),
+          items: achievements.filter((achievement) =>
+            achievement.category.startsWith("audio_"),
+          ),
+        },
+      ].map((group) => (
+        <section className="achievement-group" key={group.title}>
+          <h2>{group.title}</h2>
+          <div className="achievement-grid">
+            {group.items.map((achievement) => {
+              const unlocked = achievement.unlockedAt !== null;
+              const percent = Math.min(
+                100,
+                Math.round((achievement.current / achievement.target) * 100),
+              );
+              return (
+                <article
+                  className={`achievement-card ${unlocked ? "unlocked" : ""}`}
+                  key={achievement.id}
+                >
+                  <span className="achievement-emblem">
+                    <Icon name="achievement" />
+                  </span>
+                  <div>
+                    <small>
+                      {achievementCategory(achievement.category, t)}
+                    </small>
+                    <h2>{achievementTitle(achievement.id, t)}</h2>
+                    <p>{achievementDescription(achievement.id, t)}</p>
+                    <div className="achievement-progress">
+                      <span style={{ width: `${percent}%` }} />
+                    </div>
+                    <output>
+                      {unlocked
+                        ? t("achievementUnlocked")
+                        : formatAchievementProgress(achievement, t)}
+                    </output>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+      ))}
     </div>
   );
 }
@@ -322,6 +377,13 @@ function achievementTitle(id: string, t: Translator) {
     three_authors: "achievementThreeAuthors",
     three_series: "achievementThreeSeries",
     daily_goal_met: "achievementDailyGoal",
+    audio_first_listen: "achievementAudioFirstListen",
+    audio_first_finish: "achievementAudioFirstFinish",
+    audio_ten_finished: "achievementAudioTenFinish",
+    audio_30_minutes: "achievementAudioThirtyMinutes",
+    audio_10_hours: "achievementAudioTenHours",
+    audio_50_hours: "achievementAudioFiftyHours",
+    audio_100_hours: "achievementAudioHundredHours",
   };
   const key = keys[id];
   if (key) return t(key);
@@ -344,6 +406,13 @@ function achievementDescription(id: string, t: Translator) {
     three_authors: "achievementThreeAuthorsHint",
     three_series: "achievementThreeSeriesHint",
     daily_goal_met: "achievementDailyGoalHint",
+    audio_first_listen: "achievementAudioFirstListenHint",
+    audio_first_finish: "achievementAudioFirstFinishHint",
+    audio_ten_finished: "achievementAudioTenFinishHint",
+    audio_30_minutes: "achievementAudioThirtyMinutesHint",
+    audio_10_hours: "achievementAudioTenHoursHint",
+    audio_50_hours: "achievementAudioFiftyHoursHint",
+    audio_100_hours: "achievementAudioHundredHoursHint",
   };
   const key = keys[id];
   if (key) return t(key);
@@ -509,7 +578,10 @@ function formatAchievementProgress(
   achievement: AchievementProgress,
   t: Translator,
 ) {
-  if (achievement.category === "time") {
+  if (
+    achievement.category === "time" ||
+    achievement.category === "audio_time"
+  ) {
     return `${formatDuration(achievement.current, t)} / ${formatDuration(achievement.target, t)}`;
   }
   return `${achievement.current.toLocaleString()} / ${achievement.target.toLocaleString()}`;
@@ -525,6 +597,9 @@ function achievementCategory(category: string, t: Translator) {
     notes: "achievementCategoryNotes",
     discovery: "achievementCategoryDiscovery",
     goal: "achievementCategoryGoal",
+    audio_library: "achievementCategoryAudioLibrary",
+    audio_completion: "achievementCategoryAudioCompletion",
+    audio_time: "achievementCategoryAudioTime",
   };
   return t(keys[category] ?? "achievements");
 }

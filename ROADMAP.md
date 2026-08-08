@@ -7,13 +7,53 @@
 - [x] Stage 2 — reflow reader for TXT, HTML, Markdown, EPUB, and FB2.
 - [x] Stage 3 — annotations, locators, bookmarks, notes, quotes, and FTS5.
 - [x] Stage 4 — PDF, CBZ/CBR, DOCX and format-specific UX.
-- [x] Stage 5 — opt-in metadata providers and manual metadata editing.
+- [x] Stage 5 — opt-in Russian/English metadata providers, manual metadata
+      editing, and validated app-local cover replacement/restoration.
 - [x] Stage 6 — explicit selected-text handoff to Google or Yandex Translate
       in the default browser, limited to EN-RU and RU-EN with first-use consent.
 - [x] Stage 7 — active reading statistics and canonical achievements.
       Achievement depth now includes 42 progressive goals, completed-book
       discovery rules, and local multi-value genres.
 - [x] Stage 8 — Steam adapter and offline achievement synchronization.
+- [x] Audiobooks A0 — isolated Windows MediaPlayer prototype, safe format and
+      size validation, native probe/load, play/pause, seek, 0.5x-3.0x speed,
+      volume, state snapshots, and real PCM WAV smoke coverage.
+- [x] Audiobooks A1 — audio library schema, bounded multi-part import,
+      automatic grouping, watched folders, and source availability handling.
+- [x] Audiobooks A2 — dedicated lazy-loaded audiobook library, file/folder
+      import actions, watched audio collections, search, availability-aware
+      cards, part details, and the prepared player destination.
+- [x] Audiobooks A3 — native play/pause, 15-second seek, part navigation and
+      automatic advance, 0.5x–3.0x speed, volume, ordered queue, resume, and
+      bounded durable position/duration progress.
+- [x] Audiobooks A4 — bounded local CUE/M3U/M3U8 import, CUE chapters, sleep
+      timer, durable bookmarks, remembered close behavior, and Windows tray
+      playback controls.
+- [x] Audiobooks A5 — output device selection, metadata, listening statistics,
+      and dedicated audiobook achievements.
+- [x] Audiobooks A6 — Explorer associations, bounded import-or-dedupe,
+      existing-instance forwarding, immediate player opening, and release
+      hardening.
+- [x] Audiobooks A7 — local Windows text-to-speech for the current reflow
+      section, installed-voice and rate selection, bounded WAV caching, and
+      play/pause/stop through the existing audio owner.
+- [x] Audiobooks A8 — bounded whole-book speech queue from the current section,
+      background preparation of the next fragment, automatic section
+      transitions, position-synchronized word focus, and auto-scroll.
+- [x] Audiobooks A9 — opt-in ElevenLabs BYOK, Windows Credential Manager key
+      storage, bounded fixed-host requests, explicit text-transfer consent,
+      cloud voice selection, and provider character timing.
+- [x] Audiobooks A10 — local pronunciation dictionary with source-offset
+      preservation, enable/disable control, and user-defined voice presets.
+- [x] Audiobooks A11 — Google Cloud Text-to-Speech BYOK with a fixed native
+      API boundary, Credential Manager storage, language-aware voice discovery,
+      separate consent, and bounded MP3 synthesis.
+- [x] Audiobooks A12 — Azure AI Speech BYOK with a reviewed 33-region allowlist,
+      protected key, safe SSML, language-aware voices and separate consent.
+- [x] Audiobooks A13 — provider-specific expressive controls, per-provider cache
+      inspection/clearing, and bounded incremental M3U8 audiobook export.
+- [ ] Audiobooks A14+ — further providers only after a separate API, privacy,
+      licensing, quota, and release-boundary review.
 - [ ] Stage 9 — release hardening, accessibility, security and closed beta.
       Engineering hardening and candidate gates are implemented; completion
       awaits the remaining Windows 10/11 closed-beta and protected Steamworks
@@ -58,6 +98,10 @@
       extensions as ApriReader viewer types; Explorer activation imports and
       opens the selected local book in the existing single application
       instance through the normal untrusted-book boundary.
+- [x] Audiobook file associations — the NSIS installer registers every safe
+      supported audio and local CUE/M3U/M3U8 descriptor extension; Explorer
+      activation imports or reuses the audiobook and opens its player in the
+      existing instance without accepting DRM or executable paths.
 
 ## Library navigation completion
 

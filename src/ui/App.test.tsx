@@ -1,7 +1,25 @@
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { emptyStatistics } from "../application/statistics";
 import type { Book } from "../application/library";
+import type {
+  AudiobookPartRecord,
+  AudiobookRecord,
+  WatchedAudioFolder,
+} from "../application/audiobooks";
+import type {
+  AudiobookBookmarkRecord,
+  AudiobookChapterRecord,
+  AudioOutputDevice,
+  AudioPlaybackSnapshot,
+} from "../application/audioPlayer";
 import { App } from "./App";
 import { greetingKeyForHour } from "./greeting";
 import { localProfileKey } from "./useLocalProfile";
@@ -18,7 +36,78 @@ vi.mock("@tauri-apps/api/event", () => ({
 }));
 
 let mockBooks: Book[] = [];
+let mockAudiobooks: AudiobookRecord[] = [];
+let mockAudioParts: AudiobookPartRecord[] = [];
+let mockAudioFolders: WatchedAudioFolder[] = [];
+let mockAudioSnapshot: AudioPlaybackSnapshot;
+let mockAudioBookmarks: AudiobookBookmarkRecord[] = [];
+let mockAudioChapters: AudiobookChapterRecord[] = [];
+let mockAudioOutputDevices: AudioOutputDevice[] = [];
 let launchPaths: string[] = [];
+
+function audiobookFixture(
+  overrides: Partial<AudiobookRecord> = {},
+): AudiobookRecord {
+  return {
+    id: 301,
+    title: "The Long Way Home",
+    author: "Alex Reader",
+    coverPath: null,
+    addedAt: "2026-08-07T12:00:00Z",
+    isAvailable: true,
+    totalSize: 4096,
+    partCount: 2,
+    totalDurationSeconds: 0,
+    progress: 0,
+    lastPartIndex: 0,
+    lastPositionSeconds: 0,
+    narrator: "",
+    series: "",
+    genres: "",
+    description: "",
+    language: "",
+    publishedYear: "",
+    metadataSource: "filename",
+    metadataProviderId: null,
+    metadataUpdatedAt: null,
+    coverSource: "none",
+    ...overrides,
+  };
+}
+
+function audioPartFixture(
+  overrides: Partial<AudiobookPartRecord> = {},
+): AudiobookPartRecord {
+  return {
+    id: 501,
+    audiobookId: 301,
+    sourcePath: "C:\\Audio\\The Long Way Home\\01.mp3",
+    title: "Part 1",
+    format: "MP3",
+    fileSize: 2048,
+    durationSeconds: null,
+    ordinal: 0,
+    isAvailable: true,
+    ...overrides,
+  };
+}
+
+function audioSnapshotFixture(
+  overrides: Partial<AudioPlaybackSnapshot> = {},
+): AudioPlaybackSnapshot {
+  return {
+    phase: "ready",
+    path: "C:\\Audio\\The Long Way Home\\01.mp3",
+    positionSeconds: 0,
+    durationSeconds: 120,
+    playbackRate: 1,
+    volume: 1,
+    canSeek: true,
+    canPause: true,
+    lastError: null,
+    ...overrides,
+  };
+}
 
 function bookFixture(overrides: Partial<Book>): Book {
   return {
@@ -58,17 +147,166 @@ describe("App", () => {
       JSON.stringify({ onboardingComplete: true, displayName: "" }),
     );
     mockBooks = [];
+    mockAudiobooks = [];
+    mockAudioParts = [];
+    mockAudioFolders = [];
+    mockAudioSnapshot = audioSnapshotFixture();
+    mockAudioBookmarks = [];
+    mockAudioChapters = [];
+    mockAudioOutputDevices = [];
     launchPaths = [];
     listenMock.mockResolvedValue(vi.fn());
     invokeMock.mockImplementation((command: string, invokeArgs?: unknown) => {
       if (command === "list_books") return Promise.resolve(mockBooks);
-      if (command === "take_launch_book_paths") {
+      if (command === "list_audiobooks") return Promise.resolve(mockAudiobooks);
+      if (command === "list_audiobook_parts")
+        return Promise.resolve(mockAudioParts);
+      if (command === "list_watched_audio_folders")
+        return Promise.resolve(mockAudioFolders);
+      if (command === "scan_watched_audio_folders") {
+        return Promise.resolve({
+          importedBooks: 0,
+          importedParts: 0,
+          duplicateParts: 0,
+          failed: 0,
+          errors: [],
+        });
+      }
+      if (command === "audio_load_file") {
+        mockAudioSnapshot = audioSnapshotFixture({
+          path: (invokeArgs as { path: string }).path,
+        });
+        return Promise.resolve(mockAudioSnapshot);
+      }
+      if (command === "audio_play") {
+        mockAudioSnapshot = { ...mockAudioSnapshot, phase: "playing" };
+        return Promise.resolve(mockAudioSnapshot);
+      }
+      if (command === "audio_pause") {
+        mockAudioSnapshot = { ...mockAudioSnapshot, phase: "paused" };
+        return Promise.resolve(mockAudioSnapshot);
+      }
+      if (command === "audio_seek") {
+        mockAudioSnapshot = {
+          ...mockAudioSnapshot,
+          positionSeconds: (invokeArgs as { seconds: number }).seconds,
+        };
+        return Promise.resolve(mockAudioSnapshot);
+      }
+      if (command === "audio_set_rate") {
+        mockAudioSnapshot = {
+          ...mockAudioSnapshot,
+          playbackRate: (invokeArgs as { rate: number }).rate,
+        };
+        return Promise.resolve(mockAudioSnapshot);
+      }
+      if (command === "audio_set_volume") {
+        mockAudioSnapshot = {
+          ...mockAudioSnapshot,
+          volume: (invokeArgs as { volume: number }).volume,
+        };
+        return Promise.resolve(mockAudioSnapshot);
+      }
+      if (command === "audio_snapshot")
+        return Promise.resolve(mockAudioSnapshot);
+      if (command === "audio_list_output_devices")
+        return Promise.resolve(mockAudioOutputDevices);
+      if (command === "audio_set_output_device")
+        return Promise.resolve(mockAudioSnapshot);
+      if (command === "update_audiobook_metadata") {
+        const args = invokeArgs as {
+          audiobookId: number;
+          metadata: Partial<AudiobookRecord>;
+        };
+        const current = mockAudiobooks.find(
+          (book) => book.id === args.audiobookId,
+        );
+        if (!current) return Promise.reject(new Error("Audiobook not found"));
+        const updated = { ...current, ...args.metadata };
+        mockAudiobooks = mockAudiobooks.map((book) =>
+          book.id === updated.id ? updated : book,
+        );
+        return Promise.resolve(updated);
+      }
+      if (command === "start_audiobook_session")
+        return Promise.resolve("audio-session");
+      if (
+        command === "record_audiobook_activity" ||
+        command === "end_audiobook_session"
+      )
+        return Promise.resolve();
+      if (command === "list_audiobook_bookmarks")
+        return Promise.resolve(mockAudioBookmarks);
+      if (command === "list_audiobook_chapters")
+        return Promise.resolve(mockAudioChapters);
+      if (command === "create_audiobook_bookmark") {
+        const args = invokeArgs as {
+          audiobookId: number;
+          partIndex: number;
+          positionSeconds: number;
+          note: string;
+        };
+        const created = {
+          id: 901,
+          audiobookId: args.audiobookId,
+          partIndex: args.partIndex,
+          positionSeconds: args.positionSeconds,
+          note: args.note,
+          createdAt: "2026-08-08T08:00:00Z",
+        };
+        mockAudioBookmarks = [...mockAudioBookmarks, created];
+        return Promise.resolve(created);
+      }
+      if (command === "delete_audiobook_bookmark") {
+        const id = (invokeArgs as { bookmarkId: number }).bookmarkId;
+        mockAudioBookmarks = mockAudioBookmarks.filter(
+          (item) => item.id !== id,
+        );
+        return Promise.resolve();
+      }
+      if (
+        command === "set_audio_close_behavior" ||
+        command === "resolve_audio_close"
+      )
+        return Promise.resolve();
+      if (command === "save_audiobook_position") {
+        const args = invokeArgs as {
+          audiobookId: number;
+          partIndex: number;
+          positionSeconds: number;
+          durationSeconds: number;
+        };
+        const current = mockAudiobooks.find(
+          (book) => book.id === args.audiobookId,
+        );
+        if (!current) return Promise.reject(new Error("Audiobook not found"));
+        const updated = {
+          ...current,
+          lastPartIndex: args.partIndex,
+          lastPositionSeconds: args.positionSeconds,
+          totalDurationSeconds: args.durationSeconds,
+          progress: args.positionSeconds / args.durationSeconds,
+        };
+        mockAudiobooks = mockAudiobooks.map((book) =>
+          book.id === updated.id ? updated : book,
+        );
+        return Promise.resolve(updated);
+      }
+      if (command === "take_launch_paths") {
         const paths = launchPaths;
         launchPaths = [];
         return Promise.resolve(paths);
       }
       if (command === "list_watched_folders") return Promise.resolve([]);
       if (command === "get_statistics") return Promise.resolve(emptyStatistics);
+      if (command === "get_audiobook_statistics")
+        return Promise.resolve({
+          totalActiveSeconds: 0,
+          todayActiveSeconds: 0,
+          audiobooksStarted: 0,
+          audiobooksCompleted: 0,
+        });
+      if (command === "get_audiobook_achievements") return Promise.resolve([]);
       if (command === "get_startup_health")
         return Promise.resolve({
           previousExitUnclean: false,
@@ -105,6 +343,202 @@ describe("App", () => {
         name: "Ваша библиотека пока пуста",
       }),
     ).toBeInTheDocument();
+  });
+
+  it("shows a separate truthful audiobook library", async () => {
+    localStorage.setItem("aprireader.locale", "en");
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Audiobooks" }));
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "Your audiobook library is empty",
+      }),
+    ).toBeInTheDocument();
+    expect(invokeMock).toHaveBeenCalledWith("list_audiobooks");
+    expect(invokeMock).toHaveBeenCalledWith("list_watched_audio_folders");
+  });
+
+  it("plays audiobook parts and persists the native session", async () => {
+    localStorage.setItem("aprireader.locale", "en");
+    mockAudioOutputDevices = [
+      {
+        id: "desk-speakers",
+        name: "Desk Speakers",
+        isDefault: true,
+        isEnabled: true,
+      },
+      {
+        id: "usb-headphones",
+        name: "USB Headphones",
+        isDefault: false,
+        isEnabled: true,
+      },
+    ];
+    mockAudiobooks = [
+      audiobookFixture({ progress: 0.25, lastPositionSeconds: 30 }),
+    ];
+    mockAudioParts = [
+      audioPartFixture(),
+      audioPartFixture({
+        id: 502,
+        title: "Part 2",
+        sourcePath: "C:\\Audio\\The Long Way Home\\02.mp3",
+        ordinal: 1,
+      }),
+    ];
+    mockAudioChapters = [
+      {
+        id: 701,
+        audiobookId: 301,
+        partIndex: 0,
+        title: "Arrival",
+        startSeconds: 45,
+        ordinal: 0,
+      },
+    ];
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Audiobooks" }));
+    const card = await screen.findByRole("button", {
+      name: /The Long Way Home Alex Reader/,
+    });
+    fireEvent.click(card);
+
+    expect(
+      await screen.findByRole("heading", { name: "The Long Way Home" }),
+    ).toBeInTheDocument();
+    expect(await screen.findByText("Part 1")).toBeInTheDocument();
+    expect(screen.getByText("Part 2")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Open player" }));
+
+    const play = await screen.findByRole("button", { name: "Play" });
+    expect(
+      screen.getByRole("slider", { name: "Playback position" }),
+    ).toBeEnabled();
+    expect(screen.getByRole("combobox", { name: "Speed" })).toHaveValue("1");
+    const outputDevice = screen.getByRole("combobox", {
+      name: "Output device",
+    });
+    fireEvent.change(outputDevice, { target: { value: "usb-headphones" } });
+    await waitFor(() =>
+      expect(invokeMock).toHaveBeenCalledWith("audio_set_output_device", {
+        deviceId: "usb-headphones",
+      }),
+    );
+    expect(localStorage.getItem("aprireader.audio.outputDevice")).toBe(
+      "usb-headphones",
+    );
+    expect(screen.getByRole("combobox", { name: "Sleep timer" })).toHaveValue(
+      "off",
+    );
+    fireEvent.change(screen.getByRole("combobox", { name: "Sleep timer" }), {
+      target: { value: "15" },
+    });
+    expect(await screen.findByText(/remaining/)).toBeInTheDocument();
+    expect(invokeMock).toHaveBeenCalledWith("audio_seek", { seconds: 30 });
+    fireEvent.click(await screen.findByRole("button", { name: /Arrival/ }));
+    await waitFor(() =>
+      expect(invokeMock).toHaveBeenCalledWith("audio_seek", { seconds: 45 }),
+    );
+    fireEvent.change(screen.getByRole("textbox", { name: "Optional note" }), {
+      target: { value: "Good scene" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Add at current position" }),
+    );
+    expect(await screen.findByText("Good scene")).toBeInTheDocument();
+    expect(invokeMock).toHaveBeenCalledWith(
+      "create_audiobook_bookmark",
+      expect.objectContaining({
+        audiobookId: 301,
+        partIndex: 0,
+        note: "Good scene",
+      }),
+    );
+    fireEvent.change(screen.getByRole("combobox", { name: "Speed" }), {
+      target: { value: "1.5" },
+    });
+    expect(invokeMock).toHaveBeenCalledWith("audio_set_rate", { rate: 1.5 });
+    expect(localStorage.getItem("aprireader.audio.rate")).toBe("1.5");
+    await waitFor(() => expect(play).toBeEnabled());
+    fireEvent.click(play);
+    expect(
+      await screen.findByRole("button", { name: "Pause" }),
+    ).toBeInTheDocument();
+    expect(invokeMock).toHaveBeenCalledWith("audio_play");
+
+    fireEvent.click(screen.getByRole("button", { name: "Next part" }));
+    expect(await screen.findByText(/Part 2 of 2/)).toBeInTheDocument();
+    expect(invokeMock).toHaveBeenCalledWith("audio_load_file", {
+      path: "C:\\Audio\\The Long Way Home\\02.mp3",
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Back to audiobooks" }));
+    expect(
+      await screen.findByRole("button", { name: /The Long Way Home/ }),
+    ).toBeInTheDocument();
+    expect(invokeMock).toHaveBeenCalledWith(
+      "save_audiobook_position",
+      expect.objectContaining({ audiobookId: 301 }),
+    );
+  });
+
+  it("edits extended audiobook metadata locally", async () => {
+    localStorage.setItem("aprireader.locale", "en");
+    mockAudiobooks = [audiobookFixture()];
+    mockAudioParts = [audioPartFixture()];
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Audiobooks" }));
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: /The Long Way Home Alex Reader/,
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Edit metadata" }));
+    fireEvent.change(screen.getByLabelText("Narrator"), {
+      target: { value: "Maria Voice" },
+    });
+    fireEvent.change(screen.getByLabelText("Series", { selector: "input" }), {
+      target: { value: "Homeward" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() =>
+      expect(invokeMock).toHaveBeenCalledWith("update_audiobook_metadata", {
+        audiobookId: 301,
+        metadata: {
+          title: "The Long Way Home",
+          author: "Alex Reader",
+          narrator: "Maria Voice",
+          series: "Homeward",
+          genres: "",
+          description: "",
+          language: "",
+          publishedYear: "",
+        },
+      }),
+    );
+    expect(await screen.findByText("Maria Voice")).toBeInTheDocument();
+    expect(screen.getByText("Homeward")).toBeInTheDocument();
+  });
+
+  it("rescans a watched audiobook folder and reports the result", async () => {
+    localStorage.setItem("aprireader.locale", "en");
+    mockAudioFolders = [
+      { id: 81, path: "C:\\Audio", lastScannedAt: "2026-08-07T12:00:00Z" },
+    ];
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Audiobooks" }));
+    const rescan = await screen.findByRole("button", { name: "Rescan" });
+    fireEvent.click(rescan);
+
+    expect(invokeMock).toHaveBeenCalledWith("scan_watched_audio_folders");
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Books: 0. Parts: 0. Duplicates: 0. Errors: 0.",
+    );
   });
 
   it("uses a greeting that matches the local time of day", () => {
@@ -226,14 +660,14 @@ describe("App", () => {
           recoveredFromBackup: false,
           quarantinedDatabase: null,
         });
-      if (command === "take_launch_book_paths") {
+      if (command === "take_launch_paths") {
         const paths = launchPaths;
         launchPaths = [];
         return Promise.resolve(paths);
       }
-      if (command === "open_book_path") {
+      if (command === "open_launch_path") {
         mockBooks = [launchedBook];
-        return Promise.resolve(launchedBook);
+        return Promise.resolve({ kind: "book", item: launchedBook });
       }
       if (command === "load_document") {
         return Promise.resolve({
@@ -261,11 +695,58 @@ describe("App", () => {
     expect(
       (await screen.findAllByText("Associated file content")).length,
     ).toBeGreaterThan(0);
-    expect(invokeMock).toHaveBeenCalledWith("open_book_path", {
+    expect(invokeMock).toHaveBeenCalledWith("open_launch_path", {
       path: launchedBook.sourcePath,
     });
     expect(invokeMock).toHaveBeenCalledWith("load_document", {
       bookId: launchedBook.id,
+    });
+  });
+
+  it("imports and opens an audiobook passed by a Windows file association", async () => {
+    localStorage.setItem("aprireader.locale", "en");
+    const launchedAudiobook = audiobookFixture({
+      id: 401,
+      title: "Opened Audio from Explorer",
+    });
+    const launchedPart = audioPartFixture({
+      id: 601,
+      audiobookId: launchedAudiobook.id,
+      sourcePath: "C:\\Audio\\Opened Audio from Explorer.mp3",
+      title: "Opened Audio from Explorer",
+    });
+    mockAudiobooks = [launchedAudiobook];
+    mockAudioParts = [launchedPart];
+    launchPaths = [launchedPart.sourcePath];
+    const fallback = invokeMock.getMockImplementation() as (
+      command: string,
+      invokeArgs?: unknown,
+    ) => Promise<unknown>;
+    invokeMock.mockImplementation((command: string, invokeArgs?: unknown) => {
+      if (command === "open_launch_path") {
+        return Promise.resolve({
+          kind: "audiobook",
+          item: launchedAudiobook,
+        });
+      }
+      return fallback(command, invokeArgs);
+    });
+
+    render(<App />);
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "Opened Audio from Explorer",
+      }),
+    ).toBeInTheDocument();
+    expect(invokeMock).toHaveBeenCalledWith("open_launch_path", {
+      path: launchedPart.sourcePath,
+    });
+    expect(invokeMock).toHaveBeenCalledWith("list_audiobook_parts", {
+      audiobookId: launchedAudiobook.id,
+    });
+    expect(invokeMock).toHaveBeenCalledWith("audio_load_file", {
+      path: launchedPart.sourcePath,
     });
   });
 
@@ -646,6 +1127,21 @@ describe("App", () => {
         name: /Announce reading changes/,
       }),
     ).not.toBeChecked();
+  });
+
+  it("persists the close behavior for active audiobook playback", async () => {
+    localStorage.setItem("aprireader.locale", "en");
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    const select = await screen.findByRole("combobox", {
+      name: "Closing while playing",
+    });
+    expect(select).toHaveValue("ask");
+    fireEvent.change(select, { target: { value: "tray" } });
+    expect(localStorage.getItem("aprireader.audio.closeBehavior")).toBe("tray");
+    expect(invokeMock).toHaveBeenCalledWith("set_audio_close_behavior", {
+      behavior: "tray",
+    });
   });
 
   it("keeps keyboard navigation available and exposes a skip link", () => {

@@ -1,14 +1,24 @@
+use crate::audio_importer::{
+    discover_manual_audio_groups, discover_watched_audio_groups, inspect_audio_group,
+    AudioGroupCandidate, AudioImportError, ImportedAudioGroup, MAX_AUDIOBOOK_BYTES,
+    MAX_AUDIOBOOK_PARTS,
+};
+use crate::audio_statistics::{self, AudioStatisticsError, AudiobookStatisticsSnapshot};
 use crate::importer::{inspect_book, supported_book_path, ImportError};
-use crate::metadata::{download_cover, MetadataCandidate, MetadataError};
+use crate::metadata::{
+    download_open_library_cover, image_extension, MetadataCandidate, MetadataError,
+    MetadataLanguage, MAX_COVER_BYTES,
+};
 use crate::reader::{read_document, DocumentModel, ReaderError};
 use crate::special_reader::{prepare_special_document, SpecialDocument, SpecialReaderError};
 use crate::statistics::{self, AchievementProgress, StatisticsError, StatisticsSnapshot};
 use crate::steam::{self, SteamError, SteamIntegrationStatus, SteamSyncResult};
-use rusqlite::{params, Connection, OpenFlags, OptionalExtension};
+use rusqlite::{params, Connection, OpenFlags, OptionalExtension, Transaction};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::BTreeSet,
     fs,
+    io::Read,
     path::{Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -169,6 +179,105 @@ const MIGRATIONS: &[(i64, &str)] = &[
         10,
         "ALTER TABLE books ADD COLUMN genres TEXT NOT NULL DEFAULT '';",
     ),
+    (
+        11,
+        "CREATE TABLE audiobooks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            group_key TEXT NOT NULL UNIQUE,
+            title TEXT NOT NULL,
+            author TEXT NOT NULL DEFAULT '',
+            cover_path TEXT,
+            added_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            is_available INTEGER NOT NULL DEFAULT 1 CHECK (is_available IN (0, 1)),
+            total_size INTEGER NOT NULL DEFAULT 0 CHECK (total_size >= 0),
+            part_count INTEGER NOT NULL DEFAULT 0 CHECK (part_count >= 0 AND part_count <= 1000),
+            total_duration_seconds REAL NOT NULL DEFAULT 0 CHECK (total_duration_seconds >= 0),
+            progress REAL NOT NULL DEFAULT 0 CHECK (progress >= 0 AND progress <= 1),
+            last_part_index INTEGER NOT NULL DEFAULT 0 CHECK (last_part_index >= 0),
+            last_position_seconds REAL NOT NULL DEFAULT 0 CHECK (last_position_seconds >= 0)
+        ) STRICT;
+        CREATE INDEX audiobooks_title_idx ON audiobooks(title);
+        CREATE TABLE audiobook_parts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            audiobook_id INTEGER NOT NULL REFERENCES audiobooks(id) ON DELETE CASCADE,
+            source_path TEXT NOT NULL UNIQUE,
+            fingerprint TEXT NOT NULL,
+            title TEXT NOT NULL,
+            format TEXT NOT NULL,
+            file_size INTEGER NOT NULL CHECK (file_size >= 0),
+            duration_seconds REAL CHECK (duration_seconds IS NULL OR duration_seconds >= 0),
+            ordinal INTEGER NOT NULL CHECK (ordinal >= 0 AND ordinal < 1000),
+            is_available INTEGER NOT NULL DEFAULT 1 CHECK (is_available IN (0, 1)),
+            last_seen_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ) STRICT;
+        CREATE INDEX audiobook_parts_book_order_idx
+            ON audiobook_parts(audiobook_id, ordinal);
+        CREATE INDEX audiobook_parts_fingerprint_idx
+            ON audiobook_parts(fingerprint);
+        CREATE TABLE watched_audio_folders (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            path TEXT NOT NULL UNIQUE,
+            added_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            last_scanned_at TEXT
+        ) STRICT;",
+    ),
+    (
+        12,
+        "CREATE TABLE audiobook_bookmarks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            audiobook_id INTEGER NOT NULL REFERENCES audiobooks(id) ON DELETE CASCADE,
+            part_index INTEGER NOT NULL CHECK (part_index >= 0 AND part_index < 1000),
+            position_seconds REAL NOT NULL CHECK (position_seconds >= 0),
+            note TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ) STRICT;
+        CREATE INDEX audiobook_bookmarks_location_idx
+            ON audiobook_bookmarks(audiobook_id, part_index, position_seconds);
+        CREATE TABLE audiobook_chapters (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            audiobook_id INTEGER NOT NULL REFERENCES audiobooks(id) ON DELETE CASCADE,
+            part_index INTEGER NOT NULL CHECK (part_index >= 0 AND part_index < 1000),
+            title TEXT NOT NULL,
+            start_seconds REAL NOT NULL CHECK (start_seconds >= 0),
+            ordinal INTEGER NOT NULL CHECK (ordinal >= 0 AND ordinal < 10000),
+            UNIQUE(audiobook_id, ordinal)
+        ) STRICT;
+        CREATE INDEX audiobook_chapters_location_idx
+            ON audiobook_chapters(audiobook_id, part_index, start_seconds);",
+    ),
+    (
+        13,
+        "ALTER TABLE audiobooks ADD COLUMN narrator TEXT NOT NULL DEFAULT '';
+        ALTER TABLE audiobooks ADD COLUMN series TEXT NOT NULL DEFAULT '';
+        ALTER TABLE audiobooks ADD COLUMN genres TEXT NOT NULL DEFAULT '';
+        ALTER TABLE audiobooks ADD COLUMN description TEXT NOT NULL DEFAULT '';
+        ALTER TABLE audiobooks ADD COLUMN language TEXT NOT NULL DEFAULT '';
+        ALTER TABLE audiobooks ADD COLUMN published_year TEXT NOT NULL DEFAULT '';
+        ALTER TABLE audiobooks ADD COLUMN metadata_source TEXT NOT NULL DEFAULT 'filename';
+        ALTER TABLE audiobooks ADD COLUMN metadata_provider_id TEXT;
+        ALTER TABLE audiobooks ADD COLUMN metadata_updated_at TEXT;
+        ALTER TABLE audiobooks ADD COLUMN cover_source TEXT NOT NULL DEFAULT 'none';
+        CREATE TABLE audiobook_listening_sessions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            token TEXT NOT NULL UNIQUE,
+            audiobook_id INTEGER NOT NULL REFERENCES audiobooks(id) ON DELETE CASCADE,
+            started_at INTEGER NOT NULL,
+            last_seen_at INTEGER NOT NULL,
+            last_progress REAL NOT NULL CHECK(last_progress >= 0 AND last_progress <= 1),
+            ended_at INTEGER
+        ) STRICT;
+        CREATE TABLE audiobook_listening_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id INTEGER NOT NULL REFERENCES audiobook_listening_sessions(id) ON DELETE CASCADE,
+            occurred_at INTEGER NOT NULL,
+            active_seconds INTEGER NOT NULL CHECK(active_seconds >= 0 AND active_seconds <= 30),
+            progress REAL NOT NULL CHECK(progress >= 0 AND progress <= 1),
+            UNIQUE(session_id, occurred_at)
+        ) STRICT;
+        CREATE INDEX audiobook_listening_events_time_idx
+            ON audiobook_listening_events(occurred_at);",
+    ),
 ];
 
 #[derive(Debug, Error)]
@@ -182,6 +291,8 @@ pub enum DatabaseError {
     #[error(transparent)]
     Import(#[from] ImportError),
     #[error(transparent)]
+    AudioImport(#[from] AudioImportError),
+    #[error(transparent)]
     Reader(#[from] ReaderError),
     #[error(transparent)]
     SpecialReader(#[from] SpecialReaderError),
@@ -191,10 +302,16 @@ pub enum DatabaseError {
     TooManyWatchedBooks,
     #[error("the selected book does not exist")]
     MissingBook,
+    #[error("the selected audiobook part does not exist or is unavailable")]
+    MissingAudioPart,
+    #[error("the selected audiobook launch file is invalid or resolves ambiguously")]
+    InvalidAudioLaunch,
     #[error("the book selection is invalid")]
     InvalidBookSelection,
     #[error("the reading position is invalid")]
     InvalidPosition,
+    #[error("the audiobook bookmark is invalid")]
+    InvalidAudioBookmark,
     #[error("the annotation is invalid")]
     InvalidAnnotation,
     #[error("the search query is invalid")]
@@ -207,6 +324,8 @@ pub enum DatabaseError {
     Metadata(#[from] MetadataError),
     #[error(transparent)]
     Statistics(#[from] StatisticsError),
+    #[error(transparent)]
+    AudioStatistics(#[from] AudioStatisticsError),
     #[error(transparent)]
     Steam(#[from] SteamError),
     #[error("cached metadata is invalid: {0}")]
@@ -263,6 +382,107 @@ pub struct WatchedFolder {
     pub id: i64,
     pub path: String,
     pub last_scanned_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AudiobookRecord {
+    pub id: i64,
+    pub title: String,
+    pub author: String,
+    pub cover_path: Option<String>,
+    pub added_at: String,
+    pub is_available: bool,
+    pub total_size: i64,
+    pub part_count: i64,
+    pub total_duration_seconds: f64,
+    pub progress: f64,
+    pub last_part_index: i64,
+    pub last_position_seconds: f64,
+    pub narrator: String,
+    pub series: String,
+    pub genres: String,
+    pub description: String,
+    pub language: String,
+    pub published_year: String,
+    pub metadata_source: String,
+    pub metadata_provider_id: Option<String>,
+    pub metadata_updated_at: Option<String>,
+    pub cover_source: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AudiobookMetadataInput {
+    pub title: String,
+    pub author: String,
+    pub narrator: String,
+    pub series: String,
+    pub genres: String,
+    pub description: String,
+    pub language: String,
+    pub published_year: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AudiobookPartRecord {
+    pub id: i64,
+    pub audiobook_id: i64,
+    pub source_path: String,
+    pub title: String,
+    pub format: String,
+    pub file_size: i64,
+    pub duration_seconds: Option<f64>,
+    pub ordinal: i64,
+    pub is_available: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AudiobookBookmarkRecord {
+    pub id: i64,
+    pub audiobook_id: i64,
+    pub part_index: i64,
+    pub position_seconds: f64,
+    pub note: String,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AudiobookChapterRecord {
+    pub id: i64,
+    pub audiobook_id: i64,
+    pub part_index: i64,
+    pub title: String,
+    pub start_seconds: f64,
+    pub ordinal: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WatchedAudioFolder {
+    pub id: i64,
+    pub path: String,
+    pub last_scanned_at: Option<String>,
+}
+
+#[derive(Debug, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AudioImportSummary {
+    pub imported_books: usize,
+    pub imported_parts: usize,
+    pub duplicate_parts: usize,
+    pub failed: usize,
+    pub errors: Vec<String>,
+}
+
+struct AudioGroupImportResult {
+    audiobook_id: Option<i64>,
+    imported_book: bool,
+    imported_parts: usize,
+    duplicate_parts: usize,
 }
 
 #[derive(Debug, Default, Serialize)]
@@ -524,6 +744,861 @@ impl Database {
         rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
     }
 
+    pub fn list_audiobooks(&mut self) -> Result<Vec<AudiobookRecord>, DatabaseError> {
+        self.refresh_audio_availability()?;
+        let mut statement = self.connection.prepare(
+            "SELECT id, title, author, cover_path, added_at, is_available,
+                    total_size, part_count, total_duration_seconds, progress,
+                    last_part_index, last_position_seconds, narrator, series,
+                    genres, description, language, published_year,
+                    metadata_source, metadata_provider_id, metadata_updated_at,
+                    cover_source
+             FROM audiobooks ORDER BY title COLLATE NOCASE, author COLLATE NOCASE",
+        )?;
+        let rows = statement.query_map([], audiobook_from_row)?;
+        rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
+    }
+
+    fn audiobook_by_id(&self, audiobook_id: i64) -> Result<AudiobookRecord, DatabaseError> {
+        self.connection
+            .query_row(
+                "SELECT id, title, author, cover_path, added_at, is_available,
+                        total_size, part_count, total_duration_seconds, progress,
+                        last_part_index, last_position_seconds, narrator, series,
+                        genres, description, language, published_year,
+                        metadata_source, metadata_provider_id, metadata_updated_at,
+                        cover_source
+                 FROM audiobooks WHERE id = ?1",
+                [audiobook_id],
+                audiobook_from_row,
+            )
+            .optional()?
+            .ok_or(DatabaseError::MissingBook)
+    }
+
+    pub fn list_audiobook_parts(
+        &mut self,
+        audiobook_id: i64,
+    ) -> Result<Vec<AudiobookPartRecord>, DatabaseError> {
+        self.refresh_audio_availability()?;
+        let exists = self
+            .connection
+            .query_row(
+                "SELECT id FROM audiobooks WHERE id = ?1",
+                [audiobook_id],
+                |row| row.get::<_, i64>(0),
+            )
+            .optional()?
+            .is_some();
+        if !exists {
+            return Err(DatabaseError::MissingBook);
+        }
+        let mut statement = self.connection.prepare(
+            "SELECT id, audiobook_id, source_path, title, format, file_size,
+                    duration_seconds, ordinal, is_available
+             FROM audiobook_parts WHERE audiobook_id = ?1
+             ORDER BY ordinal, title COLLATE NOCASE",
+        )?;
+        let rows = statement.query_map([audiobook_id], audiobook_part_from_row)?;
+        rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
+    }
+
+    pub fn save_audiobook_position(
+        &mut self,
+        audiobook_id: i64,
+        part_index: i64,
+        position_seconds: f64,
+        duration_seconds: f64,
+    ) -> Result<AudiobookRecord, DatabaseError> {
+        if part_index < 0
+            || !position_seconds.is_finite()
+            || !duration_seconds.is_finite()
+            || position_seconds < 0.0
+            || duration_seconds <= 0.0
+            || position_seconds > duration_seconds + 1.0
+        {
+            return Err(DatabaseError::InvalidPosition);
+        }
+        let transaction = self.connection.transaction()?;
+        let part_id = transaction
+            .query_row(
+                "SELECT id FROM audiobook_parts
+                 WHERE audiobook_id = ?1 AND ordinal = ?2 AND is_available = 1",
+                params![audiobook_id, part_index],
+                |row| row.get::<_, i64>(0),
+            )
+            .optional()?
+            .ok_or(DatabaseError::MissingAudioPart)?;
+        transaction.execute(
+            "UPDATE audiobook_parts SET duration_seconds = ?1 WHERE id = ?2",
+            params![duration_seconds, part_id],
+        )?;
+        let (part_count, known_count, total_duration, elapsed_before) = transaction.query_row(
+            "SELECT COUNT(*), COUNT(duration_seconds),
+                    COALESCE(SUM(duration_seconds), 0),
+                    COALESCE(SUM(CASE WHEN ordinal < ?2
+                                      THEN duration_seconds ELSE 0 END), 0)
+             FROM audiobook_parts WHERE audiobook_id = ?1",
+            params![audiobook_id, part_index],
+            |row| {
+                Ok((
+                    row.get::<_, i64>(0)?,
+                    row.get::<_, i64>(1)?,
+                    row.get::<_, f64>(2)?,
+                    row.get::<_, f64>(3)?,
+                ))
+            },
+        )?;
+        if part_count == 0 {
+            return Err(DatabaseError::MissingBook);
+        }
+        let bounded_position = position_seconds.min(duration_seconds);
+        let progress = if known_count == part_count && total_duration > 0.0 {
+            (elapsed_before + bounded_position) / total_duration
+        } else {
+            (part_index as f64 + bounded_position / duration_seconds) / part_count as f64
+        }
+        .clamp(0.0, 1.0);
+        let changed = transaction.execute(
+            "UPDATE audiobooks
+             SET total_duration_seconds = ?1, progress = ?2,
+                 last_part_index = ?3, last_position_seconds = ?4,
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE id = ?5",
+            params![
+                total_duration,
+                progress,
+                part_index,
+                bounded_position,
+                audiobook_id
+            ],
+        )?;
+        if changed == 0 {
+            return Err(DatabaseError::MissingBook);
+        }
+        transaction.commit()?;
+        self.audiobook_by_id(audiobook_id)
+    }
+
+    pub fn list_audiobook_bookmarks(
+        &self,
+        audiobook_id: i64,
+    ) -> Result<Vec<AudiobookBookmarkRecord>, DatabaseError> {
+        if self.audiobook_by_id(audiobook_id).is_err() {
+            return Err(DatabaseError::MissingBook);
+        }
+        let mut statement = self.connection.prepare(
+            "SELECT id, audiobook_id, part_index, position_seconds, note, created_at
+             FROM audiobook_bookmarks WHERE audiobook_id = ?1
+             ORDER BY part_index, position_seconds, id",
+        )?;
+        let rows = statement.query_map([audiobook_id], |row| {
+            Ok(AudiobookBookmarkRecord {
+                id: row.get(0)?,
+                audiobook_id: row.get(1)?,
+                part_index: row.get(2)?,
+                position_seconds: row.get(3)?,
+                note: row.get(4)?,
+                created_at: row.get(5)?,
+            })
+        })?;
+        rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
+    }
+
+    pub fn create_audiobook_bookmark(
+        &mut self,
+        audiobook_id: i64,
+        part_index: i64,
+        position_seconds: f64,
+        note: &str,
+    ) -> Result<AudiobookBookmarkRecord, DatabaseError> {
+        let normalized_note = note.split_whitespace().collect::<Vec<_>>().join(" ");
+        if part_index < 0
+            || !position_seconds.is_finite()
+            || position_seconds < 0.0
+            || normalized_note.chars().count() > 512
+        {
+            return Err(DatabaseError::InvalidAudioBookmark);
+        }
+        let duration = self
+            .connection
+            .query_row(
+                "SELECT duration_seconds FROM audiobook_parts
+                 WHERE audiobook_id = ?1 AND ordinal = ?2 AND is_available = 1",
+                params![audiobook_id, part_index],
+                |row| row.get::<_, Option<f64>>(0),
+            )
+            .optional()?
+            .ok_or(DatabaseError::MissingAudioPart)?;
+        if duration.is_some_and(|value| position_seconds > value + 1.0) {
+            return Err(DatabaseError::InvalidAudioBookmark);
+        }
+        self.connection.execute(
+            "INSERT INTO audiobook_bookmarks(
+                audiobook_id, part_index, position_seconds, note
+             ) VALUES (?1, ?2, ?3, ?4)",
+            params![audiobook_id, part_index, position_seconds, normalized_note],
+        )?;
+        let id = self.connection.last_insert_rowid();
+        self.connection
+            .query_row(
+                "SELECT id, audiobook_id, part_index, position_seconds, note, created_at
+                 FROM audiobook_bookmarks WHERE id = ?1",
+                [id],
+                |row| {
+                    Ok(AudiobookBookmarkRecord {
+                        id: row.get(0)?,
+                        audiobook_id: row.get(1)?,
+                        part_index: row.get(2)?,
+                        position_seconds: row.get(3)?,
+                        note: row.get(4)?,
+                        created_at: row.get(5)?,
+                    })
+                },
+            )
+            .map_err(Into::into)
+    }
+
+    pub fn delete_audiobook_bookmark(&mut self, bookmark_id: i64) -> Result<(), DatabaseError> {
+        if bookmark_id <= 0 {
+            return Err(DatabaseError::InvalidAudioBookmark);
+        }
+        let changed = self.connection.execute(
+            "DELETE FROM audiobook_bookmarks WHERE id = ?1",
+            [bookmark_id],
+        )?;
+        if changed == 0 {
+            return Err(DatabaseError::InvalidAudioBookmark);
+        }
+        Ok(())
+    }
+
+    pub fn list_audiobook_chapters(
+        &self,
+        audiobook_id: i64,
+    ) -> Result<Vec<AudiobookChapterRecord>, DatabaseError> {
+        if self.audiobook_by_id(audiobook_id).is_err() {
+            return Err(DatabaseError::MissingBook);
+        }
+        let mut statement = self.connection.prepare(
+            "SELECT id, audiobook_id, part_index, title, start_seconds, ordinal
+             FROM audiobook_chapters WHERE audiobook_id = ?1
+             ORDER BY ordinal",
+        )?;
+        let rows = statement.query_map([audiobook_id], |row| {
+            Ok(AudiobookChapterRecord {
+                id: row.get(0)?,
+                audiobook_id: row.get(1)?,
+                part_index: row.get(2)?,
+                title: row.get(3)?,
+                start_seconds: row.get(4)?,
+                ordinal: row.get(5)?,
+            })
+        })?;
+        rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
+    }
+
+    pub fn update_audiobook_metadata(
+        &mut self,
+        audiobook_id: i64,
+        input: &AudiobookMetadataInput,
+    ) -> Result<AudiobookRecord, DatabaseError> {
+        validate_audiobook_metadata_input(input)?;
+        let changed = self.connection.execute(
+            "UPDATE audiobooks SET title = ?1, author = ?2, narrator = ?3,
+                series = ?4, genres = ?5, description = ?6, language = ?7,
+                published_year = ?8, metadata_source = 'manual',
+                metadata_provider_id = NULL, metadata_updated_at = CURRENT_TIMESTAMP,
+                updated_at = CURRENT_TIMESTAMP WHERE id = ?9",
+            params![
+                input.title.trim(),
+                input.author.trim(),
+                input.narrator.trim(),
+                input.series.trim(),
+                normalize_genres_input(&input.genres),
+                input.description.trim(),
+                input.language.trim(),
+                input.published_year.trim(),
+                audiobook_id,
+            ],
+        )?;
+        if changed == 0 {
+            return Err(DatabaseError::MissingBook);
+        }
+        self.create_backup()?;
+        self.audiobook_by_id(audiobook_id)
+    }
+
+    pub fn search_audiobook_metadata(
+        &mut self,
+        audiobook_id: i64,
+        explicit_query: &str,
+        language: &str,
+    ) -> Result<Vec<MetadataCandidate>, DatabaseError> {
+        let language = MetadataLanguage::parse(language)?;
+        let (title, author) = self
+            .connection
+            .query_row(
+                "SELECT title, author FROM audiobooks WHERE id = ?1",
+                [audiobook_id],
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+            )
+            .optional()?
+            .ok_or(DatabaseError::MissingBook)?;
+        let query = if explicit_query.trim().is_empty() {
+            format!("{title} {author}")
+        } else {
+            explicit_query.to_owned()
+        };
+        let query = normalize_metadata_query(&query).ok_or(DatabaseError::InvalidMetadata)?;
+        let now = unix_seconds();
+        let cache_key = format!("audio:{}:{}", language.code(), query.to_lowercase());
+        if let Some(cached) = self
+            .connection
+            .query_row(
+                "SELECT response_json FROM metadata_cache
+                 WHERE query_key = ?1 AND fetched_at >= ?2",
+                params![cache_key, now.saturating_sub(30 * 24 * 60 * 60)],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()?
+        {
+            return serde_json::from_str(&cached).map_err(Into::into);
+        }
+        self.reserve_metadata_request(false)?;
+        let candidates = crate::metadata::search_metadata(&query, language)?;
+        self.connection.execute(
+            "INSERT INTO metadata_cache(query_key, response_json, fetched_at)
+             VALUES (?1, ?2, ?3)
+             ON CONFLICT(query_key) DO UPDATE SET
+                response_json = excluded.response_json,
+                fetched_at = excluded.fetched_at",
+            params![cache_key, serde_json::to_string(&candidates)?, now],
+        )?;
+        Ok(candidates)
+    }
+
+    pub fn apply_audiobook_metadata_candidate(
+        &mut self,
+        audiobook_id: i64,
+        candidate: &MetadataCandidate,
+    ) -> Result<AudiobookRecord, DatabaseError> {
+        validate_candidate(candidate)?;
+        let previous_cover = self
+            .connection
+            .query_row(
+                "SELECT cover_path FROM audiobooks WHERE id = ?1",
+                [audiobook_id],
+                |row| row.get::<_, Option<String>>(0),
+            )
+            .optional()?
+            .ok_or(DatabaseError::MissingBook)?;
+        let downloaded_cover = if candidate.provider == "Open Library" {
+            if let Some(cover_id) = candidate.cover_id {
+                self.reserve_metadata_request(true)?;
+                let (bytes, extension) = download_open_library_cover(cover_id)?;
+                let path = self.cover_dir.join(format!(
+                    "external-audio-{audiobook_id}-{cover_id}.{extension}"
+                ));
+                fs::write(&path, bytes)?;
+                Some(path.to_string_lossy().into_owned())
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+        let source = candidate.provider.to_lowercase().replace(' ', "_");
+        let changed = self.connection.execute(
+            "UPDATE audiobooks SET title = ?1, author = ?2,
+                series = CASE WHEN TRIM(?3) = '' THEN series ELSE ?3 END,
+                genres = CASE WHEN TRIM(?4) = '' THEN genres ELSE ?4 END,
+                language = ?5, published_year = ?6, metadata_source = ?7,
+                metadata_provider_id = ?8, metadata_updated_at = CURRENT_TIMESTAMP,
+                cover_path = COALESCE(?9, cover_path),
+                cover_source = CASE WHEN ?9 IS NULL THEN cover_source ELSE 'open_library' END,
+                updated_at = CURRENT_TIMESTAMP WHERE id = ?10",
+            params![
+                candidate.title.trim(),
+                candidate.author.trim(),
+                candidate.series.trim(),
+                normalize_genres_input(&candidate.genres),
+                candidate.language.trim(),
+                candidate.published_year.trim(),
+                source,
+                candidate.provider_id.trim(),
+                downloaded_cover,
+                audiobook_id,
+            ],
+        )?;
+        if changed == 0 {
+            return Err(DatabaseError::MissingBook);
+        }
+        if let Some(previous) = previous_cover {
+            if Some(previous.as_str()) != downloaded_cover.as_deref() {
+                remove_managed_external_cover(&self.cover_dir, &previous)?;
+            }
+        }
+        self.create_backup()?;
+        self.audiobook_by_id(audiobook_id)
+    }
+
+    pub fn set_audiobook_local_cover(
+        &mut self,
+        audiobook_id: i64,
+        source: &Path,
+    ) -> Result<AudiobookRecord, DatabaseError> {
+        let previous = self
+            .connection
+            .query_row(
+                "SELECT cover_path FROM audiobooks WHERE id = ?1",
+                [audiobook_id],
+                |row| row.get::<_, Option<String>>(0),
+            )
+            .optional()?
+            .ok_or(DatabaseError::MissingBook)?;
+        let metadata = fs::metadata(source)?;
+        if !metadata.is_file() || metadata.len() == 0 || metadata.len() > MAX_COVER_BYTES as u64 {
+            return Err(DatabaseError::InvalidMetadata);
+        }
+        let mut bytes = Vec::with_capacity(metadata.len() as usize);
+        fs::File::open(source)?
+            .take(MAX_COVER_BYTES as u64 + 1)
+            .read_to_end(&mut bytes)?;
+        let extension = image_extension(&bytes).ok_or(MetadataError::InvalidCover)?;
+        let destination = self.cover_dir.join(format!(
+            "external-audio-{audiobook_id}-local-{}.{}",
+            unix_millis(),
+            extension
+        ));
+        fs::write(&destination, &bytes)?;
+        let destination = destination.to_string_lossy().into_owned();
+        self.connection.execute(
+            "UPDATE audiobooks SET cover_path = ?1, cover_source = 'local',
+             updated_at = CURRENT_TIMESTAMP WHERE id = ?2",
+            params![destination, audiobook_id],
+        )?;
+        if let Some(previous) = previous {
+            if previous != destination {
+                remove_managed_external_cover(&self.cover_dir, &previous)?;
+            }
+        }
+        self.create_backup()?;
+        self.audiobook_by_id(audiobook_id)
+    }
+
+    pub fn import_audiobooks(
+        &mut self,
+        paths: &[PathBuf],
+    ) -> Result<AudioImportSummary, DatabaseError> {
+        let discovery = discover_manual_audio_groups(paths);
+        self.import_audio_groups(discovery.groups, discovery.errors)
+    }
+
+    pub fn import_audiobook_for_open(
+        &mut self,
+        path: &Path,
+    ) -> Result<AudiobookRecord, DatabaseError> {
+        let discovery = discover_manual_audio_groups(&[path.to_path_buf()]);
+        if !discovery.errors.is_empty() || discovery.groups.len() != 1 {
+            return Err(DatabaseError::InvalidAudioLaunch);
+        }
+        let candidate = discovery
+            .groups
+            .into_iter()
+            .next()
+            .ok_or(DatabaseError::InvalidAudioLaunch)?;
+        let mut group = inspect_audio_group(
+            &candidate.paths,
+            candidate.group_as_folder,
+            candidate.preserve_order,
+            candidate.title_override.as_deref(),
+        )?;
+        if let Some(group_key) = &candidate.group_key_override {
+            group.group_key.clone_from(group_key);
+        }
+        let first_fingerprint = group
+            .parts
+            .first()
+            .map(|part| part.fingerprint.clone())
+            .ok_or(DatabaseError::InvalidAudioLaunch)?;
+        let result = self.import_audio_group(&group)?;
+        let audiobook_id = match result.audiobook_id {
+            Some(id) => id,
+            None => self
+                .connection
+                .query_row(
+                    "SELECT audiobook_id FROM audiobook_parts
+                     WHERE fingerprint = ?1
+                     ORDER BY is_available DESC, id LIMIT 1",
+                    [&first_fingerprint],
+                    |row| row.get::<_, i64>(0),
+                )
+                .optional()?
+                .ok_or(DatabaseError::InvalidAudioLaunch)?,
+        };
+        if candidate.preserve_order {
+            self.replace_audiobook_chapters(audiobook_id, &candidate.chapters)?;
+        }
+        if result.imported_parts > 0 {
+            self.create_backup()?;
+        }
+        self.audiobook_by_id(audiobook_id)
+    }
+
+    pub fn add_watched_audio_folder(
+        &mut self,
+        path: &Path,
+    ) -> Result<AudioImportSummary, DatabaseError> {
+        if !path.is_dir() {
+            return Err(DatabaseError::MissingFolder);
+        }
+        let canonical = path.canonicalize()?;
+        self.connection.execute(
+            "INSERT INTO watched_audio_folders(path) VALUES (?1)
+             ON CONFLICT(path) DO NOTHING",
+            [canonical.to_string_lossy().as_ref()],
+        )?;
+        let groups = discover_watched_audio_groups(&canonical)?;
+        let summary = self.import_audio_groups(groups, Vec::new())?;
+        self.connection.execute(
+            "UPDATE watched_audio_folders
+             SET last_scanned_at = CURRENT_TIMESTAMP WHERE path = ?1",
+            [canonical.to_string_lossy().as_ref()],
+        )?;
+        Ok(summary)
+    }
+
+    pub fn list_watched_audio_folders(&self) -> Result<Vec<WatchedAudioFolder>, DatabaseError> {
+        let mut statement = self.connection.prepare(
+            "SELECT id, path, last_scanned_at
+             FROM watched_audio_folders ORDER BY path COLLATE NOCASE",
+        )?;
+        let rows = statement.query_map([], |row| {
+            Ok(WatchedAudioFolder {
+                id: row.get(0)?,
+                path: row.get(1)?,
+                last_scanned_at: row.get(2)?,
+            })
+        })?;
+        rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
+    }
+
+    pub fn scan_watched_audio_folders(&mut self) -> Result<AudioImportSummary, DatabaseError> {
+        let folders = self
+            .list_watched_audio_folders()?
+            .into_iter()
+            .map(|folder| PathBuf::from(folder.path))
+            .collect::<Vec<_>>();
+        let mut total = AudioImportSummary::default();
+        for folder in folders {
+            if !folder.is_dir() {
+                total.failed += 1;
+                total
+                    .errors
+                    .push(format!("{}: folder is unavailable", folder.display()));
+                continue;
+            }
+            match discover_watched_audio_groups(&folder) {
+                Ok(groups) => {
+                    let summary = self.import_audio_groups(groups, Vec::new())?;
+                    merge_audio_summary(&mut total, summary);
+                    self.connection.execute(
+                        "UPDATE watched_audio_folders
+                         SET last_scanned_at = CURRENT_TIMESTAMP WHERE path = ?1",
+                        [folder.to_string_lossy().as_ref()],
+                    )?;
+                }
+                Err(error) => {
+                    total.failed += 1;
+                    total.errors.push(format!("{}: {error}", folder.display()));
+                }
+            }
+        }
+        Ok(total)
+    }
+
+    fn import_audio_groups(
+        &mut self,
+        groups: Vec<AudioGroupCandidate>,
+        discovery_errors: Vec<String>,
+    ) -> Result<AudioImportSummary, DatabaseError> {
+        let mut summary = AudioImportSummary {
+            failed: discovery_errors.len(),
+            errors: discovery_errors,
+            ..AudioImportSummary::default()
+        };
+        for candidate in groups {
+            match inspect_audio_group(
+                &candidate.paths,
+                candidate.group_as_folder,
+                candidate.preserve_order,
+                candidate.title_override.as_deref(),
+            ) {
+                Ok(mut group) => {
+                    if let Some(group_key) = &candidate.group_key_override {
+                        group.group_key.clone_from(group_key);
+                    }
+                    match self.import_audio_group(&group) {
+                        Ok(result) => {
+                            if candidate.preserve_order {
+                                if let Some(audiobook_id) = result.audiobook_id {
+                                    self.replace_audiobook_chapters(
+                                        audiobook_id,
+                                        &candidate.chapters,
+                                    )?;
+                                }
+                            }
+                            summary.imported_books += usize::from(result.imported_book);
+                            summary.imported_parts += result.imported_parts;
+                            summary.duplicate_parts += result.duplicate_parts;
+                        }
+                        Err(error) => {
+                            summary.failed += 1;
+                            summary.errors.push(format!(
+                                "{}: {error}",
+                                candidate
+                                    .paths
+                                    .first()
+                                    .map(|path| path.to_string_lossy())
+                                    .unwrap_or_default()
+                            ));
+                        }
+                    }
+                }
+                Err(error) => {
+                    summary.failed += 1;
+                    summary.errors.push(format!(
+                        "{}: {error}",
+                        candidate
+                            .paths
+                            .first()
+                            .map(|path| path.to_string_lossy())
+                            .unwrap_or_default()
+                    ));
+                }
+            }
+        }
+        if summary.imported_parts > 0 {
+            self.create_backup()?;
+        }
+        Ok(summary)
+    }
+
+    fn import_audio_group(
+        &mut self,
+        group: &ImportedAudioGroup,
+    ) -> Result<AudioGroupImportResult, DatabaseError> {
+        let transaction = self.connection.transaction()?;
+        let exact_group = transaction
+            .query_row(
+                "SELECT id FROM audiobooks WHERE group_key = ?1",
+                [&group.group_key],
+                |row| row.get::<_, i64>(0),
+            )
+            .optional()?;
+        let mut relocated_group = None;
+        if exact_group.is_none() {
+            for part in &group.parts {
+                relocated_group =
+                    audio_part_location_by_fingerprint(&transaction, &part.fingerprint, false)?
+                        .map(|(_, audiobook_id)| audiobook_id);
+                if relocated_group.is_some() {
+                    break;
+                }
+            }
+        }
+        if exact_group.is_none()
+            && relocated_group.is_none()
+            && group.group_key.starts_with("single:")
+            && audio_part_location_by_fingerprint(&transaction, &group.parts[0].fingerprint, true)?
+                .is_some()
+        {
+            return Ok(AudioGroupImportResult {
+                audiobook_id: None,
+                imported_book: false,
+                imported_parts: 0,
+                duplicate_parts: 1,
+            });
+        }
+        let (audiobook_id, imported_book) = match exact_group.or(relocated_group) {
+            Some(id) => {
+                transaction.execute(
+                    "UPDATE audiobooks SET group_key = ?1, title = ?2,
+                         updated_at = CURRENT_TIMESTAMP WHERE id = ?3",
+                    params![group.group_key, group.title, id],
+                )?;
+                (id, false)
+            }
+            None => {
+                transaction.execute(
+                    "INSERT INTO audiobooks(group_key, title) VALUES (?1, ?2)",
+                    params![group.group_key, group.title],
+                )?;
+                (transaction.last_insert_rowid(), true)
+            }
+        };
+
+        let mut imported_parts = 0;
+        let mut duplicate_parts = 0;
+        for (ordinal, part) in group.parts.iter().enumerate() {
+            let existing = transaction
+                .query_row(
+                    "SELECT id, fingerprint FROM audiobook_parts WHERE source_path = ?1",
+                    [&part.source_path],
+                    |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?)),
+                )
+                .optional()?;
+            if let Some((part_id, existing_fingerprint)) = existing {
+                transaction.execute(
+                    "UPDATE audiobook_parts SET audiobook_id = ?1, fingerprint = ?2,
+                         title = ?3, format = ?4, file_size = ?5, ordinal = ?6,
+                         is_available = 1, last_seen_at = CURRENT_TIMESTAMP
+                     WHERE id = ?7",
+                    params![
+                        audiobook_id,
+                        part.fingerprint,
+                        part.title,
+                        part.format,
+                        part.file_size,
+                        ordinal as i64,
+                        part_id,
+                    ],
+                )?;
+                if existing_fingerprint == part.fingerprint {
+                    duplicate_parts += 1;
+                } else {
+                    imported_parts += 1;
+                }
+                continue;
+            }
+
+            if group.group_key.starts_with("single:")
+                && audio_part_location_by_fingerprint(&transaction, &part.fingerprint, true)?
+                    .is_some()
+            {
+                duplicate_parts += 1;
+                continue;
+            }
+
+            let relocated_part =
+                audio_part_location_by_fingerprint(&transaction, &part.fingerprint, false)?
+                    .map(|(part_id, _)| part_id);
+            if let Some(part_id) = relocated_part {
+                transaction.execute(
+                    "UPDATE audiobook_parts SET audiobook_id = ?1, source_path = ?2,
+                         title = ?3, format = ?4, file_size = ?5, ordinal = ?6,
+                         is_available = 1, last_seen_at = CURRENT_TIMESTAMP
+                     WHERE id = ?7",
+                    params![
+                        audiobook_id,
+                        part.source_path,
+                        part.title,
+                        part.format,
+                        part.file_size,
+                        ordinal as i64,
+                        part_id,
+                    ],
+                )?;
+                imported_parts += 1;
+            } else {
+                transaction.execute(
+                    "INSERT INTO audiobook_parts(
+                        audiobook_id, source_path, fingerprint, title, format,
+                        file_size, ordinal
+                     ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                    params![
+                        audiobook_id,
+                        part.source_path,
+                        part.fingerprint,
+                        part.title,
+                        part.format,
+                        part.file_size,
+                        ordinal as i64,
+                    ],
+                )?;
+                imported_parts += 1;
+            }
+        }
+        let (stored_part_count, stored_total_size) = transaction.query_row(
+            "SELECT COUNT(*), COALESCE(SUM(file_size), 0)
+             FROM audiobook_parts WHERE audiobook_id = ?1",
+            [audiobook_id],
+            |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)),
+        )?;
+        if stored_part_count > MAX_AUDIOBOOK_PARTS as i64 {
+            return Err(AudioImportError::TooManyParts.into());
+        }
+        if stored_total_size > MAX_AUDIOBOOK_BYTES as i64 {
+            return Err(AudioImportError::BookTooLarge.into());
+        }
+        transaction.execute(
+            "UPDATE audiobooks SET
+                total_size = COALESCE((SELECT SUM(file_size) FROM audiobook_parts
+                                       WHERE audiobook_id = ?1), 0),
+                part_count = (SELECT COUNT(*) FROM audiobook_parts
+                              WHERE audiobook_id = ?1),
+                is_available = CASE
+                    WHEN (SELECT COUNT(*) FROM audiobook_parts WHERE audiobook_id = ?1) > 0
+                     AND (SELECT MIN(is_available) FROM audiobook_parts WHERE audiobook_id = ?1) = 1
+                    THEN 1 ELSE 0 END,
+                updated_at = CURRENT_TIMESTAMP
+             WHERE id = ?1",
+            [audiobook_id],
+        )?;
+        transaction.execute(
+            "DELETE FROM audiobooks
+             WHERE id != ?1
+               AND NOT EXISTS (SELECT 1 FROM audiobook_parts
+                               WHERE audiobook_id = audiobooks.id)",
+            [audiobook_id],
+        )?;
+        transaction.commit()?;
+        Ok(AudioGroupImportResult {
+            audiobook_id: Some(audiobook_id),
+            imported_book,
+            imported_parts,
+            duplicate_parts,
+        })
+    }
+
+    fn replace_audiobook_chapters(
+        &mut self,
+        audiobook_id: i64,
+        chapters: &[crate::audio_importer::AudioChapterCandidate],
+    ) -> Result<(), DatabaseError> {
+        let transaction = self.connection.transaction()?;
+        transaction.execute(
+            "DELETE FROM audiobook_chapters WHERE audiobook_id = ?1",
+            [audiobook_id],
+        )?;
+        for chapter in chapters {
+            let part_index = transaction
+                .query_row(
+                    "SELECT ordinal FROM audiobook_parts
+                     WHERE audiobook_id = ?1 AND source_path = ?2",
+                    params![audiobook_id, chapter.source_path.to_string_lossy().as_ref()],
+                    |row| row.get::<_, i64>(0),
+                )
+                .optional()?
+                .ok_or(DatabaseError::MissingAudioPart)?;
+            transaction.execute(
+                "INSERT INTO audiobook_chapters(
+                    audiobook_id, part_index, title, start_seconds, ordinal
+                 ) VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![
+                    audiobook_id,
+                    part_index,
+                    chapter.title,
+                    chapter.start_seconds,
+                    chapter.ordinal as i64
+                ],
+            )?;
+        }
+        transaction.commit()?;
+        Ok(())
+    }
+
     pub fn remove_books(&mut self, book_ids: &[i64]) -> Result<usize, DatabaseError> {
         let book_ids = book_ids
             .iter()
@@ -635,7 +1710,9 @@ impl Database {
         &mut self,
         book_id: i64,
         explicit_query: &str,
+        language: &str,
     ) -> Result<Vec<MetadataCandidate>, DatabaseError> {
+        let language = MetadataLanguage::parse(language)?;
         let (title, author, isbn) = self
             .connection
             .query_row(
@@ -662,12 +1739,13 @@ impl Database {
         };
         let query = normalize_metadata_query(&query).ok_or(DatabaseError::InvalidMetadata)?;
         let now = unix_seconds();
+        let cache_key = format!("{}:{}", language.code(), query.to_lowercase());
         if let Some(cached) = self
             .connection
             .query_row(
                 "SELECT response_json FROM metadata_cache
                  WHERE query_key = ?1 AND fetched_at >= ?2",
-                params![query.to_lowercase(), now.saturating_sub(30 * 24 * 60 * 60)],
+                params![cache_key, now.saturating_sub(30 * 24 * 60 * 60)],
                 |row| row.get::<_, String>(0),
             )
             .optional()?
@@ -675,7 +1753,7 @@ impl Database {
             return serde_json::from_str(&cached).map_err(Into::into);
         }
         self.reserve_metadata_request(false)?;
-        let candidates = crate::metadata::search_open_library(&query)?;
+        let candidates = crate::metadata::search_metadata(&query, language)?;
         let json = serde_json::to_string(&candidates)?;
         self.connection.execute(
             "INSERT INTO metadata_cache(query_key, response_json, fetched_at)
@@ -683,7 +1761,7 @@ impl Database {
              ON CONFLICT(query_key) DO UPDATE SET
                 response_json = excluded.response_json,
                 fetched_at = excluded.fetched_at",
-            params![query.to_lowercase(), json, now],
+            params![cache_key, json, now],
         )?;
         Ok(candidates)
     }
@@ -698,15 +1776,18 @@ impl Database {
             .connection
             .query_row(
                 "SELECT cover_path FROM books
-                 WHERE id = ?1 AND cover_source = 'open_library'",
+                 WHERE id = ?1 AND cover_source != 'embedded'",
                 [book_id],
                 |row| row.get::<_, Option<String>>(0),
             )
             .optional()?
             .flatten();
-        let downloaded_cover = if let Some(cover_id) = candidate.cover_id {
+        let downloaded_cover = if candidate.provider == "Open Library" {
+            let Some(cover_id) = candidate.cover_id else {
+                return self.apply_metadata_without_cover(book_id, candidate, previous_external);
+            };
             self.reserve_metadata_request(true)?;
-            let (bytes, extension) = download_cover(cover_id)?;
+            let (bytes, extension) = download_open_library_cover(cover_id)?;
             let path = self
                 .cover_dir
                 .join(format!("external-{book_id}-{cover_id}.{extension}"));
@@ -715,17 +1796,42 @@ impl Database {
         } else {
             None
         };
+        self.apply_metadata_with_cover(book_id, candidate, previous_external, downloaded_cover)
+    }
+
+    fn apply_metadata_without_cover(
+        &mut self,
+        book_id: i64,
+        candidate: &MetadataCandidate,
+        previous_external: Option<String>,
+    ) -> Result<BookRecord, DatabaseError> {
+        self.apply_metadata_with_cover(book_id, candidate, previous_external, None)
+    }
+
+    fn apply_metadata_with_cover(
+        &mut self,
+        book_id: i64,
+        candidate: &MetadataCandidate,
+        previous_external: Option<String>,
+        downloaded_cover: Option<String>,
+    ) -> Result<BookRecord, DatabaseError> {
+        let metadata_source = if candidate.provider == "ФантЛаб" {
+            "fantlab"
+        } else {
+            "open_library"
+        };
         let changed = self.connection.execute(
             "UPDATE books SET
                 title = ?1, author = ?2, isbn = ?3, publisher = ?4,
                 published_year = ?5, language = ?6,
                 genres = CASE WHEN TRIM(?7) = '' THEN genres ELSE ?7 END,
-                metadata_source = 'open_library', metadata_provider_id = ?8,
+                series = CASE WHEN TRIM(?8) = '' THEN series ELSE ?8 END,
+                metadata_source = ?9, metadata_provider_id = ?10,
                 metadata_updated_at = CURRENT_TIMESTAMP,
-                cover_path = COALESCE(?9, cover_path),
-                cover_source = CASE WHEN ?9 IS NULL THEN cover_source
+                cover_path = COALESCE(?11, cover_path),
+                cover_source = CASE WHEN ?11 IS NULL THEN cover_source
                                     ELSE 'open_library' END
-             WHERE id = ?10",
+             WHERE id = ?12",
             params![
                 candidate.title.trim(),
                 candidate.author.trim(),
@@ -734,6 +1840,8 @@ impl Database {
                 candidate.published_year.trim(),
                 candidate.language.trim(),
                 normalize_genres_input(&candidate.genres),
+                candidate.series.trim(),
+                metadata_source,
                 candidate.provider_id.trim(),
                 downloaded_cover,
                 book_id,
@@ -745,6 +1853,64 @@ impl Database {
         if let Some(previous) = previous_external {
             if Some(previous.as_str()) != downloaded_cover.as_deref() {
                 remove_managed_external_cover(&self.cover_dir, &previous)?;
+            }
+        }
+        self.create_backup()?;
+        self.book_by_id(book_id)
+    }
+
+    pub fn set_local_cover(
+        &mut self,
+        book_id: i64,
+        source: &Path,
+    ) -> Result<BookRecord, DatabaseError> {
+        let previous_cover = self
+            .connection
+            .query_row(
+                "SELECT cover_source, cover_path FROM books WHERE id = ?1",
+                [book_id],
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?)),
+            )
+            .optional()?
+            .ok_or(DatabaseError::MissingBook)?;
+        let _source_extension = source
+            .extension()
+            .and_then(|value| value.to_str())
+            .map(str::to_ascii_lowercase)
+            .filter(|value| matches!(value.as_str(), "jpg" | "jpeg" | "png" | "webp"))
+            .ok_or(DatabaseError::InvalidMetadata)?;
+        let metadata = fs::metadata(source)?;
+        if !metadata.is_file() || metadata.len() == 0 || metadata.len() > MAX_COVER_BYTES as u64 {
+            return Err(DatabaseError::InvalidMetadata);
+        }
+        let mut bytes = Vec::with_capacity(metadata.len() as usize);
+        fs::File::open(source)?
+            .take(MAX_COVER_BYTES as u64 + 1)
+            .read_to_end(&mut bytes)?;
+        if bytes.len() > MAX_COVER_BYTES {
+            return Err(DatabaseError::InvalidMetadata);
+        }
+        let extension = image_extension(&bytes).ok_or(MetadataError::InvalidCover)?;
+        let destination = self.cover_dir.join(format!(
+            "external-{book_id}-local-{}.{}",
+            unix_millis(),
+            extension
+        ));
+        fs::write(&destination, &bytes)?;
+        let destination_string = destination.to_string_lossy().into_owned();
+        let changed = self.connection.execute(
+            "UPDATE books SET cover_path = ?1, cover_source = 'local' WHERE id = ?2",
+            params![destination_string, book_id],
+        )?;
+        if changed == 0 {
+            remove_managed_file(&self.cover_dir, &destination);
+            return Err(DatabaseError::MissingBook);
+        }
+        if previous_cover.0 != "embedded" {
+            if let Some(previous) = previous_cover.1 {
+                if previous != destination_string {
+                    remove_managed_external_cover(&self.cover_dir, &previous)?;
+                }
             }
         }
         self.create_backup()?;
@@ -791,7 +1957,7 @@ impl Database {
             )
             .optional()?
             .ok_or(DatabaseError::MissingBook)?;
-        if cover_source == "open_library" {
+        if cover_source != "embedded" {
             self.connection.execute(
                 "UPDATE books SET cover_path = embedded_cover_path,
                     cover_source = 'embedded' WHERE id = ?1",
@@ -976,6 +2142,39 @@ impl Database {
         statistics::end_session(&self.connection, token).map_err(Into::into)
     }
 
+    pub fn start_audiobook_session(
+        &self,
+        audiobook_id: i64,
+        progress: f64,
+    ) -> Result<String, DatabaseError> {
+        audio_statistics::start_session(&self.connection, audiobook_id, progress)
+            .map_err(Into::into)
+    }
+
+    pub fn record_audiobook_activity(
+        &self,
+        token: &str,
+        active: bool,
+        progress: f64,
+    ) -> Result<(), DatabaseError> {
+        audio_statistics::record_activity(&self.connection, token, active, progress)
+            .map_err(Into::into)
+    }
+
+    pub fn end_audiobook_session(&self, token: &str) -> Result<(), DatabaseError> {
+        audio_statistics::end_session(&self.connection, token).map_err(Into::into)
+    }
+
+    pub fn audiobook_statistics_snapshot(
+        &self,
+    ) -> Result<AudiobookStatisticsSnapshot, DatabaseError> {
+        audio_statistics::snapshot(&self.connection).map_err(Into::into)
+    }
+
+    pub fn audiobook_achievements(&self) -> Result<Vec<AchievementProgress>, DatabaseError> {
+        audio_statistics::achievements(&self.connection).map_err(Into::into)
+    }
+
     pub fn statistics_snapshot(&self) -> Result<StatisticsSnapshot, DatabaseError> {
         statistics::snapshot(&self.connection).map_err(Into::into)
     }
@@ -989,7 +2188,8 @@ impl Database {
     }
 
     pub fn clear_reading_statistics(&self) -> Result<(), DatabaseError> {
-        statistics::clear(&self.connection).map_err(Into::into)
+        statistics::clear(&self.connection)?;
+        audio_statistics::clear(&self.connection).map_err(Into::into)
     }
 
     pub fn steam_integration_status(&self) -> Result<SteamIntegrationStatus, DatabaseError> {
@@ -1239,7 +2439,7 @@ impl Database {
                     "UPDATE books SET
                         source_path = ?1, file_size = ?2, format = ?3,
                         embedded_cover_path = ?4,
-                        cover_path = CASE WHEN cover_source = 'open_library'
+                        cover_path = CASE WHEN cover_source != 'embedded'
                                           THEN cover_path ELSE ?4 END,
                         last_seen_at = CURRENT_TIMESTAMP, is_available = 1
                      WHERE id = ?5",
@@ -1272,7 +2472,7 @@ impl Database {
                 format = excluded.format,
                 file_size = excluded.file_size,
                 embedded_cover_path = excluded.cover_path,
-                cover_path = CASE WHEN books.cover_source = 'open_library'
+                cover_path = CASE WHEN books.cover_source != 'embedded'
                                   THEN books.cover_path ELSE excluded.cover_path END,
                 last_seen_at = CURRENT_TIMESTAMP,
                 is_available = 1",
@@ -1384,6 +2584,43 @@ impl Database {
         Ok(())
     }
 
+    fn refresh_audio_availability(&mut self) -> Result<(), DatabaseError> {
+        let paths = {
+            let mut statement = self
+                .connection
+                .prepare("SELECT id, source_path FROM audiobook_parts")?;
+            let rows = statement
+                .query_map([], |row| {
+                    Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
+                })?
+                .collect::<Result<Vec<_>, _>>()?;
+            rows
+        };
+        let transaction = self.connection.transaction()?;
+        for (id, path) in paths {
+            transaction.execute(
+                "UPDATE audiobook_parts SET is_available = ?1,
+                     last_seen_at = CURRENT_TIMESTAMP WHERE id = ?2",
+                params![i64::from(Path::new(&path).is_file()), id],
+            )?;
+        }
+        transaction.execute_batch(
+            "UPDATE audiobooks SET
+                is_available = CASE
+                    WHEN (SELECT COUNT(*) FROM audiobook_parts
+                          WHERE audiobook_id = audiobooks.id) > 0
+                     AND (SELECT MIN(is_available) FROM audiobook_parts
+                          WHERE audiobook_id = audiobooks.id) = 1
+                    THEN 1 ELSE 0 END,
+                total_size = COALESCE((SELECT SUM(file_size) FROM audiobook_parts
+                                       WHERE audiobook_id = audiobooks.id), 0),
+                part_count = (SELECT COUNT(*) FROM audiobook_parts
+                              WHERE audiobook_id = audiobooks.id);",
+        )?;
+        transaction.commit()?;
+        Ok(())
+    }
+
     fn create_backup(&mut self) -> Result<(), DatabaseError> {
         self.connection
             .execute_batch("PRAGMA wal_checkpoint(TRUNCATE);")?;
@@ -1435,6 +2672,81 @@ fn annotation_from_row(row: &rusqlite::Row<'_>) -> Result<AnnotationRecord, rusq
         created_at: row.get(9)?,
         updated_at: row.get(10)?,
     })
+}
+
+fn audiobook_from_row(row: &rusqlite::Row<'_>) -> Result<AudiobookRecord, rusqlite::Error> {
+    Ok(AudiobookRecord {
+        id: row.get(0)?,
+        title: row.get(1)?,
+        author: row.get(2)?,
+        cover_path: row.get(3)?,
+        added_at: row.get(4)?,
+        is_available: row.get::<_, i64>(5)? == 1,
+        total_size: row.get(6)?,
+        part_count: row.get(7)?,
+        total_duration_seconds: row.get(8)?,
+        progress: row.get(9)?,
+        last_part_index: row.get(10)?,
+        last_position_seconds: row.get(11)?,
+        narrator: row.get(12)?,
+        series: row.get(13)?,
+        genres: row.get(14)?,
+        description: row.get(15)?,
+        language: row.get(16)?,
+        published_year: row.get(17)?,
+        metadata_source: row.get(18)?,
+        metadata_provider_id: row.get(19)?,
+        metadata_updated_at: row.get(20)?,
+        cover_source: row.get(21)?,
+    })
+}
+
+fn audiobook_part_from_row(
+    row: &rusqlite::Row<'_>,
+) -> Result<AudiobookPartRecord, rusqlite::Error> {
+    Ok(AudiobookPartRecord {
+        id: row.get(0)?,
+        audiobook_id: row.get(1)?,
+        source_path: row.get(2)?,
+        title: row.get(3)?,
+        format: row.get(4)?,
+        file_size: row.get(5)?,
+        duration_seconds: row.get(6)?,
+        ordinal: row.get(7)?,
+        is_available: row.get::<_, i64>(8)? == 1,
+    })
+}
+
+fn merge_audio_summary(target: &mut AudioImportSummary, source: AudioImportSummary) {
+    target.imported_books += source.imported_books;
+    target.imported_parts += source.imported_parts;
+    target.duplicate_parts += source.duplicate_parts;
+    target.failed += source.failed;
+    target.errors.extend(source.errors);
+}
+
+fn audio_part_location_by_fingerprint(
+    transaction: &Transaction<'_>,
+    fingerprint: &str,
+    source_is_available: bool,
+) -> Result<Option<(i64, i64)>, rusqlite::Error> {
+    let mut statement = transaction.prepare(
+        "SELECT id, audiobook_id, source_path
+         FROM audiobook_parts WHERE fingerprint = ?1 ORDER BY id",
+    )?;
+    let locations = statement
+        .query_map([fingerprint], |row| {
+            Ok((
+                row.get::<_, i64>(0)?,
+                row.get::<_, i64>(1)?,
+                row.get::<_, String>(2)?,
+            ))
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(locations
+        .into_iter()
+        .find(|(_, _, path)| Path::new(path).is_file() == source_is_available)
+        .map(|(part_id, audiobook_id, _)| (part_id, audiobook_id)))
 }
 
 fn book_record_from_row(row: &rusqlite::Row<'_>) -> Result<BookRecord, rusqlite::Error> {
@@ -1489,8 +2801,42 @@ fn validate_metadata_input(input: &BookMetadataInput) -> Result<(), DatabaseErro
     Ok(())
 }
 
+fn validate_audiobook_metadata_input(input: &AudiobookMetadataInput) -> Result<(), DatabaseError> {
+    let values = [
+        (&input.title, 512_usize),
+        (&input.author, 512),
+        (&input.narrator, 512),
+        (&input.series, 512),
+        (&input.genres, 1_024),
+        (&input.description, 16_384),
+        (&input.language, 64),
+        (&input.published_year, 32),
+    ];
+    if input.title.trim().is_empty()
+        || values
+            .iter()
+            .any(|(value, limit)| value.chars().count() > *limit)
+    {
+        return Err(DatabaseError::InvalidMetadata);
+    }
+    Ok(())
+}
+
 fn validate_candidate(candidate: &MetadataCandidate) -> Result<(), DatabaseError> {
-    if candidate.provider != "Open Library"
+    let valid_provider_id = match candidate.provider.as_str() {
+        "Open Library" => {
+            candidate.provider_id.starts_with("/works/")
+                || candidate.provider_id.starts_with("/books/")
+        }
+        "ФантЛаб" => candidate
+            .provider_id
+            .strip_prefix("edition:")
+            .is_some_and(|value| {
+                !value.is_empty() && value.chars().all(|character| character.is_ascii_digit())
+            }),
+        _ => false,
+    };
+    if !valid_provider_id
         || candidate.title.trim().is_empty()
         || candidate.title.chars().count() > 512
         || candidate.author.chars().count() > 512
@@ -1498,10 +2844,9 @@ fn validate_candidate(candidate: &MetadataCandidate) -> Result<(), DatabaseError
         || candidate.publisher.chars().count() > 512
         || candidate.published_year.chars().count() > 32
         || candidate.language.chars().count() > 64
+        || candidate.series.chars().count() > 512
         || candidate.genres.chars().count() > 1_024
         || candidate.provider_id.chars().count() > 128
-        || !(candidate.provider_id.starts_with("/works/")
-            || candidate.provider_id.starts_with("/books/"))
     {
         return Err(DatabaseError::InvalidMetadata);
     }
@@ -1729,10 +3074,10 @@ mod tests {
     fn applies_migrations_idempotently() {
         let directory = tempfile::tempdir().expect("temporary directory");
         let database = test_database(directory.path());
-        assert_eq!(database.schema_version().expect("schema version"), 10);
+        assert_eq!(database.schema_version().expect("schema version"), 13);
         drop(database);
         let database = test_database(directory.path());
-        assert_eq!(database.schema_version().expect("schema version"), 10);
+        assert_eq!(database.schema_version().expect("schema version"), 13);
     }
 
     #[test]
@@ -2199,6 +3544,7 @@ mod tests {
             publisher: String::new(),
             published_year: String::new(),
             language: String::new(),
+            series: String::new(),
             genres: "Mystery".to_owned(),
             cover_id: None,
         }];
@@ -2208,16 +3554,46 @@ mod tests {
                 "INSERT INTO metadata_cache(query_key, response_json, fetched_at)
                  VALUES (?1, ?2, ?3)",
                 params![
-                    "cached lookup",
+                    "en:cached lookup",
                     serde_json::to_string(&cached).expect("json"),
                     unix_seconds()
                 ],
             )
             .expect("cache");
         let results = database
-            .search_metadata(book_id, "Cached lookup")
+            .search_metadata(book_id, "Cached lookup", "en")
             .expect("cached results");
         assert_eq!(results, cached);
+    }
+
+    #[test]
+    fn local_cover_is_validated_copied_and_restored_without_touching_source() {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let source = directory.path().join("Local cover.txt");
+        let cover = directory.path().join("chosen.png");
+        fs::write(&source, "fixture").expect("fixture");
+        fs::write(&cover, b"\x89PNG\r\n\x1a\npayload").expect("cover fixture");
+        let mut database = test_database(directory.path());
+        database
+            .import_paths(std::slice::from_ref(&source))
+            .expect("import");
+        let book_id = database.list_books().expect("books")[0].id;
+
+        let updated = database
+            .set_local_cover(book_id, &cover)
+            .expect("local cover");
+        assert_eq!(updated.cover_source, "local");
+        let cached_cover = PathBuf::from(updated.cover_path.expect("cover path"));
+        assert!(cached_cover.is_file());
+        assert_ne!(cached_cover, cover);
+
+        let restored = database
+            .remove_external_cover(book_id)
+            .expect("restore embedded cover");
+        assert_eq!(restored.cover_source, "embedded");
+        assert!(!cached_cover.exists());
+        assert_eq!(fs::read_to_string(&source).expect("source"), "fixture");
+        assert!(cover.is_file());
     }
 
     #[test]
@@ -2373,5 +3749,332 @@ mod tests {
         let result = collect_supported_files_bounded(directory.path(), 0, &mut files, 2);
         assert!(matches!(result, Err(DatabaseError::TooManyWatchedBooks)));
         assert_eq!(files.len(), 2);
+    }
+
+    #[test]
+    fn imports_and_naturally_orders_a_multi_part_audiobook() {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let audiobook = directory.path().join("The Long Journey");
+        fs::create_dir(&audiobook).expect("audiobook directory");
+        let part_ten = audiobook.join("Part 10.mp3");
+        let part_two = audiobook.join("Part 2.mp3");
+        fs::write(&part_ten, b"synthetic audio ten").expect("part ten");
+        fs::write(&part_two, b"synthetic audio two").expect("part two");
+        let mut database = test_database(directory.path());
+
+        let first = database
+            .import_audiobooks(std::slice::from_ref(&audiobook))
+            .expect("audio import");
+        assert_eq!(first.imported_books, 1);
+        assert_eq!(first.imported_parts, 2);
+        assert_eq!(first.failed, 0);
+        let books = database.list_audiobooks().expect("audiobooks");
+        assert_eq!(books.len(), 1);
+        assert_eq!(books[0].title, "The Long Journey");
+        assert_eq!(books[0].part_count, 2);
+        assert_eq!(books[0].total_size, 38);
+        let parts = database.list_audiobook_parts(books[0].id).expect("parts");
+        assert_eq!(parts[0].title, "Part 2");
+        assert_eq!(parts[0].ordinal, 0);
+        assert_eq!(parts[1].title, "Part 10");
+
+        let second = database
+            .import_audiobooks(std::slice::from_ref(&audiobook))
+            .expect("duplicate scan");
+        assert_eq!(second.imported_books, 0);
+        assert_eq!(second.imported_parts, 0);
+        assert_eq!(second.duplicate_parts, 2);
+        assert_eq!(database.list_audiobooks().expect("audiobooks").len(), 1);
+        assert_eq!(fs::read(&part_two).expect("source"), b"synthetic audio two");
+    }
+
+    #[test]
+    fn persists_bounded_audiobook_position_and_observed_part_durations() {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let audiobook = directory.path().join("Measured Book");
+        fs::create_dir(&audiobook).expect("audiobook directory");
+        fs::write(audiobook.join("01.mp3"), b"first audio").expect("first part");
+        fs::write(audiobook.join("02.mp3"), b"second audio").expect("second part");
+        let mut database = test_database(directory.path());
+        database
+            .import_audiobooks(std::slice::from_ref(&audiobook))
+            .expect("audio import");
+        let book_id = database.list_audiobooks().expect("books")[0].id;
+
+        let first = database
+            .save_audiobook_position(book_id, 0, 50.0, 100.0)
+            .expect("first position");
+        assert!((first.progress - 0.25).abs() < 0.0001);
+        assert_eq!(first.last_part_index, 0);
+        assert_eq!(first.last_position_seconds, 50.0);
+
+        let second = database
+            .save_audiobook_position(book_id, 1, 25.0, 100.0)
+            .expect("second position");
+        assert!((second.progress - 0.625).abs() < 0.0001);
+        assert_eq!(second.total_duration_seconds, 200.0);
+        assert_eq!(second.last_part_index, 1);
+        let parts = database.list_audiobook_parts(book_id).expect("parts");
+        assert_eq!(parts[0].duration_seconds, Some(100.0));
+        assert_eq!(parts[1].duration_seconds, Some(100.0));
+
+        assert!(database
+            .save_audiobook_position(book_id, 1, f64::NAN, 100.0)
+            .is_err());
+        assert!(database
+            .save_audiobook_position(book_id, 8, 0.0, 100.0)
+            .is_err());
+    }
+
+    #[test]
+    fn updates_extended_audiobook_metadata_without_touching_source_audio() {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let source = directory.path().join("Metadata Story.mp3");
+        let fixture = b"synthetic audio metadata fixture";
+        fs::write(&source, fixture).expect("audio fixture");
+        let mut database = test_database(directory.path());
+        database
+            .import_audiobooks(std::slice::from_ref(&source))
+            .expect("audio import");
+        let book = database.list_audiobooks().expect("books").remove(0);
+
+        let updated = database
+            .update_audiobook_metadata(
+                book.id,
+                &AudiobookMetadataInput {
+                    title: "The Metadata Story".into(),
+                    author: "Alex Writer".into(),
+                    narrator: "Maria Voice".into(),
+                    series: "Homeward".into(),
+                    genres: " Fiction, Journey, fiction ".into(),
+                    description: "A local description.".into(),
+                    language: "en".into(),
+                    published_year: "2026".into(),
+                },
+            )
+            .expect("metadata update");
+
+        assert_eq!(updated.narrator, "Maria Voice");
+        assert_eq!(updated.series, "Homeward");
+        assert_eq!(updated.genres, "Fiction, Journey");
+        assert_eq!(updated.metadata_source, "manual");
+        assert_eq!(fs::read(source).expect("source remains readable"), fixture);
+    }
+
+    #[test]
+    fn shell_open_imports_audio_once_and_reuses_the_existing_audiobook() {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let source = directory.path().join("Explorer Story.m4b");
+        let fixture = b"synthetic shell-open audiobook";
+        fs::write(&source, fixture).expect("audio fixture");
+        let mut database = test_database(directory.path());
+
+        let first = database
+            .import_audiobook_for_open(&source)
+            .expect("first shell open");
+        let second = database
+            .import_audiobook_for_open(&source)
+            .expect("second shell open");
+
+        assert_eq!(first.id, second.id);
+        assert_eq!(database.list_audiobooks().expect("books").len(), 1);
+        assert_eq!(
+            database
+                .list_audiobook_parts(first.id)
+                .expect("parts")
+                .len(),
+            1
+        );
+        assert_eq!(fs::read(source).expect("source remains readable"), fixture);
+    }
+
+    #[test]
+    fn imports_cue_chapters_and_manages_local_audio_bookmarks() {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let audio = directory.path().join("narration.flac");
+        let cue = directory.path().join("narration.cue");
+        fs::write(&audio, b"synthetic narration").expect("audio");
+        fs::write(
+            &cue,
+            "TITLE \"Night Library\"\nFILE \"narration.flac\" WAVE\nTRACK 01 AUDIO\nTITLE \"Door\"\nINDEX 01 00:00:00\nTRACK 02 AUDIO\nTITLE \"Reading Room\"\nINDEX 01 00:30:00\n",
+        )
+        .expect("cue");
+        let mut database = test_database(directory.path());
+        let summary = database
+            .import_audiobooks(std::slice::from_ref(&cue))
+            .expect("descriptor import");
+        assert_eq!(summary.imported_books, 1);
+        let book = database.list_audiobooks().expect("books")[0].clone();
+        assert_eq!(book.title, "Night Library");
+        let chapters = database.list_audiobook_chapters(book.id).expect("chapters");
+        assert_eq!(chapters.len(), 2);
+        assert_eq!(chapters[1].title, "Reading Room");
+        assert_eq!(chapters[1].start_seconds, 30.0);
+
+        database
+            .save_audiobook_position(book.id, 0, 15.0, 60.0)
+            .expect("observed duration");
+        let bookmark = database
+            .create_audiobook_bookmark(book.id, 0, 15.0, "  Important   passage  ")
+            .expect("bookmark");
+        assert_eq!(bookmark.note, "Important passage");
+        assert_eq!(database.list_audiobook_bookmarks(book.id).unwrap().len(), 1);
+        database
+            .delete_audiobook_bookmark(bookmark.id)
+            .expect("delete bookmark");
+        assert!(database
+            .list_audiobook_bookmarks(book.id)
+            .unwrap()
+            .is_empty());
+        assert!(database
+            .create_audiobook_bookmark(book.id, 0, 70.0, "invalid")
+            .is_err());
+    }
+
+    #[test]
+    fn watched_audio_root_keeps_single_files_separate_and_groups_subfolders() {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let watched = directory.path().join("audio");
+        let nested = watched.join("Nested Book");
+        fs::create_dir_all(&nested).expect("watched folders");
+        fs::write(watched.join("First.m4b"), b"first single").expect("single");
+        fs::write(watched.join("Second.mp3"), b"second single").expect("single");
+        let nested_one = nested.join("01.mp3");
+        let nested_two = nested.join("02.mp3");
+        fs::write(&nested_one, b"nested one").expect("nested part");
+        fs::write(&nested_two, b"nested two").expect("nested part");
+        fs::write(watched.join("ignored.exe"), b"ignored").expect("ignored");
+        let mut database = test_database(directory.path());
+
+        let summary = database
+            .add_watched_audio_folder(&watched)
+            .expect("watched audio import");
+        assert_eq!(summary.imported_books, 3);
+        assert_eq!(summary.imported_parts, 4);
+        assert_eq!(summary.failed, 0);
+        assert_eq!(
+            database
+                .list_watched_audio_folders()
+                .expect("watched folders")
+                .len(),
+            1
+        );
+        let books = database.list_audiobooks().expect("audiobooks");
+        assert_eq!(books.len(), 3);
+        let nested_book = books
+            .iter()
+            .find(|book| book.title == "Nested Book")
+            .expect("nested book");
+        assert_eq!(nested_book.part_count, 2);
+
+        fs::remove_file(&nested_two).expect("remove one part");
+        let books = database.list_audiobooks().expect("availability refresh");
+        let nested_book = books
+            .iter()
+            .find(|book| book.title == "Nested Book")
+            .expect("nested book");
+        assert!(!nested_book.is_available);
+        let parts = database
+            .list_audiobook_parts(nested_book.id)
+            .expect("parts");
+        assert_eq!(parts.iter().filter(|part| !part.is_available).count(), 1);
+        let rescan = database
+            .scan_watched_audio_folders()
+            .expect("watched rescan");
+        assert_eq!(rescan.imported_books, 0);
+        assert_eq!(database.list_audiobooks().expect("audiobooks").len(), 3);
+        assert!(nested_one.is_file());
+    }
+
+    #[test]
+    fn changed_single_audio_source_updates_without_leaving_an_empty_book() {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let source = directory.path().join("Living Audio.mp3");
+        fs::write(&source, b"first audio revision").expect("first revision");
+        let mut database = test_database(directory.path());
+        database
+            .import_audiobooks(std::slice::from_ref(&source))
+            .expect("first import");
+        fs::write(&source, b"second audio revision").expect("second revision");
+        let updated = database
+            .import_audiobooks(std::slice::from_ref(&source))
+            .expect("updated import");
+        assert_eq!(updated.imported_parts, 1);
+        assert_eq!(database.list_audiobooks().expect("audiobooks").len(), 1);
+        let book = database.list_audiobooks().expect("audiobooks").remove(0);
+        assert_eq!(
+            database.list_audiobook_parts(book.id).expect("parts").len(),
+            1
+        );
+        assert_eq!(fs::read(source).expect("source"), b"second audio revision");
+    }
+
+    #[test]
+    fn duplicate_single_audio_content_does_not_create_a_second_book() {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let first_dir = directory.path().join("first");
+        let second_dir = directory.path().join("second");
+        fs::create_dir(&first_dir).expect("first directory");
+        fs::create_dir(&second_dir).expect("second directory");
+        let first = first_dir.join("Original.mp3");
+        let copy = second_dir.join("Copy.mp3");
+        fs::write(&first, b"identical audio content").expect("first");
+        fs::write(&copy, b"identical audio content").expect("copy");
+        let mut database = test_database(directory.path());
+        database
+            .import_audiobooks(std::slice::from_ref(&first))
+            .expect("first import");
+        let duplicate = database
+            .import_audiobooks(std::slice::from_ref(&copy))
+            .expect("duplicate import");
+        assert_eq!(duplicate.imported_books, 0);
+        assert_eq!(duplicate.imported_parts, 0);
+        assert_eq!(duplicate.duplicate_parts, 1);
+        let books = database.list_audiobooks().expect("audiobooks");
+        assert_eq!(books.len(), 1);
+        assert_eq!(
+            database
+                .list_audiobook_parts(books[0].id)
+                .expect("parts")
+                .len(),
+            1
+        );
+        assert!(first.is_file());
+        assert!(copy.is_file());
+    }
+
+    #[test]
+    fn relocated_multi_part_book_reconnects_by_content() {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let original = directory.path().join("Original Audio");
+        let relocated = directory.path().join("Relocated Audio");
+        fs::create_dir(&original).expect("original directory");
+        let original_one = original.join("01.mp3");
+        let original_two = original.join("02.mp3");
+        fs::write(&original_one, b"relocated part one").expect("part one");
+        fs::write(&original_two, b"relocated part two").expect("part two");
+        let mut database = test_database(directory.path());
+        database
+            .import_audiobooks(std::slice::from_ref(&original))
+            .expect("initial import");
+
+        fs::remove_dir_all(&original).expect("remove original folder");
+        fs::create_dir(&relocated).expect("relocated directory");
+        fs::write(relocated.join("01.mp3"), b"relocated part one").expect("part one");
+        fs::write(relocated.join("02.mp3"), b"relocated part two").expect("part two");
+        let result = database
+            .import_audiobooks(std::slice::from_ref(&relocated))
+            .expect("relocated import");
+        assert_eq!(result.imported_books, 0);
+        assert_eq!(result.imported_parts, 2);
+        let books = database.list_audiobooks().expect("audiobooks");
+        assert_eq!(books.len(), 1);
+        assert_eq!(books[0].title, "Relocated Audio");
+        assert!(books[0].is_available);
+        let parts = database.list_audiobook_parts(books[0].id).expect("parts");
+        assert_eq!(parts.len(), 2);
+        assert!(parts
+            .iter()
+            .all(|part| part.source_path.contains("Relocated Audio")));
     }
 }

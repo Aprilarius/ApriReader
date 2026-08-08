@@ -55,6 +55,37 @@
         "name": "ApriReader Book",
         "description": "Book readable with ApriReader",
         "role": "Viewer"
+      },
+      {
+        "ext": [
+          "aac",
+          "flac",
+          "m4a",
+          "m4b",
+          "mp3",
+          "wav",
+          "wma",
+          "3g2",
+          "3gp",
+          "amr",
+          "aif",
+          "aiff",
+          "alac",
+          "ape",
+          "caf",
+          "mka",
+          "mpc",
+          "oga",
+          "ogg",
+          "opus",
+          "wv",
+          "cue",
+          "m3u",
+          "m3u8"
+        ],
+        "name": "ApriReader Audiobook",
+        "description": "Audiobook playable with ApriReader",
+        "role": "Viewer"
       }
     ],
     "useLocalToolsDir": true,

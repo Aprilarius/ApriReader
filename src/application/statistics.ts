@@ -26,6 +26,13 @@ export type AchievementProgress = {
   unlockedAt: number | null;
 };
 
+export type AudiobookStatisticsSnapshot = {
+  totalActiveSeconds: number;
+  todayActiveSeconds: number;
+  audiobooksStarted: number;
+  audiobooksCompleted: number;
+};
+
 export async function startReadingSession(
   bookId: number,
   progress: number,
@@ -61,6 +68,46 @@ export async function recordReadingActivity(
 export async function endReadingSession(token: string): Promise<void> {
   if (!isTauri()) return;
   await invoke("end_reading_session", { token });
+}
+
+export async function startAudiobookSession(
+  audiobookId: number,
+  progress: number,
+): Promise<string | null> {
+  if (!isTauri()) return null;
+  return invoke<string>("start_audiobook_session", { audiobookId, progress });
+}
+
+export async function recordAudiobookActivity(
+  token: string,
+  active: boolean,
+  progress: number,
+): Promise<void> {
+  if (!isTauri()) return;
+  await invoke("record_audiobook_activity", { token, active, progress });
+}
+
+export async function endAudiobookSession(token: string): Promise<void> {
+  if (!isTauri()) return;
+  await invoke("end_audiobook_session", { token });
+}
+
+export async function getAudiobookStatistics(): Promise<AudiobookStatisticsSnapshot> {
+  if (!isTauri())
+    return {
+      totalActiveSeconds: 0,
+      todayActiveSeconds: 0,
+      audiobooksStarted: 0,
+      audiobooksCompleted: 0,
+    };
+  return invoke<AudiobookStatisticsSnapshot>("get_audiobook_statistics");
+}
+
+export async function getAudiobookAchievements(): Promise<
+  AchievementProgress[]
+> {
+  if (!isTauri()) return [];
+  return invoke<AchievementProgress[]>("get_audiobook_achievements");
 }
 
 export async function getStatistics(): Promise<StatisticsSnapshot> {

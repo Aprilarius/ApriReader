@@ -1,5 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
+import { open } from "@tauri-apps/plugin-dialog";
 import type { Book } from "./library";
+
+export type MetadataLanguage = "ru" | "en";
 
 export type BookMetadataInput = {
   title: string;
@@ -15,7 +18,7 @@ export type BookMetadataInput = {
 };
 
 export type MetadataCandidate = {
-  provider: "Open Library";
+  provider: "Open Library" | "ФантЛаб";
   providerId: string;
   title: string;
   author: string;
@@ -23,6 +26,7 @@ export type MetadataCandidate = {
   publisher: string;
   publishedYear: string;
   language: string;
+  series: string;
   genres: string;
   coverId: number | null;
 };
@@ -45,8 +49,12 @@ export const updateBookMetadata = (
   metadata: BookMetadataInput,
 ) => invoke<Book>("update_book_metadata", { bookId, metadata });
 
-export const searchMetadata = (bookId: number, query: string) =>
-  invoke<MetadataCandidate[]>("search_metadata", { bookId, query });
+export const searchMetadata = (
+  bookId: number,
+  query: string,
+  language: MetadataLanguage,
+) =>
+  invoke<MetadataCandidate[]>("search_metadata", { bookId, query, language });
 
 export const applyMetadataCandidate = (
   bookId: number,
@@ -55,3 +63,20 @@ export const applyMetadataCandidate = (
 
 export const removeExternalCover = (bookId: number) =>
   invoke<Book>("remove_external_cover", { bookId });
+
+export async function chooseAndSetLocalCover(
+  bookId: number,
+): Promise<Book | null> {
+  const selected = await open({
+    multiple: false,
+    directory: false,
+    filters: [
+      {
+        name: "Images",
+        extensions: ["jpg", "jpeg", "png", "webp"],
+      },
+    ],
+  });
+  if (!selected || Array.isArray(selected)) return null;
+  return invoke<Book>("set_local_cover", { bookId, path: selected });
+}

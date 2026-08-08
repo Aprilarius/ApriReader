@@ -22,6 +22,62 @@ when a file at the same path changes, shows when a source becomes unavailable,
 extracts embedded EPUB/FB2 metadata and covers, and keeps rolling local database
 backups. Import never modifies or relocates a source book.
 
+Audiobook stage A1 stores audio titles separately from text books. A user can
+import one audio file, select several parts together, import an audiobook
+directory, or register a watched audio collection. Selected files sharing a
+directory and files inside an explicitly imported folder are grouped into one
+ordered audiobook. Direct files in the root of a watched collection remain
+separate, while nested directories represent multi-part books. Natural numeric
+ordering places part 2 before part 10.
+
+Each audio file is limited to 20 GiB, one audiobook to 100 GiB and 1,000 parts,
+and one watched collection scan to 100,000 supported files with a maximum
+recursion depth of 12. Symbolic links, DRM formats, descriptors, and unknown
+extensions never enter the audio database. Descriptor files are accepted only
+through the bounded local CUE/M3U/M3U8 parser described below. SHA-256
+fingerprints and canonical
+paths support repeat scans and changed files. Missing parts remain visible as
+unavailable so later playback stages can explain an incomplete book without
+discarding local progress or touching source files.
+
+Audiobook stage A2 exposes that model through a separate Audiobooks
+destination. Audio data is loaded only when the destination is opened. The
+screen supports local title/author search, file import, complete-folder import,
+watched-folder registration and repeat scanning. Cards report part count,
+total size, progress, and incomplete-source state; selecting a card shows its
+naturally ordered parts and disables the player destination when source media
+is incomplete.
+
+Audiobook stage A3 connects the player to the native Windows media boundary.
+It provides play/pause, 15-second backward and forward seeking, previous/next
+part navigation, automatic advance, a selectable ordered queue, volume, and
+0.5x–3.0x playback speed. Speed and volume are device-local preferences. The
+last part and second are restored, while observed part durations and aggregate
+book progress are saved locally every five seconds and at pause, seek, part
+change, and close boundaries. Source audio remains read-only.
+
+Audiobook stage A4 accepts local CUE, M3U, and M3U8 descriptors up to 2 MiB.
+Remote URLs, absolute entries, and relative paths that escape the descriptor's
+directory are rejected. Playlist order is preserved; CUE `INDEX 01` positions
+and track titles become ordered chapters. The player adds 15/30/45/60-minute
+and end-of-part sleep timers plus durable local bookmarks with optional notes.
+While audio is active, closing the window either asks, continues in the Windows
+system tray, or exits according to a device-local preference. The ask dialog
+can remember either decision, and Settings can change it later.
+
+Audiobook stage A5 lets the listener choose an enabled Windows audio-output
+device or return to the system default. This preference stays on the device.
+The audiobook details drawer supports local title, author, narrator, series,
+genre, language, year, description, and cover editing plus explicit
+Russian/English online metadata search. Cover files are validated and copied
+to app-local storage; source audio is never rewritten.
+
+Statistics separately report active audiobook listening today and in total,
+started titles, and completed titles. Only native playing intervals count,
+with bounded event gaps so sleep, suspension, or a stalled renderer cannot
+invent listening time. Seven audiobook-only achievements cover first playback,
+completion, ten completed titles, and progressive listening-time milestones.
+
 Stage 2 adds a distraction-free reflow reader for TXT, HTML, Markdown, EPUB,
 and FB2. Books open from the details panel or by double-clicking a library card.
 The reader provides a table of contents, section navigation, paper/sepia/night
@@ -44,17 +100,25 @@ pixel-identical Word layout. Fixed-format cache files remain app-local and
 source books are never modified.
 
 Stage 5 adds local manual editing for title, author, subtitle, ISBN, publisher,
-publication year, language, series, genres, and description. A user may explicitly
-send an ISBN or title/author query to Open Library, compare several candidates,
-and apply exactly one chosen result. Search never runs during startup, import,
+publication year, language, series, genres, and description. A user explicitly
+chooses Russian or English before sending an ISBN or title/author query. English
+search uses Open Library; Russian search combines Russian-edition results from
+Open Library and the public FantLab bibliographic API, labels every provider,
+and removes duplicate editions. Search never runs during startup, import,
 folder scanning, or reading. Responses are cached locally for 30 days and
-requests are limited to one per second.
+requests are limited to one user-triggered search per second.
 
 Applying a candidate records its provider, identifier, and update time. A
 selected Open Library cover is downloaded only while applying that candidate,
 validated as an image, and stored in the app-local cache. The user can remove
 it and return to the embedded cover or fallback without changing the source
 book.
+
+Only while the manual editor is open, the displayed cover is an explicit file
+selection control. A selected JPG, PNG, or WebP image is limited to 10 MiB,
+validated by signature, and copied into the app-local cover cache. Restoring the
+embedded cover deletes only the app-managed copy. Neither action changes the
+source book or runs implicitly.
 
 Genre metadata is a local, comma-separated multi-value field. Import collects
 bounded EPUB subjects and FB2 genres; an explicitly selected Open Library
@@ -84,6 +148,111 @@ leaving a second instance open. Duplicate content opens the existing local
 record. The normal importer validates the path, size, signature, archive
 boundaries, and normalized content; the source book remains in place and is
 never modified.
+
+Audiobook stage A6 registers a separate ApriReader Audiobook viewer type for
+AAC, FLAC, M4A/M4B, MP3, WAV, WMA, 3G2/3GP, AMR, AIF/AIFF, ALAC, APE, CAF,
+MKA, MPC, OGA/OGG, OPUS, WV, and local CUE/M3U/M3U8 descriptors. Formats in
+the system-codec tier remain dependent on a decoder installed in Windows; the
+association does not claim bundled codec support. AAX/AAXC/M4P and unknown
+extensions are not registered.
+
+Opening an associated audio file imports or reconnects it through the same
+bounded database transaction as manual audio import, reuses duplicate content,
+and immediately opens the audiobook player. If ApriReader is already running,
+the existing window receives the path and is focused. Descriptor traversal and
+remote URLs remain rejected, and source audio is never modified.
+
+Audiobook stage A7 adds an explicit Read Aloud panel to reflow readers. It
+reads only the current section, lists voices already installed in Windows,
+remembers the selected voice and 0.5x–2.0x rate, and exposes play,
+pause/resume, and stop. Text and generated audio remain local. A section over
+20,000 Unicode characters is rejected visibly instead of being truncated, and
+generated WAV data is limited to 64 MiB with a 64-section app-local cache.
+
+A7 does not silently continue into the next section, highlight the current
+word, download voices, or call a cloud speech provider. Whole-book chunking,
+word synchronization, and optional BYOK providers require later, separately
+reviewed stages.
+
+Audiobook stage A8 adds a remembered choice between the current section and
+the whole book from the current section. Narration splits text into local
+fragments no larger than 1,200 UTF-16 units, prepares the next fragment during
+playback, and moves to the next section automatically. A session is limited to
+50,000 fragments; larger books remain available section by section instead of
+creating an unbounded queue.
+
+The reader marks and scrolls to the active word using the native WAV playback
+position within the current short fragment. This position-based focus is
+preserved alongside annotations and bionic rendering without changing locator
+offsets. It is not claimed as phoneme-accurate engine metadata. Manual section
+navigation, panel close, or changed voice/rate/scope stops the owned session.
+
+Audiobook stage A9 adds ElevenLabs as an optional BYOK provider. Windows voices
+remain the default and require no network. The user must explicitly select
+ElevenLabs, provide an API key, and accept a first-send disclosure stating that
+selected book fragments leave the device, are processed under ElevenLabs terms
+and privacy policy, and may consume paid quota. No request occurs during app
+startup, import, scanning, ordinary reading, or local narration.
+
+The key is stored in Windows Credential Manager and is never displayed after
+saving. The user can delete it from the Read Aloud panel, which also clears
+consent and returns to local voices. The provider voice list is fetched only
+after ElevenLabs is selected with a stored key. Each speech request contains
+one bounded A8 fragment; returned MP3 and exact character timing are validated
+and cached locally. Provider failure never falls back by sending text to a
+different service.
+
+Audiobook stage A10 allows up to 20 named voice presets containing provider,
+voice ID, and rate. Presets never contain API keys. A separate, locally stored
+pronunciation dictionary contains at most 100 unique source/replacement pairs,
+matches complete words or phrases without case sensitivity, and can be turned
+off without deleting it. Saving or changing a rule stops the current owned
+narration so cached speech cannot outlive the selected settings.
+
+Dictionary replacement changes only the temporary synthesis request. The
+displayed document, locators, annotations, search index, and source file remain
+unchanged. Expanded fragments above 2,000 UTF-16 units fail visibly. Cloud
+character timing is translated back to source offsets before word focus.
+
+Audiobook stage A11 adds Google Cloud Text-to-Speech as a second optional BYOK
+service. The user must enable that API and billing in their own Google Cloud
+project, provide a key, select Google explicitly, and accept a provider-specific
+disclosure before book text leaves the device. Google consent and credentials
+are independent from ElevenLabs and are cleared only by deleting the Google
+key. No Google request occurs during startup, import, scanning, or local speech.
+
+The key is stored only as `ApriReader/GoogleCloudTtsApiKey` in Windows
+Credential Manager and is sent in the native `x-goog-api-key` header. It never
+enters a URL, preset, log, status message, or WebView storage. Requests use
+plain text of at most 2,000 Unicode characters and 4,800 UTF-8 bytes against a
+fixed host. Returned base64 MP3 is size/signature validated before an atomic
+app-local cache write. Service availability, billing, price, and quotas remain
+the responsibility of the user's Google Cloud project.
+
+Audiobook stage A12 adds Azure AI Speech BYOK. The user selects the exact region
+of their Speech resource, saves its key, and accepts an Azure-specific disclosure
+before text is sent. Only 33 reviewed public regions are accepted; arbitrary,
+government, China, custom-subdomain, and user-supplied hosts are unsupported.
+The key is stored only as `ApriReader/AzureSpeechApiKey`; the region is a local
+non-secret preference. Synthesis accepts at most 2,000 characters, XML-escapes
+all temporary text into at most 16 KiB SSML, and validates up to 32 MiB MP3.
+
+Audiobook stage A13 adds bounded provider-specific expressiveness. ElevenLabs
+accepts stability, similarity, style, and speaker-boost settings in its native
+request; Google accepts pitch from -20 to +20 semitones; Azure accepts an
+escaped SSML pitch from -50% to +50%. These settings remain local, become part
+of cache identity, and are included in voice presets without credentials.
+
+The Read Aloud panel reports cache file counts and bytes for each provider and
+can clear one provider or all recognized TTS files. Clearing matches only exact
+ApriReader-generated names and never recursively deletes the cache root.
+
+An explicit export action synthesizes the selected section or remaining book
+into at most 5,000 numbered WAV/MP3 parts, an M3U8 playlist, and at most 6 GiB
+of aggregate media. Each prepared cache part is copied immediately into a new
+sibling media directory before normal cache pruning. A partial export is
+isolated and removed on cancellation. Cloud export repeats the provider/quota
+warning; playback-only rate changes are not misrepresented as embedded audio.
 
 Stage 7 records active reading sessions locally. Time is counted only while a
 reader is open, the app is visible and focused, and the user interacted
@@ -197,7 +366,8 @@ only ApriReader's additional chapter, page, and reading-state announcements;
 essential accessible names remain present when it is disabled. When trustworthy
 book language metadata is available, every reader exposes a normalized language
 tag so Windows Narrator can select the appropriate installed voice. ApriReader
-does not bundle or implement a text-to-speech engine.
+bundles no speech engine or voice model; its explicit local Read Aloud action
+uses speech services and voices installed in Windows.
 
 High Windows scaling must not remove any destination or reading action.
 Short desktop layouts keep the navigation rail independently scrollable. At

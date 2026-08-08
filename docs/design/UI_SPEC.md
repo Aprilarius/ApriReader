@@ -59,11 +59,13 @@ narrow screens and keep visible keyboard focus.
 
 Stage 5 keeps metadata work inside the existing book-details drawer. The
 default state remains a quiet book summary. Separate secondary actions open a
-compact manual editor or an Open Library search view. Search explains before
-submission that it will send a query, presents source-labelled candidate cards,
-and requires an explicit Apply action. External-cover removal includes a plain
-local-cache policy. Forms, candidate lists, status, and error messages remain
-keyboard accessible and scroll within the drawer.
+compact manual editor or provider search view. Search includes an explicit
+Russian/English switch, explains which fixed providers receive the query,
+presents source-labelled candidate cards, and requires an explicit Apply
+action. Only in manual edit mode, the cover becomes a keyboard-accessible image
+picker and exposes embedded-cover restoration with a plain local-cache policy.
+Forms, candidate lists, status, and error messages remain keyboard accessible
+and scroll within the drawer.
 
 The manual editor includes a comma-separated Genres field and candidate cards
 show provider genres when present. The details view displays the normalized
@@ -88,6 +90,105 @@ The expanded achievement view keeps goals ordered from easier to harder within
 each metric family, shows an unlocked/total summary, and preserves visible
 progress for all locked long-term goals. Time thresholds use readable hours
 and minutes rather than raw seconds.
+
+Audiobook stage A2 adds a distinct Audiobooks destination immediately after
+the text library. It keeps the same warm shell but uses compact horizontal
+audio cards with a square-ended cover treatment, part and size facts,
+listening-progress tracks, and a visible incomplete-source badge. Selection
+opens an audiobook-specific details drawer with an ordered part list. File,
+folder, watched-folder, and rescan actions stay explicit. The prepared player
+destination identifies the selected title without exposing unrelated text-book
+controls.
+
+Audiobook stage A3 turns that destination into a focused three-column player:
+cover and current part, primary transport controls, and the ordered queue.
+The central hierarchy gives the play/pause action the strongest emphasis;
+15-second seek, part navigation, timeline, speed, and volume remain plainly
+labelled and keyboard accessible. At narrower widths the queue moves below the
+player, then all columns stack without hiding control names. Status and decoder
+errors are announced, and High Contrast keeps selected queue and play states
+visible without depending on color alone.
+
+Audiobook stage A4 extends the same player with a labelled sleep-timer select,
+remaining-time status, CUE chapter list, and local bookmark composer/list. A
+close-time modal appears only during active playback when the preference is
+Ask; it offers continue-in-tray, exit, cancel, and an explicit remember-choice
+checkbox. Settings always exposes ask/tray/exit so a remembered decision is
+reversible. Tray labels use the ApriReader product name consistently.
+
+Audiobook stage A5 adds a labelled output-device select beside speed, sleep,
+and volume controls. Disabled endpoints cannot be chosen and the system-default
+choice stays explicit. The details drawer gains the same quiet details/edit/
+provider-search modes as text books, extended with narrator. Statistics place
+audio totals in a distinct panel, while Achievements split reading and
+audiobook goals under clear headings without mixing their progress semantics.
+
+Audiobook stage A6 adds no shell-only configuration screen. Opening an
+associated audio file focuses the existing ApriReader window and goes directly
+to the populated audiobook player; it never pauses at an empty library or
+details placeholder. Decoder or validation failures use the existing visible
+and announced error surface.
+
+Audiobook stage A7 adds a labelled Read Aloud action to the reflow-reader
+toolbar. It opens the existing right-side panel pattern with an installed-voice
+selector, a 0.5x–2.0x rate selector, current-section character count, and
+primary play/pause plus secondary stop controls. Local-processing copy remains
+visible. Over-limit sections, missing voices, and Windows synthesis failures
+use the announced warning surface; closing the panel or changing sections
+stops speech owned by that panel.
+
+Audiobook stage A8 adds a two-choice Current section / Whole book from this
+section scope group and a visible fragment counter. Whole-book narration keeps
+the side panel open while the reader advances sections. The active word uses a
+brass underline and translucent fill, switches to the Windows Highlight color
+in forced-colors mode, and scrolls into view only when it leaves the readable
+viewport. The focus treatment can nest inside annotation marks and bionic
+spans without replacing either semantic state.
+
+Audiobook stage A9 places a Voice provider group above the existing voice
+selector. Local Windows voices stay selected by default. ElevenLabs exposes a
+password-style key field only while unconfigured, a quiet Windows-protected
+status with explicit Delete key action after saving, and the provider voice
+list. The key is never echoed or represented as a fake masked stored value.
+
+The first attempt to narrate with ElevenLabs opens an in-panel disclosure with
+Cancel and Agree and start. It names the external provider, text transfer,
+provider policy, and possible quota cost. Voice discovery alone never counts
+as text-send consent. Provider errors use the announced warning surface; exact
+timing reuses the A8 active-word visual and forced-colors treatment.
+
+Audiobook stage A10 adds two collapsed groups to the read-aloud panel. Voice
+presets expose a named local preset selector plus explicit Apply, Save/update,
+rename, and Delete actions. The pronunciation group shows its rule count and
+an enable checkbox, two bounded text inputs, and keyboard-accessible edit and
+delete actions. Both groups use the existing warning/status surface and retain
+visible focus and borders in forced-colors mode.
+
+Audiobook stage A11 adds Google Cloud TTS as a third provider radio choice.
+Its password field and protected-key status mirror the reviewed ElevenLabs
+pattern but use independent storage and consent. Copy states that Google Cloud
+billing and API enablement are required and recommends an API-restricted key.
+The voice selector shows locale and family; discovery is filtered to the book
+language. Google has its own first-send disclosure and cannot inherit consent
+from ElevenLabs.
+
+Audiobook stage A12 adds Azure AI Speech as a fourth provider. A required region
+selector precedes the protected key field; help text states that key and region
+must match. Voices are filtered by the book language and show locale/type.
+Azure uses independent consent and key deletion. Voice presets also retain the
+non-secret region so applying a preset restores a coherent Azure configuration.
+
+Audiobook stage A13 adds a collapsed Voice expressiveness group after cloud
+voice selection. ElevenLabs exposes stability, similarity, style, and speaker
+boost; Google and Azure expose provider-valid pitch controls. Every control has
+a visible numeric value, resets active narration, and is retained by presets.
+
+A collapsed Speech cache group reports total and per-provider file/byte counts.
+It offers explicit current-provider and all-provider clearing actions. Export
+appears beside playback actions and opens a separate confirmation: local export
+explains the M3U8/media-folder result, while cloud export warns about quota and
+player-only speed. During sequential export the panel announces current/total
+parts and offers cancellation after the in-flight provider request.
 
 Stage 8 keeps Steam synchronization out of the user-facing Settings page.
 Synchronization is automatic only when the protected provider is available;

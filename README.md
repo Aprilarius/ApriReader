@@ -3,10 +3,11 @@
 ApriReader is a privacy-first desktop reader and personal digital library for
 Windows 10/11 x64.
 
-It reads DRM-free EPUB, PDF, FB2, TXT, HTML, Markdown, CBZ, CBR, and DOCX files.
+It reads DRM-free EPUB, PDF, FB2, TXT, HTML, Markdown, CBZ, CBR, and DOCX files
+and plays local audiobooks through the Windows media stack.
 Books remain in their original locations, reading data stays local, and network
-access occurs only when you explicitly search or apply metadata from Open
-Library.
+access occurs only for explicit metadata, translation, or selected BYOK speech
+actions.
 
 ## Download
 
@@ -32,13 +33,29 @@ Aprilarius/ApriReader release page and verify the published SHA-256 value.
 - Keyboard navigation, Windows Narrator support, high scaling, and forced
   colors.
 - App-local backups and guarded recovery from a damaged library database.
-- Explorer file associations for every supported book format, with safe
-  import-and-open in the existing ApriReader window.
+- Explorer file associations for every supported book and audiobook format,
+  with safe import-and-open in the existing ApriReader window.
+- Local read-aloud using voices already installed in Windows, with continuous
+  whole-book mode, active-word focus, automatic section transitions, voice,
+  rate, pause/resume, and stop controls.
+- Optional ElevenLabs BYOK narration with provider timing, explicit text-send
+  consent, and API-key storage in Windows Credential Manager.
+- Optional Google Cloud TTS BYOK narration with Russian and multilingual cloud
+  voices, separate consent, and protected API-key storage.
+- Optional Azure AI Speech BYOK with region-bound neural voices, protected key
+  storage, and safely escaped synthesis requests.
+- Local voice presets and a pronunciation dictionary that changes only the
+  synthesized copy while preserving focus against the original book text.
+- Provider-specific voice expressiveness, inspectable/clearable speech caches,
+  and explicit export to a portable M3U8 playlist with numbered local parts.
 
 ## Privacy and safety
 
 - No telemetry or advertising.
-- No bundled books, catalogs, generated covers, TTS engine, or language model.
+- No bundled books, catalogs, generated covers, speech model, or language
+  model. Local read-aloud uses Windows; optional ElevenLabs, Google Cloud, or
+  Azure requests occur only after the user supplies a key, selects that
+  provider, and accepts its separate disclosure.
 - Book content is treated as untrusted and cannot execute embedded scripts.
 - Source books are never modified or deleted by library removal.
 - Open Library is contacted only after an explicit metadata action.
