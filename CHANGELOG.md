@@ -12,6 +12,10 @@
   continuation, security, recovery, accessibility, and release-audit fixes.
 - Added a dedicated unpacked Windows x64 Steam Depot package while keeping
   Steam achievements local until a protected App ID build is configured.
+- Added a bilingual privacy policy, AI-use disclosure, asset-provenance record,
+  and a package-specific distribution-claims matrix for public listings.
+- Made metadata-provider requests identify the installed stable package version
+  instead of retaining an RC-specific User-Agent.
 
 ## 1.3.0-rc.2 - 2026-08-08
 

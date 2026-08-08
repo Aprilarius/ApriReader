@@ -240,9 +240,13 @@ try {
     $evidenceFiles = @(
         "LICENSE",
         "NOTICE",
+        "PRIVACY.md",
         "THIRD_PARTY_NOTICES.md",
         "release\aprireader-sbom.cdx.json",
         "release\THIRD_PARTY_LICENSES.md",
+        "docs\legal\ASSET_PROVENANCE.md",
+        "docs\release\AI_DISCLOSURE.md",
+        "docs\release\DISTRIBUTION_CLAIMS.md",
         "docs\steam\TEST_CHECKLIST.md",
         "docs\testing\MANUAL_TESTS.md"
     )

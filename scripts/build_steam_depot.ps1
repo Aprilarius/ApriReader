@@ -46,6 +46,7 @@ try {
 
     Copy-Item -LiteralPath $executable -Destination (Join-Path $depotPath "aprireader.exe")
     Copy-Item -LiteralPath (Join-Path $projectRoot "LICENSE") -Destination $depotPath
+    Copy-Item -LiteralPath (Join-Path $projectRoot "PRIVACY.md") -Destination $depotPath
     Copy-Item -LiteralPath (Join-Path $projectRoot "THIRD_PARTY_NOTICES.md") -Destination $depotPath
     Copy-Item -LiteralPath (Join-Path $projectRoot "release\THIRD_PARTY_LICENSES.md") -Destination $depotPath
 

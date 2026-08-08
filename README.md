@@ -35,8 +35,9 @@ Aprilarius/ApriReader release page and verify the published SHA-256 value.
 - Keyboard navigation, Windows Narrator support, high scaling, and forced
   colors.
 - App-local backups and guarded recovery from a damaged library database.
-- Explorer file associations for every supported book and audiobook format,
-  with safe import-and-open in the existing ApriReader window.
+- The Windows installer can register Explorer file associations for every
+  supported book and audiobook format. Portable and Steam Depot builds do not
+  claim automatic association registration.
 - Local read-aloud using voices already installed in Windows, with continuous
   whole-book mode, active-word focus, automatic section transitions, voice,
   rate, pause/resume, and stop controls.
@@ -107,6 +108,10 @@ Generated installers and evidence archives are written to
 - [Architecture](docs/architecture/ARCHITECTURE.md)
 - [Manual tests](docs/testing/MANUAL_TESTS.md)
 - [Dependency policy](docs/legal/DEPENDENCY_POLICY.md)
+- [Privacy policy / Политика конфиденциальности](PRIVACY.md)
+- [Release claim matrix](docs/release/DISTRIBUTION_CLAIMS.md)
+- [AI disclosure](docs/release/AI_DISCLOSURE.md)
+- [Asset provenance](docs/legal/ASSET_PROVENANCE.md)
 - [Windows release signing](docs/release/WINDOWS_SIGNING.md)
 - [Changelog](CHANGELOG.md)
 

@@ -6,7 +6,11 @@ const OPEN_LIBRARY_SEARCH_ENDPOINT: &str = "https://openlibrary.org/search.json"
 const OPEN_LIBRARY_COVER_ENDPOINT: &str = "https://covers.openlibrary.org/b/id";
 const INVENTAIRE_SEARCH_ENDPOINT: &str = "https://inventaire.io/api/search";
 const INVENTAIRE_IMAGE_ENDPOINT: &str = "https://inventaire.io";
-const USER_AGENT: &str = "ApriReader/1.3.0-rc.2 (interactive desktop metadata lookup)";
+const USER_AGENT: &str = concat!(
+    "ApriReader/",
+    env!("CARGO_PKG_VERSION"),
+    " (contact: iambahadurrashidli@gmail.com)"
+);
 const MAX_RESULTS_PER_PROVIDER: usize = 8;
 const MAX_COMBINED_RESULTS: usize = 12;
 const MAX_SEARCH_RESPONSE_BYTES: u64 = 2 * 1024 * 1024;
@@ -476,6 +480,18 @@ pub fn image_extension(bytes: &[u8]) -> Option<&'static str> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn provider_user_agent_tracks_package_version() {
+        assert_eq!(
+            USER_AGENT,
+            format!(
+                "ApriReader/{} (contact: iambahadurrashidli@gmail.com)",
+                env!("CARGO_PKG_VERSION")
+            )
+        );
+        assert!(!USER_AGENT.contains("rc."));
+    }
 
     #[test]
     fn selects_matching_open_library_edition_language() {

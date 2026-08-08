@@ -3,6 +3,7 @@ node_modules/
 dist/
 src-tauri/target/
 release/candidates/
+release/steam/
 qa-output/
 contrast-audit.md
 design-qa.md
