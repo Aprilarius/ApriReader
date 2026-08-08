@@ -58,7 +58,8 @@ Aprilarius/ApriReader release page and verify the published SHA-256 value.
   provider, and accepts its separate disclosure.
 - Book content is treated as untrusted and cannot execute embedded scripts.
 - Source books are never modified or deleted by library removal.
-- Open Library is contacted only after an explicit metadata action.
+- Open Library and Inventaire are contacted only after an explicit metadata
+  action; provider hosts and Inventaire image paths are fixed and validated.
 - The GitHub build contains no Steamworks SDK, App ID, bridge, or credentials.
 
 ## Development

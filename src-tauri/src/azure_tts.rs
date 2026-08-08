@@ -1,8 +1,9 @@
+use crate::tts_assets::persist_cache_file;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{fs, path::Path};
 
-const USER_AGENT: &str = "ApriReader/1.3.0-rc.1";
+const USER_AGENT: &str = "ApriReader/1.3.0-rc.2";
 const MAX_AZURE_TEXT_CHARACTERS: usize = 2_000;
 const MAX_AZURE_SSML_BYTES: usize = 16 * 1024;
 const MAX_VOICES_RESPONSE_BYTES: u64 = 4 * 1024 * 1024;
@@ -227,11 +228,7 @@ pub fn prepare(
     digest.update(settings.pitch_percent.to_le_bytes());
     digest.update(text.as_bytes());
     let destination = cache_dir.join(format!("azure-tts-{:x}.mp3", digest.finalize()));
-    if !destination.is_file() {
-        let temporary = destination.with_extension("mp3.tmp");
-        fs::write(&temporary, &bytes).map_err(|error| error.to_string())?;
-        fs::rename(&temporary, &destination).map_err(|error| error.to_string())?;
-    }
+    persist_cache_file(&destination, &bytes)?;
     prune_cache(cache_dir, &destination);
     Ok(PreparedAzureTtsAudio {
         path: destination.to_string_lossy().into_owned(),

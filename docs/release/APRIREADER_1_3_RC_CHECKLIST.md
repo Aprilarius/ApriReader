@@ -1,4 +1,4 @@
-# ApriReader 1.3.0 RC1 checklist
+# ApriReader 1.3.0 RC2 checklist
 
 Date: 2026-08-08
 
@@ -19,18 +19,22 @@ Date: 2026-08-08
 
 - [x] Prettier formatting check.
 - [x] ESLint with zero warnings.
-- [x] Frontend test suite: 81 tests passed.
+- [x] Frontend test suite: 82 tests passed.
 - [x] TypeScript and Vite production build.
 - [x] Rust formatting check.
 - [x] Clippy with warnings denied.
-- [x] Rust test suite: 88 tests passed.
+- [x] Rust test suite: 91 tests passed.
 - [x] Release security and dependency audit.
+- [x] Production npm audit: no known vulnerabilities.
+- [x] RustSec audit: no vulnerabilities; remaining warnings are transitive
+      unmaintained crates. The GTK/glib advisories are absent from the Windows
+      dependency graph.
 - [x] Current CycloneDX SBOM and third-party license bundle.
 - [ ] Clean-tree RC build with source manifest and unchanged-source guard.
 
 ## Candidate verification
 
-- [ ] EXE reports version `1.3.0-rc.1`.
+- [ ] EXE reports version `1.3.0-rc.2`.
 - [ ] Application opens a working ApriReader window.
 - [ ] Installer SHA-256 and size are recorded in candidate evidence.
 - [ ] Candidate record points to the exact clean Git commit.
@@ -42,11 +46,11 @@ Date: 2026-08-08
 - [x] Light-theme action contrast correction accepted.
 - [x] Local Windows TTS continues beyond the short section title.
 - [x] Product owner reported the implemented A0-A13 build working without known
-      bugs before consolidation into RC1.
+      bugs before consolidation into RC2.
 
 ## External gates before final 1.3.0
 
-- Install/upgrade RC1 over the stable 1.2.0 build on a disposable Windows test
+- Install/upgrade RC2 over the stable 1.2.0 build on a disposable Windows test
   profile and confirm the library, progress, credentials, and associations are
   retained.
 - Complete the applicable Windows 10/11 manual matrix in

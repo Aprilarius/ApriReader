@@ -18,7 +18,7 @@ export type BookMetadataInput = {
 };
 
 export type MetadataCandidate = {
-  provider: "Open Library" | "ФантЛаб";
+  provider: "Open Library" | "Inventaire";
   providerId: string;
   title: string;
   author: string;
@@ -29,6 +29,8 @@ export type MetadataCandidate = {
   series: string;
   genres: string;
   coverId: number | null;
+  coverPath: string;
+  description: string;
 };
 
 export const metadataFromBook = (book: Book): BookMetadataInput => ({

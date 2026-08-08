@@ -1,4 +1,4 @@
-# ApriReader 1.3.0 RC1
+# ApriReader 1.3.0 RC2
 
 This release candidate consolidates audiobook stages A0-A13 and the final
 player, light-theme, and narration-queue fixes into one reviewable build.
@@ -28,6 +28,10 @@ and local-first privacy model intact.
   fragment, and package limits.
 - Responsive audiobook-player layout, corrected light-theme action contrast,
   and reliable continuation from short chapter titles into the main text.
+- Security and reliability hardening for PDF.js, SQLite recovery, concurrent
+  TTS cache writes, export replacement, and native playback polling.
+- Open Library plus Inventaire metadata search in Russian or English, including
+  bounded descriptions and fixed-host validated Inventaire covers.
 
 ## Privacy and installation
 
@@ -41,5 +45,5 @@ covers, indexes, progress, bookmarks, and caches stay in application-managed
 local storage.
 
 The Windows installer is currently unsigned and may show an unknown-publisher
-warning. Treat RC1 as a pre-release validation build, obtain it only from the
+warning. Treat RC2 as a pre-release validation build, obtain it only from the
 official candidate package, and verify its included SHA-256 checksum.

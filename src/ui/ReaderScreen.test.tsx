@@ -467,6 +467,29 @@ describe("ReaderScreen", () => {
     );
   });
 
+  it("does not overlap native playback polling while a snapshot request is pending", async () => {
+    ttsMocks.snapshot.mockImplementation(() => new Promise(() => undefined));
+    const { unmount } = render(
+      <ReaderScreen
+        document={document}
+        language="en"
+        t={t}
+        onClose={vi.fn()}
+        onProgress={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Read aloud" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Read this section" }),
+    );
+    await waitFor(() => expect(ttsMocks.play).toHaveBeenCalledOnce());
+    await new Promise((resolve) => window.setTimeout(resolve, 650));
+
+    expect(ttsMocks.snapshot).toHaveBeenCalledOnce();
+    unmount();
+  });
+
   it("requires consent before sending a fragment to a BYOK cloud voice", async () => {
     cloudTtsMocks.status.mockResolvedValue({ configured: true });
     cloudTtsMocks.listVoices.mockResolvedValue([

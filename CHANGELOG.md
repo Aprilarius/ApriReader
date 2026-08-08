@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+## 1.3.0-rc.2 - 2026-08-08
+
+- Updated `pdfjs-dist` to 6.2.108, the first release outside the reviewed
+  arbitrary-JavaScript-execution advisory range, and added a release-gate
+  minimum-version check.
+- Replaced the retired FantLab metadata adapter with the current public
+  Inventaire search API. Open Library and Inventaire now respect the selected
+  Russian or English language; Inventaire descriptions and strictly validated
+  fixed-host cover paths can be applied to the local record.
+- Made TTS cache writes collision-safe and durable when identical fragments are
+  prepared concurrently. Export playlists now use unique sidecars and restore
+  the previous playlist if replacement fails instead of deleting it first.
+- Prevented overlapping native TTS polling and ignored stale cloud preparation
+  failures after stop or provider changes.
+- Hardened SQLite recovery so the database, WAL, and shared-memory sidecars are
+  quarantined and restored as one set, including rollback after a partial move.
+- Removed avoidable production panics from Windows audio event registration and
+  expanded regression coverage for playback polling, cache concurrency, export
+  replacement, database sidecars, and Inventaire response validation.
+
 ## 1.3.0-rc.1 - 2026-08-08
 
 - Reworked the audiobook player into a bounded responsive composition: the

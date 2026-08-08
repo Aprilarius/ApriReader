@@ -1,13 +1,13 @@
 {
   "bomFormat": "CycloneDX",
   "specVersion": "1.5",
-  "serialNumber": "urn:uuid:c680ab75-45b9-5141-b147-3bdca8f3649c",
+  "serialNumber": "urn:uuid:aed62351-d8b5-5424-bdaf-0269ea09c272",
   "version": 1,
   "metadata": {
     "component": {
       "type": "application",
       "name": "ApriReader",
-      "version": "1.3.0-rc.1",
+      "version": "1.3.0-rc.2",
       "licenses": [
         {
           "license": {
@@ -19,7 +19,7 @@
     "properties": [
       {
         "name": "aprireader:lockfiles-sha256",
-        "value": "ac6609c656bc7de9323ef9e793ce20863996a7d3bf99c9e156056853e39980af"
+        "value": "916692ecea8ca5fc08fd5dbd66d85da1344e2bb335a2f9cd75ff2f458109861b"
       },
       {
         "name": "aprireader:scope",
@@ -4169,85 +4169,85 @@
       "type": "library",
       "group": "npm",
       "name": "@napi-rs/canvas",
-      "version": "0.1.100",
-      "purl": "pkg:npm/%40napi-rs/canvas@0.1.100"
+      "version": "1.0.3",
+      "purl": "pkg:npm/%40napi-rs/canvas@1.0.3"
     },
     {
       "type": "library",
       "group": "npm",
       "name": "@napi-rs/canvas-android-arm64",
-      "version": "0.1.100",
-      "purl": "pkg:npm/%40napi-rs/canvas-android-arm64@0.1.100"
+      "version": "1.0.3",
+      "purl": "pkg:npm/%40napi-rs/canvas-android-arm64@1.0.3"
     },
     {
       "type": "library",
       "group": "npm",
       "name": "@napi-rs/canvas-darwin-arm64",
-      "version": "0.1.100",
-      "purl": "pkg:npm/%40napi-rs/canvas-darwin-arm64@0.1.100"
+      "version": "1.0.3",
+      "purl": "pkg:npm/%40napi-rs/canvas-darwin-arm64@1.0.3"
     },
     {
       "type": "library",
       "group": "npm",
       "name": "@napi-rs/canvas-darwin-x64",
-      "version": "0.1.100",
-      "purl": "pkg:npm/%40napi-rs/canvas-darwin-x64@0.1.100"
+      "version": "1.0.3",
+      "purl": "pkg:npm/%40napi-rs/canvas-darwin-x64@1.0.3"
     },
     {
       "type": "library",
       "group": "npm",
       "name": "@napi-rs/canvas-linux-arm-gnueabihf",
-      "version": "0.1.100",
-      "purl": "pkg:npm/%40napi-rs/canvas-linux-arm-gnueabihf@0.1.100"
+      "version": "1.0.3",
+      "purl": "pkg:npm/%40napi-rs/canvas-linux-arm-gnueabihf@1.0.3"
     },
     {
       "type": "library",
       "group": "npm",
       "name": "@napi-rs/canvas-linux-arm64-gnu",
-      "version": "0.1.100",
-      "purl": "pkg:npm/%40napi-rs/canvas-linux-arm64-gnu@0.1.100"
+      "version": "1.0.3",
+      "purl": "pkg:npm/%40napi-rs/canvas-linux-arm64-gnu@1.0.3"
     },
     {
       "type": "library",
       "group": "npm",
       "name": "@napi-rs/canvas-linux-arm64-musl",
-      "version": "0.1.100",
-      "purl": "pkg:npm/%40napi-rs/canvas-linux-arm64-musl@0.1.100"
+      "version": "1.0.3",
+      "purl": "pkg:npm/%40napi-rs/canvas-linux-arm64-musl@1.0.3"
     },
     {
       "type": "library",
       "group": "npm",
       "name": "@napi-rs/canvas-linux-riscv64-gnu",
-      "version": "0.1.100",
-      "purl": "pkg:npm/%40napi-rs/canvas-linux-riscv64-gnu@0.1.100"
+      "version": "1.0.3",
+      "purl": "pkg:npm/%40napi-rs/canvas-linux-riscv64-gnu@1.0.3"
     },
     {
       "type": "library",
       "group": "npm",
       "name": "@napi-rs/canvas-linux-x64-gnu",
-      "version": "0.1.100",
-      "purl": "pkg:npm/%40napi-rs/canvas-linux-x64-gnu@0.1.100"
+      "version": "1.0.3",
+      "purl": "pkg:npm/%40napi-rs/canvas-linux-x64-gnu@1.0.3"
     },
     {
       "type": "library",
       "group": "npm",
       "name": "@napi-rs/canvas-linux-x64-musl",
-      "version": "0.1.100",
-      "purl": "pkg:npm/%40napi-rs/canvas-linux-x64-musl@0.1.100"
+      "version": "1.0.3",
+      "purl": "pkg:npm/%40napi-rs/canvas-linux-x64-musl@1.0.3"
     },
     {
       "type": "library",
       "group": "npm",
       "name": "@napi-rs/canvas-win32-arm64-msvc",
-      "version": "0.1.100",
-      "purl": "pkg:npm/%40napi-rs/canvas-win32-arm64-msvc@0.1.100"
+      "version": "1.0.3",
+      "purl": "pkg:npm/%40napi-rs/canvas-win32-arm64-msvc@1.0.3"
     },
     {
       "type": "library",
       "group": "npm",
       "name": "@napi-rs/canvas-win32-x64-msvc",
-      "version": "0.1.100",
-      "purl": "pkg:npm/%40napi-rs/canvas-win32-x64-msvc@0.1.100"
+      "version": "1.0.3",
+      "purl": "pkg:npm/%40napi-rs/canvas-win32-x64-msvc@1.0.3"
     },
     {
       "type": "library",
@@ -5688,8 +5688,8 @@
       "type": "library",
       "group": "npm",
       "name": "pdfjs-dist",
-      "version": "5.7.284",
-      "purl": "pkg:npm/pdfjs-dist@5.7.284"
+      "version": "6.2.108",
+      "purl": "pkg:npm/pdfjs-dist@6.2.108"
     },
     {
       "type": "library",

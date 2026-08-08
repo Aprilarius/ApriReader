@@ -101,6 +101,8 @@ describe("BookDetails", () => {
         series: "",
         genres: "Science fiction, Adventure",
         coverId: 42,
+        coverPath: "",
+        description: "",
       },
     ]);
     render(

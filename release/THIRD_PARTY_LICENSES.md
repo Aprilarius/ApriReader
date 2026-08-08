@@ -306,12 +306,12 @@ Absolute local paths are intentionally omitted.
 | `cargo:zlib-rs@0.6.6` | Zlib |  | https://github.com/trifectatechfoundation/zlib-rs |
 | `cargo:zmij@1.0.23` | MIT | David Tolnay <dtolnay@gmail.com> | https://github.com/dtolnay/zmij |
 | `cargo:zopfli@0.8.3` | Apache-2.0 |  | https://github.com/zopfli-rs/zopfli |
-| `npm:@napi-rs/canvas@0.1.100` | MIT |  | https://github.com/Brooooooklyn/canvas#readme |
-| `npm:@napi-rs/canvas-win32-x64-msvc@0.1.100` | MIT |  | https://github.com/Brooooooklyn/canvas#readme |
+| `npm:@napi-rs/canvas@1.0.3` | MIT |  | https://github.com/Brooooooklyn/canvas#readme |
+| `npm:@napi-rs/canvas-win32-x64-msvc@1.0.3` | MIT |  | https://github.com/Brooooooklyn/canvas#readme |
 | `npm:@tauri-apps/api@2.11.1` | Apache-2.0 OR MIT |  | https://github.com/tauri-apps/tauri#readme |
 | `npm:@tauri-apps/plugin-dialog@2.7.2` | MIT OR Apache-2.0 |  | https://github.com/tauri-apps/plugins-workspace#readme |
 | `npm:@tauri-apps/plugin-opener@2.5.4` | MIT OR Apache-2.0 |  | https://github.com/tauri-apps/plugins-workspace#readme |
-| `npm:pdfjs-dist@5.7.284` | Apache-2.0 |  | https://mozilla.github.io/pdf.js/ |
+| `npm:pdfjs-dist@6.2.108` | Apache-2.0 |  | https://mozilla.github.io/pdf.js/ |
 | `npm:react@19.1.1` | MIT |  | https://react.dev/ |
 | `npm:react-dom@19.1.1` | MIT |  | https://react.dev/ |
 | `npm:scheduler@0.26.0` | MIT |  | https://react.dev/ |
@@ -3605,7 +3605,7 @@ Applies to:
 - `cargo:time-macros@0.2.32`
 - `cargo:time@0.3.54`
 - `npm:@tauri-apps/api@2.11.1`
-- `npm:pdfjs-dist@5.7.284`
+- `npm:pdfjs-dist@6.2.108`
 
 ```text
 Apache License
@@ -10521,8 +10521,8 @@ Files: `LICENSE`, `LICENSE (workspace)`
 
 Applies to:
 
-- `npm:@napi-rs/canvas-win32-x64-msvc@0.1.100`
-- `npm:@napi-rs/canvas@0.1.100`
+- `npm:@napi-rs/canvas-win32-x64-msvc@1.0.3`
+- `npm:@napi-rs/canvas@1.0.3`
 
 ```text
 MIT License

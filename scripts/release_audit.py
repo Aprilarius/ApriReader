@@ -95,6 +95,24 @@ def check_direct_dependencies() -> None:
     npm = set(package["dependencies"])
     if npm != set(APPROVED_NPM):
         fail(f"npm dependency review is stale: {sorted(npm ^ set(APPROVED_NPM))}")
+    pdfjs_version = package["dependencies"].get("pdfjs-dist", "")
+    try:
+        pdfjs_parts = tuple(int(part) for part in pdfjs_version.split("."))
+    except (AttributeError, ValueError):
+        fail("pdfjs-dist must use an exact numeric version")
+    if len(pdfjs_parts) != 3 or pdfjs_parts < (6, 2, 108):
+        fail("pdfjs-dist is below the reviewed GHSA-hq66-cqwq-w95j fix")
+
+    metadata_source = (ROOT / "src-tauri" / "src" / "metadata.rs").read_text("utf-8")
+    if "api.fantlab.ru" in metadata_source:
+        fail("retired FantLab metadata endpoint is still present")
+    for required in (
+        '"https://inventaire.io/api/search"',
+        '"https://inventaire.io"',
+        'strip_prefix("/img/entities/")',
+    ):
+        if required not in metadata_source:
+            fail(f"reviewed Inventaire boundary is missing: {required}")
     cargo = tomllib.loads((ROOT / "src-tauri" / "Cargo.toml").read_text("utf-8"))
     rust = set(cargo["dependencies"])
     for target in cargo.get("target", {}).values():

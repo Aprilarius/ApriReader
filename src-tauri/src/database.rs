@@ -6,7 +6,8 @@ use crate::audio_importer::{
 use crate::audio_statistics::{self, AudioStatisticsError, AudiobookStatisticsSnapshot};
 use crate::importer::{inspect_book, supported_book_path, ImportError};
 use crate::metadata::{
-    download_open_library_cover, image_extension, MetadataCandidate, MetadataError,
+    download_inventaire_cover, download_open_library_cover, image_extension,
+    valid_inventaire_cover_path, valid_inventaire_uri, MetadataCandidate, MetadataError,
     MetadataLanguage, MAX_COVER_BYTES,
 };
 use crate::reader::{read_document, DocumentModel, ReaderError};
@@ -563,7 +564,7 @@ impl Database {
                     };
                     let quarantined = Self::quarantine_database(database_path)?;
                     if let Err(copy_error) = fs::copy(&backup, database_path) {
-                        let _ = fs::copy(&quarantined, database_path);
+                        let _ = Self::restore_quarantined_database(database_path, &quarantined);
                         return Err(copy_error.into());
                     }
                     match Self::open_connection(database_path) {
@@ -573,7 +574,7 @@ impl Database {
                             Some(quarantined.to_string_lossy().into_owned()),
                         ),
                         Err(recovery_error) => {
-                            let _ = fs::copy(&quarantined, database_path);
+                            let _ = Self::restore_quarantined_database(database_path, &quarantined);
                             return Err(recovery_error);
                         }
                     }
@@ -650,15 +651,50 @@ impl Database {
             .unwrap_or_default()
             .as_nanos();
         let quarantined = recovery_dir.join(format!("library-corrupt-{timestamp}.db"));
+        let mut moved = Vec::with_capacity(3);
         fs::rename(database_path, &quarantined)?;
+        moved.push((database_path.to_owned(), quarantined.clone()));
         for suffix in ["-wal", "-shm"] {
-            let sidecar = PathBuf::from(format!("{}{suffix}", database_path.to_string_lossy()));
+            let sidecar = Self::database_sidecar(database_path, suffix);
             if sidecar.is_file() {
-                let target = recovery_dir.join(format!("library-corrupt-{timestamp}.db{suffix}"));
-                fs::rename(sidecar, target)?;
+                let target = Self::database_sidecar(&quarantined, suffix);
+                if let Err(error) = fs::rename(&sidecar, &target) {
+                    for (source, destination) in moved.into_iter().rev() {
+                        let _ = fs::rename(destination, source);
+                    }
+                    return Err(error.into());
+                }
+                moved.push((sidecar, target));
             }
         }
         Ok(quarantined)
+    }
+
+    fn restore_quarantined_database(
+        database_path: &Path,
+        quarantined: &Path,
+    ) -> Result<(), DatabaseError> {
+        for suffix in ["", "-wal", "-shm"] {
+            let source = Self::database_sidecar(quarantined, suffix);
+            let destination = Self::database_sidecar(database_path, suffix);
+            if destination.exists() {
+                fs::remove_file(&destination)?;
+            }
+            if source.is_file() {
+                fs::copy(source, destination)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn database_sidecar(path: &Path, suffix: &str) -> PathBuf {
+        if suffix.is_empty() {
+            path.to_owned()
+        } else {
+            let mut value = path.as_os_str().to_owned();
+            value.push(suffix);
+            PathBuf::from(value)
+        }
     }
 
     pub fn startup_health(&self) -> StartupHealth {
@@ -1782,19 +1818,34 @@ impl Database {
             )
             .optional()?
             .flatten();
-        let downloaded_cover = if candidate.provider == "Open Library" {
-            let Some(cover_id) = candidate.cover_id else {
-                return self.apply_metadata_without_cover(book_id, candidate, previous_external);
-            };
-            self.reserve_metadata_request(true)?;
-            let (bytes, extension) = download_open_library_cover(cover_id)?;
-            let path = self
-                .cover_dir
-                .join(format!("external-{book_id}-{cover_id}.{extension}"));
-            fs::write(&path, bytes)?;
-            Some(path.to_string_lossy().into_owned())
-        } else {
-            None
+        let downloaded_cover = match candidate.provider.as_str() {
+            "Open Library" => {
+                let Some(cover_id) = candidate.cover_id else {
+                    return self.apply_metadata_without_cover(
+                        book_id,
+                        candidate,
+                        previous_external,
+                    );
+                };
+                self.reserve_metadata_request(true)?;
+                let (bytes, extension) = download_open_library_cover(cover_id)?;
+                let path = self
+                    .cover_dir
+                    .join(format!("external-{book_id}-{cover_id}.{extension}"));
+                fs::write(&path, bytes)?;
+                Some(path.to_string_lossy().into_owned())
+            }
+            "Inventaire" if !candidate.cover_path.is_empty() => {
+                self.reserve_metadata_request(true)?;
+                let (bytes, extension) = download_inventaire_cover(&candidate.cover_path)?;
+                let path = self.cover_dir.join(format!(
+                    "external-{book_id}-inventaire-{}.{extension}",
+                    unix_millis()
+                ));
+                fs::write(&path, bytes)?;
+                Some(path.to_string_lossy().into_owned())
+            }
+            _ => None,
         };
         self.apply_metadata_with_cover(book_id, candidate, previous_external, downloaded_cover)
     }
@@ -1815,10 +1866,9 @@ impl Database {
         previous_external: Option<String>,
         downloaded_cover: Option<String>,
     ) -> Result<BookRecord, DatabaseError> {
-        let metadata_source = if candidate.provider == "ФантЛаб" {
-            "fantlab"
-        } else {
-            "open_library"
+        let metadata_source = match candidate.provider.as_str() {
+            "Inventaire" => "inventaire",
+            _ => "open_library",
         };
         let changed = self.connection.execute(
             "UPDATE books SET
@@ -1826,12 +1876,13 @@ impl Database {
                 published_year = ?5, language = ?6,
                 genres = CASE WHEN TRIM(?7) = '' THEN genres ELSE ?7 END,
                 series = CASE WHEN TRIM(?8) = '' THEN series ELSE ?8 END,
-                metadata_source = ?9, metadata_provider_id = ?10,
+                description = CASE WHEN TRIM(?9) = '' THEN description ELSE ?9 END,
+                metadata_source = ?10, metadata_provider_id = ?11,
                 metadata_updated_at = CURRENT_TIMESTAMP,
-                cover_path = COALESCE(?11, cover_path),
-                cover_source = CASE WHEN ?11 IS NULL THEN cover_source
-                                    ELSE 'open_library' END
-             WHERE id = ?12",
+                cover_path = COALESCE(?12, cover_path),
+                cover_source = CASE WHEN ?12 IS NULL THEN cover_source
+                                    ELSE ?10 END
+             WHERE id = ?13",
             params![
                 candidate.title.trim(),
                 candidate.author.trim(),
@@ -1841,6 +1892,7 @@ impl Database {
                 candidate.language.trim(),
                 normalize_genres_input(&candidate.genres),
                 candidate.series.trim(),
+                candidate.description.trim(),
                 metadata_source,
                 candidate.provider_id.trim(),
                 downloaded_cover,
@@ -2828,12 +2880,7 @@ fn validate_candidate(candidate: &MetadataCandidate) -> Result<(), DatabaseError
             candidate.provider_id.starts_with("/works/")
                 || candidate.provider_id.starts_with("/books/")
         }
-        "ФантЛаб" => candidate
-            .provider_id
-            .strip_prefix("edition:")
-            .is_some_and(|value| {
-                !value.is_empty() && value.chars().all(|character| character.is_ascii_digit())
-            }),
+        "Inventaire" => valid_inventaire_uri(&candidate.provider_id),
         _ => false,
     };
     if !valid_provider_id
@@ -2846,7 +2893,12 @@ fn validate_candidate(candidate: &MetadataCandidate) -> Result<(), DatabaseError
         || candidate.language.chars().count() > 64
         || candidate.series.chars().count() > 512
         || candidate.genres.chars().count() > 1_024
+        || candidate.description.chars().count() > 16_384
         || candidate.provider_id.chars().count() > 128
+        || (candidate.provider == "Inventaire"
+            && !candidate.cover_path.is_empty()
+            && !valid_inventaire_cover_path(&candidate.cover_path))
+        || (candidate.provider != "Inventaire" && !candidate.cover_path.is_empty())
     {
         return Err(DatabaseError::InvalidMetadata);
     }
@@ -3125,6 +3177,31 @@ mod tests {
             fs::read_to_string(source).expect("source book remains unchanged"),
             "safe recovery fixture"
         );
+    }
+
+    #[test]
+    fn quarantines_and_restores_database_sidecars_together() {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let database_path = directory.path().join("library.db");
+        let wal = Database::database_sidecar(&database_path, "-wal");
+        let shm = Database::database_sidecar(&database_path, "-shm");
+        fs::write(&database_path, b"database").unwrap();
+        fs::write(&wal, b"wal").unwrap();
+        fs::write(&shm, b"shm").unwrap();
+
+        let quarantined = Database::quarantine_database(&database_path).unwrap();
+        assert!(!database_path.exists());
+        assert_eq!(
+            fs::read(Database::database_sidecar(&quarantined, "-wal")).unwrap(),
+            b"wal"
+        );
+
+        fs::write(&database_path, b"failed replacement").unwrap();
+        fs::write(&wal, b"replacement wal").unwrap();
+        Database::restore_quarantined_database(&database_path, &quarantined).unwrap();
+        assert_eq!(fs::read(database_path).unwrap(), b"database");
+        assert_eq!(fs::read(wal).unwrap(), b"wal");
+        assert_eq!(fs::read(shm).unwrap(), b"shm");
     }
 
     #[test]
@@ -3547,6 +3624,8 @@ mod tests {
             series: String::new(),
             genres: "Mystery".to_owned(),
             cover_id: None,
+            cover_path: String::new(),
+            description: String::new(),
         }];
         database
             .connection
@@ -3564,6 +3643,42 @@ mod tests {
             .search_metadata(book_id, "Cached lookup", "en")
             .expect("cached results");
         assert_eq!(results, cached);
+    }
+
+    #[test]
+    fn applies_bounded_inventaire_metadata_without_a_network_cover() {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let source = directory.path().join("Inventaire lookup.txt");
+        fs::write(&source, "fixture").expect("fixture");
+        let mut database = test_database(directory.path());
+        database
+            .import_paths(std::slice::from_ref(&source))
+            .expect("import");
+        let book_id = database.list_books().expect("books")[0].id;
+        let updated = database
+            .apply_metadata_candidate(
+                book_id,
+                &MetadataCandidate {
+                    provider: "Inventaire".to_owned(),
+                    provider_id: "wd:Q74287".to_owned(),
+                    title: "Хоббит, или Туда и обратно".to_owned(),
+                    author: String::new(),
+                    isbn: String::new(),
+                    publisher: String::new(),
+                    published_year: "1937".to_owned(),
+                    language: "rus".to_owned(),
+                    series: String::new(),
+                    genres: "Fantasy".to_owned(),
+                    cover_id: None,
+                    cover_path: String::new(),
+                    description: "Повесть Джона Р. Р. Толкина".to_owned(),
+                },
+            )
+            .expect("apply Inventaire metadata");
+        assert_eq!(updated.metadata_source, "inventaire");
+        assert_eq!(updated.description, "Повесть Джона Р. Р. Толкина");
+        assert_eq!(updated.genres, "Fantasy");
+        assert_eq!(fs::read_to_string(source).unwrap(), "fixture");
     }
 
     #[test]

@@ -1,7 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
-    fs,
+    fs::{self, OpenOptions},
+    io::Write,
     path::{Path, PathBuf},
     sync::{
         atomic::{AtomicU64, Ordering},
@@ -220,8 +221,6 @@ impl TtsAssetService {
             sessions.insert(session_id.to_owned(), session);
             return Err("speech export is incomplete".to_owned());
         }
-        fs::rename(&session.partial_directory, &session.final_directory)
-            .map_err(|error| format!("failed to finalize speech export media: {error}"))?;
         let directory_name = session
             .final_directory
             .file_name()
@@ -233,15 +232,24 @@ impl TtsAssetService {
                 "#EXTINF:-1,{title}\n{directory_name}/{file_name}\n"
             ));
         }
-        let temporary = session.playlist_path.with_extension("m3u8.tmp");
-        fs::write(&temporary, playlist.as_bytes())
-            .map_err(|error| format!("failed to write speech export playlist: {error}"))?;
-        if session.playlist_path.is_file() {
-            fs::remove_file(&session.playlist_path)
-                .map_err(|error| format!("failed to replace the selected playlist: {error}"))?;
+        let temporary = unique_sidecar_path(&session.playlist_path, "new")?;
+        if let Err(error) = write_new_file(&temporary, playlist.as_bytes()) {
+            sessions.insert(session_id.to_owned(), session);
+            return Err(error);
         }
-        fs::rename(&temporary, &session.playlist_path)
-            .map_err(|error| format!("failed to finalize speech export playlist: {error}"))?;
+        if let Err(error) = fs::rename(&session.partial_directory, &session.final_directory) {
+            let _ = fs::remove_file(&temporary);
+            sessions.insert(session_id.to_owned(), session);
+            return Err(format!("failed to finalize speech export media: {error}"));
+        }
+        if let Err(error) = replace_file_safely(&temporary, &session.playlist_path) {
+            let media_rollback = fs::rename(&session.final_directory, &session.partial_directory);
+            let _ = fs::remove_file(&temporary);
+            if media_rollback.is_ok() {
+                sessions.insert(session_id.to_owned(), session);
+            }
+            return Err(error);
+        }
         Ok(TtsExportResult {
             playlist_path: session.playlist_path.to_string_lossy().into_owned(),
             media_directory: session.final_directory.to_string_lossy().into_owned(),
@@ -262,6 +270,92 @@ impl TtsAssetService {
         }
         Ok(())
     }
+}
+
+fn write_new_file(path: &Path, bytes: &[u8]) -> Result<(), String> {
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(path)
+        .map_err(|error| format!("failed to create speech export playlist: {error}"))?;
+    if let Err(error) = file.write_all(bytes).and_then(|_| file.sync_all()) {
+        drop(file);
+        let _ = fs::remove_file(path);
+        return Err(format!("failed to write speech export playlist: {error}"));
+    }
+    Ok(())
+}
+
+pub(crate) fn persist_cache_file(destination: &Path, bytes: &[u8]) -> Result<(), String> {
+    if destination.is_file() {
+        return Ok(());
+    }
+    let temporary = unique_sidecar_path(destination, "cache")?;
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&temporary)
+        .map_err(|error| format!("failed to create a speech cache file: {error}"))?;
+    if let Err(error) = file.write_all(bytes).and_then(|_| file.sync_all()) {
+        drop(file);
+        let _ = fs::remove_file(&temporary);
+        return Err(format!("failed to write a speech cache file: {error}"));
+    }
+    drop(file);
+    match fs::rename(&temporary, destination) {
+        Ok(()) => Ok(()),
+        Err(_) if destination.is_file() => {
+            let _ = fs::remove_file(&temporary);
+            Ok(())
+        }
+        Err(error) => {
+            let _ = fs::remove_file(&temporary);
+            Err(format!("failed to finalize a speech cache file: {error}"))
+        }
+    }
+}
+
+fn replace_file_safely(temporary: &Path, destination: &Path) -> Result<(), String> {
+    if !destination.exists() {
+        return fs::rename(temporary, destination)
+            .map_err(|error| format!("failed to finalize speech export playlist: {error}"));
+    }
+    if !destination.is_file() {
+        return Err("speech export destination is not a replaceable file".to_owned());
+    }
+    let backup = unique_sidecar_path(destination, "backup")?;
+    fs::rename(destination, &backup)
+        .map_err(|error| format!("failed to stage the previous playlist: {error}"))?;
+    if let Err(error) = fs::rename(temporary, destination) {
+        let rollback = fs::rename(&backup, destination);
+        return Err(if rollback.is_ok() {
+            format!("failed to finalize speech export playlist: {error}")
+        } else {
+            format!("failed to finalize speech export playlist and restore its backup: {error}")
+        });
+    }
+    let _ = fs::remove_file(backup);
+    Ok(())
+}
+
+fn unique_sidecar_path(path: &Path, label: &str) -> Result<PathBuf, String> {
+    let parent = path
+        .parent()
+        .ok_or_else(|| "speech export destination has no parent directory".to_owned())?;
+    let file_name = path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .ok_or_else(|| "speech export destination name is invalid".to_owned())?;
+    let sequence = EXPORT_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+    for suffix in 0..10_000usize {
+        let candidate = parent.join(format!(
+            ".{file_name}.aprireader-{label}-{sequence:x}-{suffix:x}"
+        ));
+        if !candidate.exists() {
+            return Ok(candidate);
+        }
+    }
+    Err("unable to allocate a unique speech export sidecar file".to_owned())
 }
 
 fn cache_summary(cache_dir: &Path) -> TtsCacheSummary {
@@ -418,6 +512,21 @@ mod tests {
     }
 
     #[test]
+    fn concurrent_cache_writers_do_not_collide_or_leave_sidecars() {
+        let root = tempfile::tempdir().unwrap();
+        let destination = root.path().join("tts-cache.wav");
+        let destination_one = destination.clone();
+        let destination_two = destination.clone();
+        let first = std::thread::spawn(move || persist_cache_file(&destination_one, b"RIFF-one"));
+        let second = std::thread::spawn(move || persist_cache_file(&destination_two, b"RIFF-two"));
+        first.join().unwrap().unwrap();
+        second.join().unwrap().unwrap();
+        let content = fs::read(&destination).unwrap();
+        assert!(content == b"RIFF-one" || content == b"RIFF-two");
+        assert_eq!(fs::read_dir(root.path()).unwrap().count(), 1);
+    }
+
+    #[test]
     fn exports_only_a_validated_cache_file_and_playlist() {
         let root = std::env::temp_dir().join(format!(
             "aprireader-tts-export-test-{}",
@@ -430,6 +539,9 @@ mod tests {
         let source = cache.join(format!("tts-{}.wav", "a".repeat(64)));
         fs::write(&source, b"RIFF-test").unwrap();
         let playlist = output.join("Book.m3u8");
+        let unrelated_temporary = output.join("Book.m3u8.tmp");
+        fs::write(&playlist, "old playlist").unwrap();
+        fs::write(&unrelated_temporary, "user file").unwrap();
         let service = TtsAssetService::default();
         let started = service.begin_export(&playlist, 1).unwrap();
         assert_eq!(
@@ -454,6 +566,10 @@ mod tests {
         assert!(content.starts_with("#EXTM3U\n"));
         assert!(content.contains("#EXTINF:-1,Chapter one"));
         assert!(!content.contains(source.to_string_lossy().as_ref()));
+        assert_eq!(
+            fs::read_to_string(unrelated_temporary).unwrap(),
+            "user file"
+        );
         fs::remove_dir_all(root).unwrap();
     }
 }

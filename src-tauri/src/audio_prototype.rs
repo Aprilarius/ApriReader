@@ -255,19 +255,21 @@ mod platform {
                 Ok(())
             },
         ));
-        if let Err(error) = opened_token
-            .as_ref()
-            .map(|_| ())
-            .and(failed_token.as_ref().map(|_| ()))
-            .and(ended_token.as_ref().map(|_| ()))
-        {
-            let _ = player.Close();
-            let _ = ready.send(Err(format!("failed to register audio events: {error}")));
-            return;
-        }
-        let opened_token = opened_token.expect("checked above");
-        let failed_token = failed_token.expect("checked above");
-        let ended_token = ended_token.expect("checked above");
+        let (opened_token, failed_token, ended_token) =
+            match (opened_token, failed_token, ended_token) {
+                (Ok(opened), Ok(failed), Ok(ended)) => (opened, failed, ended),
+                (opened, failed, ended) => {
+                    let error = opened
+                        .err()
+                        .or_else(|| failed.err())
+                        .or_else(|| ended.err())
+                        .map(|value| value.to_string())
+                        .unwrap_or_else(|| "unknown event registration error".to_owned());
+                    let _ = player.Close();
+                    let _ = ready.send(Err(format!("failed to register audio events: {error}")));
+                    return;
+                }
+            };
         let _ = ready.send(Ok(()));
 
         let mut current_path: Option<PathBuf> = None;

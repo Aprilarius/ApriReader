@@ -1,3 +1,4 @@
+use crate::tts_assets::persist_cache_file;
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -5,7 +6,7 @@ use std::{fs, path::Path};
 
 const ELEVENLABS_VOICES: &str = "https://api.elevenlabs.io/v2/voices";
 const ELEVENLABS_TTS_ROOT: &str = "https://api.elevenlabs.io/v1/text-to-speech";
-const USER_AGENT: &str = "ApriReader/1.3.0-rc.1";
+const USER_AGENT: &str = "ApriReader/1.3.0-rc.2";
 const MAX_CLOUD_TEXT_CHARACTERS: usize = 2_000;
 const MAX_VOICES_RESPONSE_BYTES: u64 = 4 * 1024 * 1024;
 const MAX_TTS_RESPONSE_BYTES: u64 = 48 * 1024 * 1024;
@@ -218,11 +219,7 @@ pub fn prepare(
     digest.update([u8::from(settings.speaker_boost)]);
     digest.update(text.as_bytes());
     let destination = cache_dir.join(format!("cloud-tts-{:x}.mp3", digest.finalize()));
-    if !destination.is_file() {
-        let temporary = destination.with_extension("mp3.tmp");
-        fs::write(&temporary, &bytes).map_err(|error| error.to_string())?;
-        fs::rename(&temporary, &destination).map_err(|error| error.to_string())?;
-    }
+    persist_cache_file(&destination, &bytes)?;
     prune_cache(cache_dir, &destination);
     Ok(PreparedCloudTtsAudio {
         path: destination.to_string_lossy().into_owned(),

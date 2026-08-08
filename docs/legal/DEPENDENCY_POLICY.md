@@ -36,14 +36,15 @@ executable, office runtime, or book-authored script engine is included.
 Stage 5 adds:
 
 - `ureq` — MIT OR Apache-2.0, with Rustls and JSON features for the fixed
-  Open Library and FantLab HTTPS metadata adapters.
+  Open Library and Inventaire HTTPS metadata adapters.
 - `serde_json` — MIT OR Apache-2.0, for bounded provider responses and the
   local metadata cache.
 
 No Google Books integration, API key, HTML scraper, background catalog client,
-or unrestricted network endpoint is included. FantLab access is limited to its
-public bibliographic API at `https://api.fantlab.ru/search-editions`; it adds no
-library dependency, credential, executable, or background request.
+or unrestricted network endpoint is included. Inventaire access is limited to
+its public work-search API and validated `/img/entities/<sha1>` images on
+`https://inventaire.io`; it adds no library dependency, credential, executable,
+or background request.
 
 No Steamworks SDK, telemetry, catalog, bundled TTS engine or speech model,
 generated cover, font, or media binary is included.
@@ -167,7 +168,7 @@ format, signature, and size checks.
 
 Genre metadata and the expanded achievement registry add no dependency.
 Parsing uses the existing bounded XML and JSON adapters, and all genre values
-remain local unless the user explicitly performs the Open Library/FantLab
+remain local unless the user explicitly performs the Open Library/Inventaire
 metadata search.
 
 Screen reader support adds no dependency or voice package. It uses standard

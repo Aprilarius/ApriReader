@@ -101,15 +101,16 @@ source books are never modified.
 
 Stage 5 adds local manual editing for title, author, subtitle, ISBN, publisher,
 publication year, language, series, genres, and description. A user explicitly
-chooses Russian or English before sending an ISBN or title/author query. English
-search uses Open Library; Russian search combines Russian-edition results from
-Open Library and the public FantLab bibliographic API, labels every provider,
-and removes duplicate editions. Search never runs during startup, import,
+chooses Russian or English before sending an ISBN or title/author query. Both
+languages combine constrained Open Library results with the public Inventaire
+works search, label every provider, and remove duplicate editions. Inventaire
+descriptions and validated fixed-host covers are available when present.
+Search never runs during startup, import,
 folder scanning, or reading. Responses are cached locally for 30 days and
 requests are limited to one user-triggered search per second.
 
 Applying a candidate records its provider, identifier, and update time. A
-selected Open Library cover is downloaded only while applying that candidate,
+selected Open Library or Inventaire cover is downloaded only while applying that candidate,
 validated as an image, and stored in the app-local cache. The user can remove
 it and return to the embedded cover or fallback without changing the source
 book.

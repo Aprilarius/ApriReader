@@ -1,3 +1,4 @@
+use crate::tts_assets::persist_cache_file;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::{fs, path::Path, sync::mpsc};
@@ -124,11 +125,7 @@ fn write_cached_audio(
     digest.update(text.as_bytes());
     let name = format!("tts-{:x}.wav", digest.finalize());
     let destination = cache_dir.join(name);
-    if !destination.is_file() {
-        let temporary = destination.with_extension("wav.tmp");
-        fs::write(&temporary, &synthesized.bytes).map_err(|error| error.to_string())?;
-        fs::rename(&temporary, &destination).map_err(|error| error.to_string())?;
-    }
+    persist_cache_file(&destination, &synthesized.bytes)?;
     prune_cache(cache_dir, &destination);
     Ok(PreparedTtsAudio {
         path: destination.to_string_lossy().into_owned(),

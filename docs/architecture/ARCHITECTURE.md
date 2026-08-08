@@ -274,9 +274,9 @@ reading-position fields for a fixed-format page index and overall progress.
 
 Stage 5 adds an explicit `MetadataProvider` boundary in
 `src-tauri/src/metadata.rs`. Only the Rust backend can contact the fixed HTTPS
-Open Library Search/Covers endpoints and FantLab edition-search endpoint.
-English search uses Open Library with an English-edition constraint; Russian
-search uses a Russian-edition constraint and merges bounded FantLab results.
+Open Library Search/Covers endpoints and Inventaire Search/Image endpoints.
+Both English and Russian searches constrain Open Library editions and pass the
+selected language to Inventaire before merging bounded provider results.
 Requests use a named User-Agent, return bounded JSON/image bodies, are limited
 to one user-triggered search per second, and cache normalized results by query
 and language in SQLite for 30 days. One provider may fail without discarding
@@ -287,7 +287,9 @@ Migration 5 stores editable bibliographic fields, provider provenance, the
 original embedded-cover path, active cover source, and the metadata cache.
 Manual or provider-applied fields survive a later source rescan. External
 covers receive app-generated names under the existing scoped cover cache;
-signature validation happens before writing. Removing one restores the
+signature validation happens before writing. Inventaire cover paths must match
+the fixed `/img/entities/<sha1>` form before the backend constructs the host;
+no provider URL is accepted from the WebView. Removing one restores the
 embedded cover path and deletes only a verified app-managed external file.
 The same managed-file boundary accepts a user-selected JPG, PNG, or WebP cover
 only from manual edit mode. Rust rechecks the suffix, 10 MiB limit, and image

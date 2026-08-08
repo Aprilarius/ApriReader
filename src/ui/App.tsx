@@ -2541,8 +2541,14 @@ function MetadataSearch({
                   <dd>{candidate.genres}</dd>
                 </div>
               )}
+              {candidate.description && (
+                <div>
+                  <dt>{t("descriptionField")}</dt>
+                  <dd>{candidate.description}</dd>
+                </div>
+              )}
             </dl>
-            {candidate.coverId && (
+            {(candidate.coverId || candidate.coverPath) && (
               <span className="cover-available">{t("coverAvailable")}</span>
             )}
             <button
@@ -2566,7 +2572,7 @@ function MetadataSearch({
 function metadataSourceLabel(source: string, t: Translator) {
   if (source === "manual") return t("manualMetadata");
   if (source === "open_library") return t("openLibrary");
-  if (source === "fantlab") return t("fantlab");
+  if (source === "inventaire") return t("inventaire");
   return t("embeddedMetadata");
 }
 

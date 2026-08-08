@@ -91,14 +91,17 @@
 3. Perform an explicit Open Library search and inspect a candidate with
    subjects. Confirm genres appear before Apply and only the chosen candidate
    changes the local book record.
-4. Open but do not finish books from several authors, genres, and series.
+4. Repeat in Russian and English with an Inventaire candidate. Confirm its
+   localized title, description, provider label, and cover indicator appear;
+   applying it must store the cover locally without accepting a custom URL.
+5. Open but do not finish books from several authors, genres, and series.
    Confirm discovery achievement progress does not increase. Finish the books
    and confirm each distinct normalized value is counted once.
-5. Confirm Achievements reports the unlocked count out of 42 and that each
+6. Confirm Achievements reports the unlocked count out of 42 and that each
    family increases from easy to long-term thresholds. Verify the 250-book,
    500-hour, 365-day, 100-author, 20-genre, and 50-series goals remain locked
    with truthful progress.
-6. Restart and clear statistics in a disposable profile. Confirm unlocks and
+7. Restart and clear statistics in a disposable profile. Confirm unlocks and
    queued Steam entries follow the existing local reset policy while books,
    genres, reading positions, and annotations remain.
 

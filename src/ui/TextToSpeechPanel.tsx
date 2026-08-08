@@ -253,6 +253,7 @@ export function TextToSpeechPanel({
   const [message, setMessage] = useState("");
   const ownsPlayback = useRef(false);
   const advancing = useRef(false);
+  const pollBusy = useRef(false);
   const generation = useRef(0);
   const queue = useRef<TtsQueueChunk[]>([]);
   const queueIndex = useRef(0);
@@ -545,6 +546,7 @@ export function TextToSpeechPanel({
       const next = queue.current[index + 1];
       if (next) void preparedChunk(next).catch(() => undefined);
     } catch (reason) {
+      if (sessionGeneration !== generation.current) return;
       ownsPlayback.current = false;
       onHighlight(null);
       setMessage(
@@ -598,7 +600,8 @@ export function TextToSpeechPanel({
 
   useEffect(() => {
     const timer = window.setInterval(() => {
-      if (!ownsPlayback.current) return;
+      if (!ownsPlayback.current || pollBusy.current) return;
+      pollBusy.current = true;
       void getAudioSnapshot()
         .then((value) => {
           setSnapshot(value);
@@ -622,9 +625,15 @@ export function TextToSpeechPanel({
         })
         .catch((reason: unknown) => {
           setMessage(reason instanceof Error ? reason.message : String(reason));
+        })
+        .finally(() => {
+          pollBusy.current = false;
         });
     }, 250);
-    return () => window.clearInterval(timer);
+    return () => {
+      window.clearInterval(timer);
+      pollBusy.current = false;
+    };
   }, [onHighlight, t]);
 
   useEffect(() => {

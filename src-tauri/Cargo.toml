@@ -1,6 +1,6 @@
 [package]
 name = "aprireader"
-version = "1.3.0-rc.1"
+version = "1.3.0-rc.2"
 description = "ApriReader desktop application"
 authors = ["Bahadur"]
 edition = "2021"

@@ -107,7 +107,6 @@ function PdfReader({
       })
       .then((pdf) => {
         if (!active) {
-          void pdf.destroy();
           return;
         }
         pdfRef.current = pdf;

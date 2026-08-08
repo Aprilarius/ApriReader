@@ -4,8 +4,9 @@ use thiserror::Error;
 
 const OPEN_LIBRARY_SEARCH_ENDPOINT: &str = "https://openlibrary.org/search.json";
 const OPEN_LIBRARY_COVER_ENDPOINT: &str = "https://covers.openlibrary.org/b/id";
-const FANTLAB_SEARCH_ENDPOINT: &str = "https://api.fantlab.ru/search-editions";
-const USER_AGENT: &str = "ApriReader/1.2 (interactive desktop metadata lookup)";
+const INVENTAIRE_SEARCH_ENDPOINT: &str = "https://inventaire.io/api/search";
+const INVENTAIRE_IMAGE_ENDPOINT: &str = "https://inventaire.io";
+const USER_AGENT: &str = "ApriReader/1.3.0-rc.2 (interactive desktop metadata lookup)";
 const MAX_RESULTS_PER_PROVIDER: usize = 8;
 const MAX_COMBINED_RESULTS: usize = 12;
 const MAX_SEARCH_RESPONSE_BYTES: u64 = 2 * 1024 * 1024;
@@ -68,6 +69,10 @@ pub struct MetadataCandidate {
     pub series: String,
     pub genres: String,
     pub cover_id: Option<i64>,
+    #[serde(default)]
+    pub cover_path: String,
+    #[serde(default)]
+    pub description: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -124,19 +129,21 @@ struct OpenLibraryDocument {
 }
 
 #[derive(Debug, Deserialize)]
-struct FantLabEdition {
-    edition_id: i64,
+struct InventaireSearchResponse {
     #[serde(default)]
-    name: String,
+    results: Vec<InventaireResult>,
+}
+
+#[derive(Debug, Deserialize)]
+struct InventaireResult {
     #[serde(default)]
-    autors: String,
+    uri: String,
     #[serde(default)]
-    isbn: String,
+    label: String,
     #[serde(default)]
-    publisher: String,
+    description: String,
     #[serde(default)]
-    series: String,
-    year: Option<i64>,
+    image: String,
 }
 
 pub fn search_metadata(
@@ -144,13 +151,9 @@ pub fn search_metadata(
     language: MetadataLanguage,
 ) -> Result<Vec<MetadataCandidate>, MetadataError> {
     let open_library = search_open_library(query, language);
-    if language == MetadataLanguage::English {
-        return open_library;
-    }
-
-    let fantlab = search_fantlab(query);
-    match (open_library, fantlab) {
-        (Ok(open_library), Ok(fantlab)) => Ok(merge_candidates(open_library, fantlab)),
+    let inventaire = search_inventaire(query, language);
+    match (open_library, inventaire) {
+        (Ok(open_library), Ok(inventaire)) => Ok(merge_candidates(open_library, inventaire)),
         (Ok(candidates), Err(_)) | (Err(_), Ok(candidates)) => Ok(candidates),
         (Err(error), Err(_)) => Err(error),
     }
@@ -179,19 +182,23 @@ pub fn search_open_library(
     parse_open_library_response(&body, language)
 }
 
-pub fn search_fantlab(query: &str) -> Result<Vec<MetadataCandidate>, MetadataError> {
-    let mut response = ureq::get(FANTLAB_SEARCH_ENDPOINT)
+pub fn search_inventaire(
+    query: &str,
+    language: MetadataLanguage,
+) -> Result<Vec<MetadataCandidate>, MetadataError> {
+    let mut response = ureq::get(INVENTAIRE_SEARCH_ENDPOINT)
         .header("User-Agent", USER_AGENT)
-        .query("q", query)
-        .query("page", "1")
-        .query("onlymatches", "1")
+        .query("search", query)
+        .query("lang", language.code())
+        .query("types", "works")
+        .query("limit", MAX_RESULTS_PER_PROVIDER.to_string())
         .call()?;
     let body = response
         .body_mut()
         .with_config()
         .limit(MAX_SEARCH_RESPONSE_BYTES)
         .read_to_string()?;
-    parse_fantlab_response(&body)
+    parse_inventaire_response(&body, language)
 }
 
 pub fn download_open_library_cover(
@@ -201,6 +208,23 @@ pub fn download_open_library_cover(
         return Err(MetadataError::InvalidCover);
     }
     let url = format!("{OPEN_LIBRARY_COVER_ENDPOINT}/{cover_id}-L.jpg?default=false");
+    let mut response = ureq::get(&url).header("User-Agent", USER_AGENT).call()?;
+    let bytes = response
+        .body_mut()
+        .with_config()
+        .limit(MAX_COVER_BYTES as u64)
+        .read_to_vec()?;
+    let extension = image_extension(&bytes).ok_or(MetadataError::InvalidCover)?;
+    Ok((bytes, extension))
+}
+
+pub fn download_inventaire_cover(
+    cover_path: &str,
+) -> Result<(Vec<u8>, &'static str), MetadataError> {
+    if !valid_inventaire_cover_path(cover_path) {
+        return Err(MetadataError::InvalidCover);
+    }
+    let url = format!("{INVENTAIRE_IMAGE_ENDPOINT}{cover_path}");
     let mut response = ureq::get(&url).header("User-Agent", USER_AGENT).call()?;
     let bytes = response
         .body_mut()
@@ -298,41 +322,46 @@ fn open_library_candidate(
         series: String::new(),
         genres: normalize_subjects(subjects),
         cover_id,
+        cover_path: String::new(),
+        description: String::new(),
     })
 }
 
-pub fn parse_fantlab_response(json: &str) -> Result<Vec<MetadataCandidate>, MetadataError> {
-    let editions: Vec<FantLabEdition> = serde_json::from_str(json)?;
-    Ok(editions
+pub fn parse_inventaire_response(
+    json: &str,
+    language: MetadataLanguage,
+) -> Result<Vec<MetadataCandidate>, MetadataError> {
+    let response: InventaireSearchResponse = serde_json::from_str(json)?;
+    Ok(response
+        .results
         .into_iter()
-        .filter(|edition| edition.edition_id > 0 && !edition.name.trim().is_empty())
+        .filter(|entity| valid_inventaire_uri(&entity.uri) && !entity.label.trim().is_empty())
         .take(MAX_RESULTS_PER_PROVIDER)
-        .map(|edition| MetadataCandidate {
-            provider: "ФантЛаб".to_owned(),
-            provider_id: format!("edition:{}", edition.edition_id),
-            title: bounded_provider_text(&edition.name, 512),
-            author: bounded_provider_text(&edition.autors, 512),
-            isbn: bounded_provider_text(&edition.isbn, 64),
-            publisher: bounded_provider_text(&edition.publisher, 512),
-            published_year: edition
-                .year
-                .map(|year| year.to_string())
-                .unwrap_or_default(),
-            language: "rus".to_owned(),
-            series: bounded_provider_text(&edition.series, 512),
+        .map(|entity| MetadataCandidate {
+            provider: "Inventaire".to_owned(),
+            provider_id: entity.uri,
+            title: bounded_provider_text(&entity.label, 512),
+            author: String::new(),
+            isbn: String::new(),
+            publisher: String::new(),
+            published_year: String::new(),
+            language: language.open_library_code().to_owned(),
+            series: String::new(),
             genres: String::new(),
             cover_id: None,
+            cover_path: entity.image.trim().chars().take(128).collect(),
+            description: bounded_provider_text(&entity.description, 16_384),
         })
         .collect())
 }
 
 fn merge_candidates(
     open_library: Vec<MetadataCandidate>,
-    fantlab: Vec<MetadataCandidate>,
+    secondary: Vec<MetadataCandidate>,
 ) -> Vec<MetadataCandidate> {
     let mut combined = Vec::new();
     let mut keys = HashSet::new();
-    for candidate in fantlab.into_iter().chain(open_library) {
+    for candidate in secondary.into_iter().chain(open_library) {
         let candidate_keys = candidate_identity_keys(&candidate);
         if candidate_keys.iter().any(|key| keys.contains(key)) {
             continue;
@@ -344,6 +373,24 @@ fn merge_candidates(
         }
     }
     combined
+}
+
+pub fn valid_inventaire_uri(value: &str) -> bool {
+    value
+        .strip_prefix("wd:Q")
+        .is_some_and(|id| !id.is_empty() && id.bytes().all(|byte| byte.is_ascii_digit()))
+        || value
+            .strip_prefix("inv:")
+            .is_some_and(|id| id.len() == 32 && id.bytes().all(|byte| byte.is_ascii_hexdigit()))
+}
+
+pub fn valid_inventaire_cover_path(value: &str) -> bool {
+    value.strip_prefix("/img/entities/").is_some_and(|digest| {
+        digest.len() == 40
+            && digest
+                .bytes()
+                .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
+    })
 }
 
 fn candidate_identity_keys(candidate: &MetadataCandidate) -> Vec<String> {
@@ -464,23 +511,28 @@ mod tests {
     }
 
     #[test]
-    fn parses_bounded_fantlab_editions() {
-        let candidates = parse_fantlab_response(
-            r#"[{"edition_id":349508,"name":"Мастер и Маргарита","autors":"Михаил Булгаков","isbn":"978-5-9603-717-8","publisher":"СЗКЭО","series":"Библиотека мировой литературы","year":2022}]"#,
+    fn parses_bounded_inventaire_results() {
+        let candidates = parse_inventaire_response(
+            r#"{"results":[{"uri":"wd:Q74287","label":"Хоббит, или Туда и обратно","description":"повесть Джона Р. Р. Толкина (1937)","image":"/img/entities/9842e78c21762ef84b852c4771c5afdd3f9b0578"}]}"#,
+            MetadataLanguage::Russian,
         )
         .expect("metadata");
-        assert_eq!(candidates[0].provider, "ФантЛаб");
-        assert_eq!(candidates[0].provider_id, "edition:349508");
-        assert_eq!(candidates[0].series, "Библиотека мировой литературы");
+        assert_eq!(candidates[0].provider, "Inventaire");
+        assert_eq!(candidates[0].provider_id, "wd:Q74287");
+        assert_eq!(
+            candidates[0].description,
+            "повесть Джона Р. Р. Толкина (1937)"
+        );
         assert_eq!(candidates[0].language, "rus");
         assert_eq!(candidates[0].cover_id, None);
+        assert!(valid_inventaire_cover_path(&candidates[0].cover_path));
     }
 
     #[test]
     fn merges_duplicate_provider_results_by_isbn() {
-        let fantlab = MetadataCandidate {
-            provider: "ФантЛаб".to_owned(),
-            provider_id: "edition:1".to_owned(),
+        let inventaire = MetadataCandidate {
+            provider: "Inventaire".to_owned(),
+            provider_id: "wd:Q1".to_owned(),
             title: "Книга".to_owned(),
             author: "Автор".to_owned(),
             isbn: "978-5-000-00000-1".to_owned(),
@@ -490,14 +542,16 @@ mod tests {
             series: String::new(),
             genres: String::new(),
             cover_id: None,
+            cover_path: String::new(),
+            description: String::new(),
         };
-        let mut open_library = fantlab.clone();
+        let mut open_library = inventaire.clone();
         open_library.provider = "Open Library".to_owned();
         open_library.provider_id = "/books/OL1M".to_owned();
         open_library.isbn = "9785000000001".to_owned();
-        let merged = merge_candidates(vec![open_library], vec![fantlab]);
+        let merged = merge_candidates(vec![open_library], vec![inventaire]);
         assert_eq!(merged.len(), 1);
-        assert_eq!(merged[0].provider, "ФантЛаб");
+        assert_eq!(merged[0].provider, "Inventaire");
     }
 
     #[test]
