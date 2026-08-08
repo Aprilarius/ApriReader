@@ -1,7 +1,7 @@
-# ApriReader 1.3.0 RC2
+# ApriReader 1.3.0
 
-This release candidate consolidates audiobook stages A0-A13 and the final
-player, light-theme, and narration-queue fixes into one reviewable build.
+This stable release consolidates audiobook stages A0-A13 and the final player,
+light-theme, and narration-queue fixes.
 
 ApriReader 1.3 adds a complete audiobook and read-aloud experience while
 keeping the existing Windows book library, readers, annotations, statistics,
@@ -44,6 +44,7 @@ ApriReader does not modify source books or audio files. Generated speech,
 covers, indexes, progress, bookmarks, and caches stay in application-managed
 local storage.
 
-The Windows installer is currently unsigned and may show an unknown-publisher
-warning. Treat RC2 as a pre-release validation build, obtain it only from the
-official candidate package, and verify its included SHA-256 checksum.
+The direct Windows installer is currently unsigned and may show an
+unknown-publisher warning. Steam distribution uses the separate unpacked Depot
+package. Obtain direct downloads only from the official release and verify the
+published SHA-256 checksum.

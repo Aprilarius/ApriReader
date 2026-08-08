@@ -11,10 +11,10 @@ actions.
 
 ## Download
 
-The newest test build is
-[ApriReader 1.3.0 RC2](https://github.com/Aprilarius/ApriReader/releases/tag/v1.3.0-rc.2).
-It is a pre-release candidate; stable builds and the complete history remain on
-the [GitHub Releases](https://github.com/Aprilarius/ApriReader/releases) page.
+The current stable build is
+[ApriReader 1.3.0](https://github.com/Aprilarius/ApriReader/releases/tag/v1.3.0).
+The complete release history remains on the
+[GitHub Releases](https://github.com/Aprilarius/ApriReader/releases) page.
 
 The Windows installer is not yet code-signed. Windows may therefore identify it
 as coming from an unknown publisher. Download it only from the official

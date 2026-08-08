@@ -1,4 +1,4 @@
-# ApriReader 1.3.0 RC2 checklist
+# ApriReader 1.3.0 final checklist
 
 Date: 2026-08-08
 
@@ -30,11 +30,11 @@ Date: 2026-08-08
       unmaintained crates. The GTK/glib advisories are absent from the Windows
       dependency graph.
 - [x] Current CycloneDX SBOM and third-party license bundle.
-- [ ] Clean-tree RC build with source manifest and unchanged-source guard.
+- [ ] Clean-tree final build with source manifest and unchanged-source guard.
 
 ## Candidate verification
 
-- [ ] EXE reports version `1.3.0-rc.2`.
+- [ ] EXE reports version `1.3.0`.
 - [ ] Application opens a working ApriReader window.
 - [ ] Installer SHA-256 and size are recorded in candidate evidence.
 - [ ] Candidate record points to the exact clean Git commit.
@@ -46,17 +46,17 @@ Date: 2026-08-08
 - [x] Light-theme action contrast correction accepted.
 - [x] Local Windows TTS continues beyond the short section title.
 - [x] Product owner reported the implemented A0-A13 build working without known
-      bugs before consolidation into RC2.
+      bugs before promotion to 1.3.0.
 
-## External gates before final 1.3.0
+## Final external verification
 
-- Install/upgrade RC2 over the stable 1.2.0 build on a disposable Windows test
+- Install/upgrade 1.3.0 over the stable 1.2.0 build on a disposable Windows test
   profile and confirm the library, progress, credentials, and associations are
   retained.
 - Complete the applicable Windows 10/11 manual matrix in
   `docs/testing/MANUAL_TESTS.md`, including scaling, forced colors, system-codec
   formats, tray behavior, and malformed input.
-- Record the product-owner RC decision. Promote to `1.3.0` only after the RC is
-  accepted; do not reuse the RC installer as the final release artifact.
+- Record the product-owner final decision and do not reuse an RC installer as
+  the final release artifact.
 - A future signed build still requires an external Authenticode certificate and
   trusted timestamp.

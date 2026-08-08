@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+## 1.3.0 - 2026-08-08
+
+- Promoted the accepted 1.3 RC2 codebase to the stable 1.3.0 release.
+- Added the complete audiobook library and player, local and optional BYOK
+  read-aloud providers, narration export, audiobook statistics, achievements,
+  metadata editing, and Explorer audio associations.
+- Included the final responsive player, light-theme contrast, narration
+  continuation, security, recovery, accessibility, and release-audit fixes.
+- Added a dedicated unpacked Windows x64 Steam Depot package while keeping
+  Steam achievements local until a protected App ID build is configured.
+
 ## 1.3.0-rc.2 - 2026-08-08
 
 - Updated `pdfjs-dist` to 6.2.108, the first release outside the reviewed
