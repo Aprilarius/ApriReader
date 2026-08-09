@@ -65,6 +65,15 @@ Aprilarius/ApriReader release page and verify the published SHA-256 value.
   action; provider hosts and Inventaire image paths are fixed and validated.
 - The GitHub build contains no Steamworks SDK, App ID, bridge, or credentials.
 
+## Code signing policy
+
+ApriReader is applying for free code signing provided by SignPath.io, with a
+certificate issued to the SignPath Foundation. Release signing will be limited
+to verified GitHub-hosted builds and will require manual approval. Until the
+application is accepted and a release is verified as signed and timestamped,
+the public installer remains explicitly labelled as unsigned. See the
+[complete code signing policy](docs/release/CODE_SIGNING_POLICY.md).
+
 ## Development
 
 Prerequisites:
