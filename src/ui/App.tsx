@@ -2629,6 +2629,7 @@ function EmptyState({
 function summaryMessage(template: string, summary: ImportSummary) {
   return template
     .replace("{imported}", String(summary.imported))
+    .replace("{updated}", String(summary.updated))
     .replace("{duplicates}", String(summary.duplicates))
     .replace("{failed}", String(summary.failed));
 }

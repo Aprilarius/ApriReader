@@ -1,5 +1,25 @@
 # Manual tests — Stage 9 candidate
 
+## Library import and text fidelity
+
+1. Import a mixed EPUB/FB2 folder containing Cyrillic titles, several authors,
+   wrapped Base64 covers, body illustrations, and books without covers. Confirm
+   titles and authors come from the books, declared covers appear, and a body
+   illustration is never substituted for a missing cover.
+2. Rescan the same folder. Confirm the summary reports unchanged books as
+   already present. Remove one app-managed embedded cover and rescan again;
+   confirm it is rebuilt and the book is reported as updated.
+3. Edit a title, author, genres, and cover in ApriReader, then rescan. Confirm
+   every manual value remains unchanged. Remove the app-managed replacement
+   cover file and rescan; confirm the card safely returns to the embedded cover.
+4. Open an FB2 paragraph containing inline emphasis and `&amp;`, plus HTML,
+   EPUB, and DOCX samples containing decimal and hexadecimal character
+   references. Confirm punctuation is readable and one source paragraph stays
+   one reader paragraph.
+5. Import an EPUB whose manifest references `chapter%20one.xhtml` and a cover
+   path with an encoded space or fragment. Confirm both the chapter and cover
+   open without weakening archive traversal checks.
+
 ## External selected-text translation
 
 1. Open a reflow book, select a short English phrase, choose Translate, then

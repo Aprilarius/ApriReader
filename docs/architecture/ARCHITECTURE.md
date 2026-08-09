@@ -219,6 +219,15 @@ Size limits are enforced again while streaming from the opened handle, so a
 file that changes after its initial metadata check cannot force an unbounded
 allocation. Watched-folder discovery also has a global file-count ceiling.
 
+EPUB container and package metadata use the XML parser rather than substring
+matching. Safe percent-decoding occurs before archive traversal validation.
+FB2 metadata uses the same local-name and character-reference rules for normal
+and large files; large cover discovery streams past book text without loading
+the whole source into memory. Cover bytes must carry a recognized image
+signature regardless of their declared MIME type. Duplicate, updated, and new
+records are explicit import outcomes, and rescans preserve manual provenance
+while repairing embedded fields or a missing app-managed cover fallback.
+
 SQLite backups use `VACUUM INTO` after a WAL checkpoint and retain the ten most
 recent app-generated copies.
 
@@ -228,6 +237,11 @@ TXT, Markdown, HTML, EPUB, and FB2 are converted to a serialized
 order becomes the section order. FB2 honors the XML encoding declaration.
 React never receives book-authored HTML, URLs, styles, or scripts and renders
 all block text through normal escaped JSX nodes.
+
+FB2 and DOCX adapters accumulate text until the semantic paragraph boundary,
+so inline markup and XML references cannot split or silently remove visible
+content. The HTML adapter decodes recognized named and numeric entities once;
+unknown entities remain visible rather than being discarded or decoded twice.
 
 The reader enforces per-entry and total text limits and rejects archive
 traversal. SQLite stores overall progress, last section, and section progress.

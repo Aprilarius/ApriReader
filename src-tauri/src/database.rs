@@ -490,9 +490,28 @@ struct AudioGroupImportResult {
 #[serde(rename_all = "camelCase")]
 pub struct ImportSummary {
     pub imported: usize,
+    pub updated: usize,
     pub duplicates: usize,
     pub failed: usize,
     pub errors: Vec<String>,
+}
+
+enum BookImportOutcome {
+    Imported(i64),
+    Updated(i64),
+    Duplicate(i64),
+}
+
+impl BookImportOutcome {
+    fn book_id(&self) -> i64 {
+        match self {
+            Self::Imported(id) | Self::Updated(id) | Self::Duplicate(id) => *id,
+        }
+    }
+
+    fn changed(&self) -> bool {
+        !matches!(self, Self::Duplicate(_))
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -2449,10 +2468,20 @@ impl Database {
 
     pub fn import_paths(&mut self, paths: &[PathBuf]) -> Result<ImportSummary, DatabaseError> {
         let mut summary = ImportSummary::default();
+        let mut changed = false;
         for path in paths {
             match self.import_one(path) {
-                Ok((_, true)) => summary.imported += 1,
-                Ok((_, false)) => summary.duplicates += 1,
+                Ok(BookImportOutcome::Imported(_)) => {
+                    summary.imported += 1;
+                    changed = true;
+                }
+                Ok(BookImportOutcome::Updated(_)) => {
+                    summary.updated += 1;
+                    changed = true;
+                }
+                Ok(BookImportOutcome::Duplicate(_)) => {
+                    summary.duplicates += 1;
+                }
                 Err(error) => {
                     summary.failed += 1;
                     summary
@@ -2461,53 +2490,140 @@ impl Database {
                 }
             }
         }
-        if summary.imported > 0 {
+        if changed {
             self.create_backup()?;
         }
         Ok(summary)
     }
 
     pub fn import_book_for_open(&mut self, path: &Path) -> Result<BookRecord, DatabaseError> {
-        let (book_id, imported) = self.import_one(path)?;
-        if imported {
+        let outcome = self.import_one(path)?;
+        let book_id = outcome.book_id();
+        if outcome.changed() {
             self.create_backup()?;
         }
         self.book_by_id(book_id)
     }
 
-    fn import_one(&mut self, path: &Path) -> Result<(i64, bool), DatabaseError> {
+    fn import_one(&mut self, path: &Path) -> Result<BookImportOutcome, DatabaseError> {
         let book = inspect_book(path, &self.cover_dir)?;
         let duplicate = self
             .connection
             .query_row(
-                "SELECT id, source_path FROM books WHERE fingerprint = ?1",
+                "SELECT id, source_path, title, author, genres, cover_path,
+                        embedded_cover_path, metadata_source, cover_source,
+                        file_size, format
+                 FROM books WHERE fingerprint = ?1",
                 [&book.fingerprint],
-                |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?)),
+                |row| {
+                    Ok((
+                        row.get::<_, i64>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, String>(2)?,
+                        row.get::<_, String>(3)?,
+                        row.get::<_, String>(4)?,
+                        row.get::<_, Option<String>>(5)?,
+                        row.get::<_, Option<String>>(6)?,
+                        row.get::<_, String>(7)?,
+                        row.get::<_, String>(8)?,
+                        row.get::<_, i64>(9)?,
+                        row.get::<_, String>(10)?,
+                    ))
+                },
             )
             .optional()?;
-        if let Some((book_id, existing_source)) = duplicate {
-            if !Path::new(&existing_source).is_file() && existing_source != book.source_path {
+        if let Some((
+            book_id,
+            existing_source,
+            existing_title,
+            existing_author,
+            existing_genres,
+            existing_cover,
+            existing_embedded_cover,
+            metadata_source,
+            cover_source,
+            existing_file_size,
+            existing_format,
+        )) = duplicate
+        {
+            let relocated =
+                !Path::new(&existing_source).is_file() && existing_source != book.source_path;
+            let next_title = if metadata_source == "embedded" {
+                book.title.as_str()
+            } else {
+                existing_title.as_str()
+            };
+            let next_author = if metadata_source == "embedded" {
+                book.author.as_str()
+            } else {
+                existing_author.as_str()
+            };
+            let next_genres = if metadata_source == "embedded" {
+                book.genres.as_str()
+            } else {
+                existing_genres.as_str()
+            };
+            let active_cover_missing = existing_cover
+                .as_deref()
+                .is_some_and(|path| !Path::new(path).is_file());
+            let next_cover = if cover_source == "embedded" || active_cover_missing {
+                book.cover_path.as_ref()
+            } else {
+                existing_cover.as_ref()
+            };
+            let changed = relocated
+                || existing_title != next_title
+                || existing_author != next_author
+                || existing_genres != next_genres
+                || existing_embedded_cover.as_ref() != book.cover_path.as_ref()
+                || existing_cover.as_ref() != next_cover
+                || active_cover_missing
+                || existing_file_size != book.file_size
+                || existing_format != book.format;
+            if changed {
                 self.connection.execute(
                     "UPDATE books SET
-                        source_path = ?1, file_size = ?2, format = ?3,
-                        embedded_cover_path = ?4,
-                        cover_path = CASE WHEN cover_source != 'embedded'
-                                          THEN cover_path ELSE ?4 END,
+                        source_path = CASE WHEN ?1 THEN ?2 ELSE source_path END,
+                        title = CASE WHEN metadata_source = 'embedded' THEN ?3 ELSE title END,
+                        author = CASE WHEN metadata_source = 'embedded' THEN ?4 ELSE author END,
+                        genres = CASE WHEN metadata_source = 'embedded' THEN ?5 ELSE genres END,
+                        file_size = ?6, format = ?7,
+                        embedded_cover_path = ?8,
+                        cover_path = CASE WHEN cover_source = 'embedded'
+                                          OR ?9 THEN ?8 ELSE cover_path END,
+                        cover_source = CASE WHEN ?9 THEN 'embedded'
+                                            ELSE cover_source END,
                         last_seen_at = CURRENT_TIMESTAMP, is_available = 1
-                     WHERE id = ?5",
+                     WHERE id = ?10",
                     params![
+                        relocated,
                         book.source_path,
+                        book.title,
+                        book.author,
+                        book.genres,
                         book.file_size,
                         book.format,
                         book.cover_path,
+                        active_cover_missing,
                         book_id,
                     ],
                 )?;
-                return Ok((book_id, true));
             }
-            return Ok((book_id, false));
+            return Ok(if changed {
+                BookImportOutcome::Updated(book_id)
+            } else {
+                BookImportOutcome::Duplicate(book_id)
+            });
         }
         let source_path = book.source_path.clone();
+        let existing_path_id = self
+            .connection
+            .query_row(
+                "SELECT id FROM books WHERE source_path = ?1",
+                [&source_path],
+                |row| row.get::<_, i64>(0),
+            )
+            .optional()?;
         self.connection.execute(
             "INSERT INTO books (
                 source_path, fingerprint, title, author, format, file_size,
@@ -2544,7 +2660,11 @@ impl Database {
             [source_path],
             |row| row.get::<_, i64>(0),
         )?;
-        Ok((book_id, true))
+        Ok(if existing_path_id.is_some() {
+            BookImportOutcome::Updated(book_id)
+        } else {
+            BookImportOutcome::Imported(book_id)
+        })
     }
 
     pub fn add_watched_folder(&mut self, path: &Path) -> Result<ImportSummary, DatabaseError> {
@@ -2596,6 +2716,7 @@ impl Database {
             }
             let result = self.scan_folder(&folder)?;
             total.imported += result.imported;
+            total.updated += result.updated;
             total.duplicates += result.duplicates;
             total.failed += result.failed;
             total.errors.extend(result.errors);
@@ -3524,7 +3645,7 @@ mod tests {
             .import_paths(std::slice::from_ref(&source))
             .expect("updated import");
         assert_eq!(first.imported, 1);
-        assert_eq!(second.imported, 1);
+        assert_eq!(second.updated, 1);
         assert_eq!(database.list_books().expect("books").len(), 1);
         assert_eq!(
             fs::read_to_string(&source).expect("updated source"),
@@ -3572,6 +3693,80 @@ mod tests {
             fs::read_to_string(source).expect("source remains unchanged"),
             "second revision"
         );
+    }
+
+    #[test]
+    fn unchanged_fb2_rescan_repairs_embedded_metadata_and_cover() {
+        use base64::{engine::general_purpose::STANDARD, Engine as _};
+
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let source = directory.path().join("repair.fb2");
+        let encoded = STANDARD.encode(TEST_PNG);
+        let wrapped = encoded
+            .as_bytes()
+            .chunks(4)
+            .map(|chunk| String::from_utf8_lossy(chunk))
+            .collect::<Vec<_>>()
+            .join("\r\n");
+        fs::write(
+            &source,
+            format!(
+                r##"<?xml version="1.0" encoding="utf-8"?>
+                <FictionBook xmlns:l="http://www.w3.org/1999/xlink">
+                  <description><title-info>
+                    <author><first-name>Embedded</first-name><last-name>Author</last-name></author>
+                    <book-title>Embedded title</book-title>
+                    <coverpage><image l:href="#cover.png"/></coverpage>
+                  </title-info></description>
+                  <body><section><p>Text.</p></section></body>
+                  <binary id="cover.png" content-type="image/png">{wrapped}</binary>
+                </FictionBook>"##
+            ),
+        )
+        .expect("fixture");
+        let mut database = test_database(directory.path());
+        database
+            .import_paths(std::slice::from_ref(&source))
+            .expect("first import");
+        let book_id = database.list_books().expect("books")[0].id;
+        database
+            .connection
+            .execute(
+                "UPDATE books SET title = 'Stale title', author = 'Stale author',
+                                  cover_path = NULL, embedded_cover_path = NULL
+                 WHERE id = ?1",
+                [book_id],
+            )
+            .expect("simulate legacy import");
+
+        let summary = database
+            .import_paths(std::slice::from_ref(&source))
+            .expect("repair rescan");
+        assert_eq!(summary.imported, 0);
+        assert_eq!(summary.updated, 1);
+        assert_eq!(summary.duplicates, 0);
+        let repaired = database.list_books().expect("books").remove(0);
+        assert_eq!(repaired.title, "Embedded title");
+        assert_eq!(repaired.author, "Embedded Author");
+        assert!(repaired.cover_path.is_some());
+
+        let local_cover = directory.path().join("replacement.png");
+        fs::write(&local_cover, TEST_PNG).expect("local cover fixture");
+        let local = database
+            .set_local_cover(book_id, &local_cover)
+            .expect("local cover");
+        let missing_local_path = PathBuf::from(local.cover_path.expect("local cache path"));
+        fs::remove_file(&missing_local_path).expect("simulate missing local cache");
+
+        let fallback_summary = database
+            .import_paths(std::slice::from_ref(&source))
+            .expect("restore embedded fallback");
+        assert_eq!(fallback_summary.updated, 1);
+        let fallback = database.list_books().expect("books").remove(0);
+        assert_eq!(fallback.cover_source, "embedded");
+        assert!(fallback
+            .cover_path
+            .is_some_and(|path| Path::new(&path).is_file()));
     }
 
     #[test]

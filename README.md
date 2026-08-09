@@ -12,7 +12,7 @@ actions.
 ## Download
 
 The current stable build is
-[ApriReader 1.3.0](https://github.com/Aprilarius/ApriReader/releases/tag/v1.3.0).
+[ApriReader 1.3.1](https://github.com/Aprilarius/ApriReader/releases/tag/v1.3.1).
 The complete release history remains on the
 [GitHub Releases](https://github.com/Aprilarius/ApriReader/releases) page.
 

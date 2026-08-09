@@ -1,4 +1,8 @@
-use quick_xml::{events::Event, Reader};
+use quick_xml::{
+    escape::unescape,
+    events::{BytesRef, Event},
+    Reader,
+};
 use serde::Serialize;
 use std::{
     collections::HashMap,
@@ -159,6 +163,9 @@ fn read_docx(path: &Path) -> Result<Vec<DocumentSection>, ReaderError> {
             },
             Ok(Event::Text(text)) if in_text => {
                 paragraph.push_str(&text.decode().unwrap_or_default());
+            }
+            Ok(Event::GeneralRef(reference)) if in_text => {
+                paragraph.push_str(&decode_xml_reference(&reference));
             }
             Ok(Event::End(event)) => match local_name(event.name().as_ref()).as_str() {
                 "t" => in_text = false,
@@ -340,7 +347,9 @@ fn read_epub(path: &Path) -> Result<Vec<DocumentSection>, ReaderError> {
         "META-INF/container.xml",
         MAX_ARCHIVE_ENTRY_SIZE,
     )?;
-    let opf_path = xml_attribute(&container, "rootfile", "full-path").ok_or(ReaderError::Empty)?;
+    let opf_path = xml_attribute(&container, "rootfile", "full-path")
+        .and_then(|path| normalize_epub_href(&path))
+        .ok_or(ReaderError::Empty)?;
     if !safe_archive_path(Path::new(&opf_path)) {
         return Err(ReaderError::Empty);
     }
@@ -354,7 +363,9 @@ fn read_epub(path: &Path) -> Result<Vec<DocumentSection>, ReaderError> {
         let Some(href) = manifest.get(&idref) else {
             continue;
         };
-        let href = href.split('#').next().unwrap_or_default();
+        let Some(href) = normalize_epub_href(href) else {
+            continue;
+        };
         let entry_path = base.join(href);
         if !safe_archive_path(&entry_path) {
             continue;
@@ -377,7 +388,7 @@ fn read_epub(path: &Path) -> Result<Vec<DocumentSection>, ReaderError> {
 fn read_fb2(path: &Path) -> Result<Vec<DocumentSection>, ReaderError> {
     let bytes = read_text_bytes(path)?;
     let mut reader = Reader::from_reader(bytes.as_slice());
-    reader.config_mut().trim_text(true);
+    reader.config_mut().trim_text(false);
     let mut sections = Vec::new();
     let mut current = DocumentSection {
         id: "section-1".to_owned(),
@@ -386,6 +397,7 @@ fn read_fb2(path: &Path) -> Result<Vec<DocumentSection>, ReaderError> {
     };
     let mut stack = Vec::<String>::new();
     let mut title_parts = Vec::new();
+    let mut text_buffer = None::<String>;
     loop {
         match reader.read_event()? {
             Event::Start(event) => {
@@ -398,35 +410,47 @@ fn read_fb2(path: &Path) -> Result<Vec<DocumentSection>, ReaderError> {
                         blocks: Vec::new(),
                     };
                 }
+                if name == "p" || name == "subtitle" {
+                    text_buffer = Some(String::new());
+                }
                 stack.push(name);
             }
             Event::Text(text) => {
-                let value = normalize_space(&text.decode().unwrap_or_default());
-                if value.is_empty() {
-                    continue;
+                if let Some(buffer) = text_buffer.as_mut() {
+                    buffer.push_str(&text.decode().unwrap_or_default());
                 }
-                let current_name = stack.last().map(String::as_str).unwrap_or_default();
-                let inside_title = stack.iter().any(|name| name == "title");
-                if inside_title && current_name == "p" {
-                    title_parts.push(value);
-                } else if current_name == "subtitle" {
-                    current.blocks.push(DocumentBlock {
-                        kind: BlockKind::Heading,
-                        text: value,
-                    });
-                } else if current_name == "p" {
-                    current.blocks.push(DocumentBlock {
-                        kind: if stack.iter().any(|name| name == "cite") {
-                            BlockKind::Quote
-                        } else {
-                            BlockKind::Paragraph
-                        },
-                        text: value,
-                    });
+            }
+            Event::GeneralRef(reference) => {
+                if let Some(buffer) = text_buffer.as_mut() {
+                    buffer.push_str(&decode_xml_reference(&reference));
+                }
+            }
+            Event::CData(text) => {
+                if let Some(buffer) = text_buffer.as_mut() {
+                    buffer.push_str(&text.decode().unwrap_or_default());
                 }
             }
             Event::End(event) => {
                 let name = local_name(event.name().as_ref());
+                if name == "p" || name == "subtitle" {
+                    let value = normalize_space(text_buffer.take().as_deref().unwrap_or_default());
+                    if !value.is_empty() {
+                        if name == "p" && stack.iter().any(|item| item == "title") {
+                            title_parts.push(value);
+                        } else {
+                            current.blocks.push(DocumentBlock {
+                                kind: if name == "subtitle" {
+                                    BlockKind::Heading
+                                } else if stack.iter().any(|item| item == "cite") {
+                                    BlockKind::Quote
+                                } else {
+                                    BlockKind::Paragraph
+                                },
+                                text: value,
+                            });
+                        }
+                    }
+                }
                 if name == "title" && !title_parts.is_empty() {
                     current.title = title_parts.join(" ");
                     title_parts.clear();
@@ -569,18 +593,66 @@ fn xml_attribute(xml: &[u8], element: &str, attribute: &str) -> Option<String> {
     }
 }
 
+fn normalize_epub_href(value: &str) -> Option<String> {
+    let value = value.split(['#', '?']).next()?.trim();
+    if value.is_empty() || value.contains("://") {
+        return None;
+    }
+    let bytes = value.as_bytes();
+    let mut decoded = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] == b'%' {
+            let high = epub_hex_value(*bytes.get(index + 1)?)?;
+            let low = epub_hex_value(*bytes.get(index + 2)?)?;
+            decoded.push(high.checked_mul(16)?.checked_add(low)?);
+            index += 3;
+        } else {
+            decoded.push(bytes[index]);
+            index += 1;
+        }
+    }
+    let decoded = String::from_utf8(decoded).ok()?;
+    (!decoded.contains('\0')).then_some(decoded)
+}
+
+fn epub_hex_value(value: u8) -> Option<u8> {
+    match value {
+        b'0'..=b'9' => Some(value - b'0'),
+        b'a'..=b'f' => Some(value - b'a' + 10),
+        b'A'..=b'F' => Some(value - b'A' + 10),
+        _ => None,
+    }
+}
+
 fn xml_attributes(event: &quick_xml::events::BytesStart<'_>) -> HashMap<String, String> {
     event
         .attributes()
         .with_checks(false)
         .filter_map(Result::ok)
         .map(|attribute| {
-            (
-                local_name(attribute.key.as_ref()),
-                String::from_utf8_lossy(attribute.value.as_ref()).into_owned(),
-            )
+            let raw = String::from_utf8_lossy(attribute.value.as_ref());
+            let value = unescape(&raw)
+                .map(|value| value.into_owned())
+                .unwrap_or_else(|_| raw.into_owned());
+            (local_name(attribute.key.as_ref()), value)
         })
         .collect()
+}
+
+fn decode_xml_reference(reference: &BytesRef<'_>) -> String {
+    if let Ok(Some(character)) = reference.resolve_char_ref() {
+        return character.to_string();
+    }
+    let name = reference.decode().unwrap_or_default();
+    match name.as_ref() {
+        "amp" => "&".to_owned(),
+        "apos" => "'".to_owned(),
+        "gt" => ">".to_owned(),
+        "lt" => "<".to_owned(),
+        "quot" => "\"".to_owned(),
+        _ => format!("&{name};"),
+    }
 }
 
 fn read_zip_entry<R: Read + std::io::Seek>(
@@ -650,13 +722,50 @@ fn normalize_space(value: &str) -> String {
 }
 
 fn decode_entities(value: &str) -> String {
-    value
-        .replace("&nbsp;", " ")
-        .replace("&amp;", "&")
-        .replace("&lt;", "<")
-        .replace("&gt;", ">")
-        .replace("&quot;", "\"")
-        .replace("&#39;", "'")
+    let mut output = String::with_capacity(value.len());
+    let mut rest = value;
+    while let Some(start) = rest.find('&') {
+        output.push_str(&rest[..start]);
+        rest = &rest[start..];
+        let Some(end) = rest.find(';').filter(|end| *end <= 32) else {
+            output.push('&');
+            rest = &rest[1..];
+            continue;
+        };
+        let entity = &rest[1..end];
+        if let Some(decoded) = decode_html_entity(entity) {
+            output.push(decoded);
+            rest = &rest[end + 1..];
+        } else {
+            output.push_str(&rest[..=end]);
+            rest = &rest[end + 1..];
+        }
+    }
+    output.push_str(rest);
+    output
+}
+
+fn decode_html_entity(entity: &str) -> Option<char> {
+    match entity {
+        "amp" => Some('&'),
+        "apos" | "#39" => Some('\''),
+        "gt" => Some('>'),
+        "lt" => Some('<'),
+        "nbsp" => Some(' '),
+        "quot" => Some('"'),
+        "mdash" => Some('—'),
+        "ndash" => Some('–'),
+        "hellip" => Some('…'),
+        "laquo" => Some('«'),
+        "raquo" => Some('»'),
+        value if value.starts_with("#x") || value.starts_with("#X") => {
+            u32::from_str_radix(&value[2..], 16)
+                .ok()
+                .and_then(char::from_u32)
+        }
+        value if value.starts_with('#') => value[1..].parse::<u32>().ok().and_then(char::from_u32),
+        _ => None,
+    }
 }
 
 fn file_title(path: &Path) -> String {
@@ -704,7 +813,7 @@ mod tests {
         let path = directory.path().join("book.html");
         fs::write(
             &path,
-            "<h1>Safe title</h1><script>steal()</script><p>Visible text</p><iframe src='https://example.com'>hidden</iframe>",
+            "<h1>Safe title</h1><script>steal()</script><p>Visible &#8212; text &hellip; &amp;lt;</p><iframe src='https://example.com'>hidden</iframe>",
         )
         .expect("fixture");
         let sections = read_document(&path).expect("document");
@@ -714,7 +823,7 @@ mod tests {
             .map(|block| block.text.as_str())
             .collect::<Vec<_>>()
             .join(" ");
-        assert!(text.contains("Visible text"));
+        assert!(text.contains("Visible — text … &lt;"));
         assert!(!text.contains("steal"));
         assert!(!text.contains("hidden"));
         assert_eq!(sections[0].title, "Safe title");
@@ -735,11 +844,13 @@ mod tests {
             .expect("container content");
         archive.start_file("OPS/book.opf", options).expect("opf");
         archive
-            .write_all(br#"<package><manifest><item id="two" href="two.xhtml"/><item id="one" href="one.xhtml"/></manifest><spine><itemref idref="one"/><itemref idref="two"/></spine></package>"#)
+            .write_all(br#"<package><manifest><item id="two" href="two.xhtml"/><item id="one" href="chapter%20one.xhtml#start"/></manifest><spine><itemref idref="one"/><itemref idref="two"/></spine></package>"#)
             .expect("opf content");
-        archive.start_file("OPS/one.xhtml", options).expect("one");
         archive
-            .write_all(b"<h1>One</h1><p>First</p>")
+            .start_file("OPS/chapter one.xhtml", options)
+            .expect("one");
+        archive
+            .write_all(b"<h1>One</h1><p>First &amp; foremost</p>")
             .expect("one content");
         archive.start_file("OPS/two.xhtml", options).expect("two");
         archive
@@ -750,6 +861,10 @@ mod tests {
         let sections = read_document(&path).expect("document");
         assert_eq!(sections.len(), 2);
         assert_eq!(sections[0].title, "One");
+        assert!(sections[0]
+            .blocks
+            .iter()
+            .any(|block| block.text == "First & foremost"));
         assert_eq!(sections[1].title, "Two");
     }
 
@@ -768,6 +883,23 @@ mod tests {
     }
 
     #[test]
+    fn fb2_keeps_inline_markup_and_entities_in_one_paragraph() {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let path = directory.path().join("inline.fb2");
+        fs::write(
+            &path,
+            r#"<FictionBook><body><section><title><p>Rock &amp; Roll</p></title>
+               <p>Before <strong>bold &amp; clear</strong> after.</p>
+               </section></body></FictionBook>"#,
+        )
+        .expect("fixture");
+        let sections = read_document(&path).expect("document");
+        assert_eq!(sections[0].title, "Rock & Roll");
+        assert_eq!(sections[0].blocks.len(), 1);
+        assert_eq!(sections[0].blocks[0].text, "Before bold & clear after.");
+    }
+
+    #[test]
     fn docx_becomes_safe_semantic_sections() {
         let directory = tempfile::tempdir().expect("temporary directory");
         let path = directory.path().join("book.docx");
@@ -781,7 +913,7 @@ mod tests {
             .write_all(
                 br#"<w:document xmlns:w="urn:test"><w:body>
                 <w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>Opening</w:t></w:r></w:p>
-                <w:p><w:r><w:t>Safe text</w:t></w:r><w:hyperlink r:id="external"><w:r><w:t> only</w:t></w:r></w:hyperlink></w:p>
+                <w:p><w:r><w:t>Safe &amp; sound</w:t></w:r><w:hyperlink r:id="external"><w:r><w:t> only</w:t></w:r></w:hyperlink></w:p>
                 <w:p><w:pPr><w:numPr/></w:pPr><w:r><w:t>List item</w:t></w:r></w:p>
                 </w:body></w:document>"#,
             )
@@ -789,7 +921,7 @@ mod tests {
         archive.finish().expect("archive");
         let sections = read_document(&path).expect("document");
         assert_eq!(sections[0].title, "Opening");
-        assert_eq!(sections[0].blocks[0].text, "Safe text only");
+        assert_eq!(sections[0].blocks[0].text, "Safe & sound only");
         assert!(matches!(sections[0].blocks[1].kind, BlockKind::ListItem));
     }
 

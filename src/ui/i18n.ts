@@ -350,7 +350,7 @@ export const translations = {
     unavailable: "Файл недоступен",
     loading: "Загрузка библиотеки…",
     importDone:
-      "Добавлено: {imported}. Дубликатов: {duplicates}. Ошибок: {failed}.",
+      "Добавлено: {imported}. Обновлено: {updated}. Уже в библиотеке: {duplicates}. Ошибок: {failed}.",
     importError: "Не удалось обновить библиотеку",
     fileFormat: "Формат",
     fileSize: "Размер",
@@ -960,7 +960,7 @@ export const translations = {
     unavailable: "File unavailable",
     loading: "Loading library…",
     importDone:
-      "Added: {imported}. Duplicates: {duplicates}. Errors: {failed}.",
+      "Added: {imported}. Updated: {updated}. Already in library: {duplicates}. Errors: {failed}.",
     importError: "Could not update the library",
     fileFormat: "Format",
     fileSize: "Size",

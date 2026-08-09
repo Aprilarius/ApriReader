@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+## 1.3.1 - 2026-08-09
+
+- Fixed FB2 imports that fell back to filenames or missed embedded covers,
+  especially in larger books and files whose Base64 cover data wraps across
+  lines.
+- Rescanning a folder now repairs missing embedded metadata and cover cache
+  files while preserving every title, author, genre, and cover edited by the
+  user.
+- Fixed FB2 paragraphs with inline formatting or XML entities: text such as
+  `Rock & Roll` now remains one complete paragraph instead of losing symbols or
+  splitting into several blocks.
+- Improved EPUB compatibility with encoded spaces in chapter and cover paths,
+  properly parsed container metadata, and readable `&`, dash, ellipsis, and
+  numeric character references across EPUB, FB2, HTML, and DOCX.
+- Embedded covers are accepted only when their bytes match a supported image
+  signature. A missing app-managed replacement cover safely falls back to the
+  book's embedded cover on rescan.
+- Import results now distinguish newly added books, refreshed books, and files
+  that were already present, so the status message reflects what actually
+  happened.
+
 ## 1.3.0 - 2026-08-08
 
 - Promoted the accepted 1.3 RC2 codebase to the stable 1.3.0 release.

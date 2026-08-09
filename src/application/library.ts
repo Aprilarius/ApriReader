@@ -36,6 +36,7 @@ export type WatchedFolder = {
 
 export type ImportSummary = {
   imported: number;
+  updated: number;
   duplicates: number;
   failed: number;
   errors: string[];

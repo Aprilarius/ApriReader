@@ -22,6 +22,14 @@ when a file at the same path changes, shows when a source becomes unavailable,
 extracts embedded EPUB/FB2 metadata and covers, and keeps rolling local database
 backups. Import never modifies or relocates a source book.
 
+Embedded metadata parsing preserves XML character references and accepts safe
+percent-encoded EPUB archive paths. FB2 cover extraction follows only the
+declared coverpage reference, ignores body illustrations, tolerates wrapped or
+unpadded Base64, and remains bounded for large source files. A rescan may repair
+embedded metadata or an app-managed cover cache, but it must never overwrite
+manual or provider-applied metadata. Import feedback separately reports new,
+updated, unchanged, and failed files.
+
 Audiobook stage A1 stores audio titles separately from text books. A user can
 import one audio file, select several parts together, import an audiobook
 directory, or register a watched audio collection. Selected files sharing a
