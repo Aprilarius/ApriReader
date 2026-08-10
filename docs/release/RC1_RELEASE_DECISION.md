@@ -15,7 +15,7 @@ Source manifest SHA-256:
 **PASS for the product-owner installed smoke. HOLD for public 1.0 promotion
 until the remaining external release gates have evidence.**
 
-The product owner installed and tested the exact RC1 candidate and reported no
+The maintainer installed and tested the exact RC1 candidate and reported no
 bugs on 2026-07-30. No replacement build is required for a known application
 defect.
 
@@ -29,7 +29,7 @@ defect.
 - The repository gate passed 40 frontend tests, 48 Rust tests, formatting,
   lint, typecheck, production build, Clippy, security and license audit, and
   SBOM verification.
-- The product owner reported that the installed candidate has no observed
+- The maintainer reported that the installed candidate has no observed
   bugs.
 - The installer is an unsigned public-profile artifact and contains no
   protected Steamworks file.

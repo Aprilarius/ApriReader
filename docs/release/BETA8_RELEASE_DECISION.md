@@ -12,7 +12,7 @@ Installer SHA-256:
 **PASS for the scoped product-owner forced-colors smoke. HOLD for public
 promotion.**
 
-The product owner installed and tested beta.8 and reported that it works
+The maintainer installed and tested beta.8 and reported that it works
 correctly. This closes the scoped beta.8 forced-colors check without claiming
 completion of unreported Windows, protected Steamworks, signing, or participant
 matrix cells.
@@ -22,7 +22,7 @@ matrix cells.
 - The beta.8 installer hash matches its candidate record.
 - The complete repository gate passed with 40 frontend tests and 48 Rust tests.
 - Windows forced-colors handling covers the shell and every reader.
-- The product owner reported a successful installed-candidate test on
+- The maintainer reported a successful installed-candidate test on
   2026-07-30 with no defect identified.
 - The public candidate contains no protected Steamworks file.
 

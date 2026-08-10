@@ -10,7 +10,7 @@ binary. Steam distribution remains a separate future gate.
 
 ## Unsigned installer decision
 
-The product owner explicitly chose to publish the GitHub version before
+The maintainer chose to publish the GitHub version before
 obtaining a code-signing certificate. Version 1.0 therefore ships as an
 unsigned NSIS installer and must be described as such on the release page.
 

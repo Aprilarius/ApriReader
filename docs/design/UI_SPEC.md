@@ -1,6 +1,6 @@
 # ApriReader UI specification
 
-The approved visual language is warm, calm, elegant, restrained, and
+ApriReader's visual language is warm, calm, elegant, restrained, and
 desktop-first. Centralized tokens live in `src/ui/styles.css`.
 
 - Background: ivory `#F7F3EA`; surface: cream `#FCFAF5`.
@@ -28,7 +28,7 @@ desktop-first. Centralized tokens live in `src/ui/styles.css`.
 - Covers come from user files; missing covers use a programmatic 2:3 fallback.
   Do not download or generate demonstration cover art.
 
-Stage 1 retains the approved shell and adds a compact import toolbar, format
+Stage 1 retains the application shell and adds a compact import toolbar, format
 collection chips, a responsive cover grid, availability badges, a selected-book
 details panel, and a watched-folder list. Import and rescan feedback appears
 inline and remains keyboard accessible. No reading progress is invented before
@@ -49,7 +49,7 @@ notes add a restrained underline; saved quotes use a dashed underline. All
 annotation controls preserve 44 px targets and the paper/sepia/night palettes.
 
 Stage 4 gives fixed-layout formats a dark, distraction-free stage while
-preserving the approved charcoal and brass language. PDF has page, zoom, and
+preserving the charcoal and brass language. PDF has page, zoom, and
 keyboard controls around a centered canvas. Comics have single-page and
 two-page modes plus an explicit LTR/RTL direction control; page images never
 receive decorative cropping. DOCX deliberately reuses the reflow typography
@@ -196,7 +196,7 @@ build profile, queue, provider, and Overlay diagnostics remain implementation
 details rather than user controls. The public build continues to provide local
 achievements without Steamworks.
 
-Steam capsule artwork reuses the approved ivory, charcoal, brass, and walnut
+Steam capsule artwork reuses the ivory, charcoal, brass, and walnut
 palette. Base capsules contain only original artwork and the ApriReader name;
 the library hero contains no text.
 
@@ -219,7 +219,7 @@ document footer. On reader entry, keyboard focus starts on the labelled back
 control in that toolbar without scrolling the document.
 
 The same panel begins with a two-choice reading-layout control. Continuous text
-keeps the approved centered vertical column. Book spread uses two equal
+keeps the centered vertical column. Book spread uses two equal
 fixed-height pages with a restrained central rule and no decorative page
 frames. A complete spread advances per wheel gesture. Below 980 px the spread
 becomes one page while keeping paginated navigation.
@@ -228,7 +228,7 @@ A compact, non-interactive page counter stays centered at the bottom of the
 reading surface. It uses the muted text and paper colors, never covers controls,
 and changes between singular continuous-page and plural spread-range wording.
 
-Reading Now reuses the approved library cards and progress treatment rather
+Reading Now reuses the library cards and progress treatment rather
 than introducing a second visual system. A quiet summary card explains the
 view, and each available book has a visible Continue Reading action. Missing
 sources remain visible but cannot be opened. Empty state copy must explain that

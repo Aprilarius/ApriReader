@@ -1,5 +1,5 @@
 from pathlib import Path
-from PIL import Image, ImageDraw, ImageFont, ImageOps
+from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageOps
 
 ROOT = Path(__file__).resolve().parents[1]
 ASSETS = ROOT / "docs" / "steam" / "assets"
@@ -7,6 +7,8 @@ SOURCE = ASSETS / "source-key-art.png"
 IVORY = (247, 243, 234, 255)
 BRASS = (184, 138, 56, 255)
 CHARCOAL = (27, 29, 28, 255)
+WALNUT = (91, 59, 42, 255)
+SOURCE_SIZE = (3072, 2048)
 
 SIZES = {
     "store-header.png": (920, 430),
@@ -37,6 +39,119 @@ def crop(source: Image.Image, size: tuple[int, int]) -> Image.Image:
     return ImageOps.fit(
         source, size, method=Image.Resampling.LANCZOS, centering=centering
     )
+
+
+def make_source_key_art() -> Image.Image:
+    """Draw the original ApriReader key art from the project's own brand shapes."""
+    width, height = SOURCE_SIZE
+    image = Image.new("RGBA", SOURCE_SIZE, CHARCOAL)
+    draw = ImageDraw.Draw(image)
+
+    for y in range(height):
+        ratio = y / (height - 1)
+        red = round(27 + 35 * ratio)
+        green = round(29 + 18 * ratio)
+        blue = round(28 + 11 * ratio)
+        draw.line((0, y, width, y), fill=(red, green, blue, 255))
+
+    glow = Image.new("RGBA", SOURCE_SIZE)
+    glow_draw = ImageDraw.Draw(glow)
+    glow_draw.ellipse(
+        (width * 0.17, height * 0.01, width * 0.83, height * 1.18),
+        fill=(212, 173, 98, 78),
+    )
+    glow = glow.filter(ImageFilter.GaussianBlur(170))
+    image = Image.alpha_composite(image, glow)
+    draw = ImageDraw.Draw(image)
+
+    margin = 132
+    for index in range(7):
+        inset = margin + index * 42
+        alpha = max(20, 82 - index * 10)
+        draw.rounded_rectangle(
+            (inset, inset, width - inset, height - inset),
+            radius=96,
+            outline=(184, 138, 56, alpha),
+            width=3,
+        )
+
+    center_x = width // 2
+    center_y = height // 2 + 40
+    ring_radius = 690
+    draw.ellipse(
+        (
+            center_x - ring_radius,
+            center_y - ring_radius,
+            center_x + ring_radius,
+            center_y + ring_radius,
+        ),
+        outline=(212, 173, 98, 210),
+        width=18,
+    )
+
+    shadow = Image.new("RGBA", SOURCE_SIZE)
+    shadow_draw = ImageDraw.Draw(shadow)
+    shadow_draw.ellipse(
+        (center_x - 1000, center_y + 500, center_x + 1000, center_y + 790),
+        fill=(0, 0, 0, 150),
+    )
+    shadow = shadow.filter(ImageFilter.GaussianBlur(90))
+    image = Image.alpha_composite(image, shadow)
+    draw = ImageDraw.Draw(image)
+
+    left_page = [
+        (center_x, center_y - 430),
+        (center_x - 280, center_y - 570),
+        (center_x - 920, center_y - 500),
+        (center_x - 1030, center_y + 500),
+        (center_x - 440, center_y + 420),
+        (center_x, center_y + 650),
+    ]
+    right_page = [(width - x, y) for x, y in left_page]
+    draw.polygon(left_page, fill=(243, 239, 230, 245))
+    draw.polygon(right_page, fill=(247, 243, 234, 250))
+    draw.line(left_page + [left_page[0]], fill=(212, 173, 98, 255), width=14)
+    draw.line(right_page + [right_page[0]], fill=(212, 173, 98, 255), width=14)
+
+    for offset in range(0, 6):
+        y = center_y - 300 + offset * 120
+        fade = 112 - offset * 10
+        draw.line(
+            (center_x - 810, y, center_x - 175, y + 58),
+            fill=(91, 59, 42, fade),
+            width=8,
+        )
+        draw.line(
+            (center_x + 175, y + 58, center_x + 810, y),
+            fill=(91, 59, 42, fade),
+            width=8,
+        )
+
+    draw.line(
+        (center_x, center_y - 425, center_x, center_y + 650),
+        fill=BRASS,
+        width=34,
+    )
+    draw.ellipse(
+        (center_x - 27, center_y - 457, center_x + 27, center_y - 403),
+        fill=BRASS,
+    )
+    draw.ellipse(
+        (center_x - 27, center_y + 620, center_x + 27, center_y + 674),
+        fill=BRASS,
+    )
+
+    for x, y, radius in (
+        (430, 420, 8),
+        (2620, 370, 11),
+        (370, 1660, 12),
+        (2720, 1590, 8),
+        (2450, 720, 6),
+        (630, 790, 6),
+    ):
+        draw.ellipse((x - radius, y - radius, x + radius, y + radius), fill=BRASS)
+
+    return image
 
 
 def logo_layer(size: tuple[int, int], compact: bool = False) -> Image.Image:
@@ -125,8 +240,9 @@ def validate() -> None:
 
 def main() -> None:
     ASSETS.mkdir(parents=True, exist_ok=True)
-    with Image.open(SOURCE) as source:
-        make_capsules(source.convert("RGB"))
+    source = make_source_key_art()
+    source.convert("RGB").save(SOURCE, quality=96)
+    make_capsules(source.convert("RGB"))
     make_transparent_logo()
     validate()
 

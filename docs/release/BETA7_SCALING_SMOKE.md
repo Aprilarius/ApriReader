@@ -4,7 +4,7 @@ Date: 2026-07-29
 
 ## Scope
 
-An automation-assisted render smoke exercised the production frontend at these
+A scripted render smoke exercised the production frontend at these
 logical viewport sizes:
 
 - 768 x 432, representing a short high-scaling desktop layout.

@@ -9,7 +9,7 @@ Installer SHA-256:
 
 **HOLD for public promotion. Continue closed-beta validation.**
 
-The product owner reported that the installed application works correctly in
+The maintainer reported that the installed application works correctly in
 their manual test. This records a successful product-owner smoke pass for the
 exact beta.4 candidate, not completion of every required matrix cell.
 

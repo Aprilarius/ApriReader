@@ -28,7 +28,7 @@ PDF reader, and comic reader.
 
 ## Installed-candidate check
 
-The product owner should test the packaged beta.8 candidate under both Windows
+The maintainer should test the packaged beta.8 candidate under both Windows
 High Contrast Black and High Contrast White:
 
 1. Open every main destination and Settings.

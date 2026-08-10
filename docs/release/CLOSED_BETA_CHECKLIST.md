@@ -43,5 +43,5 @@ build evidence.
   or startup blocker.
 - No unresolved severity-high issue.
 - All lower-severity issues have an owner and release decision.
-- Product owner signs a dated go/no-go record linked to the exact candidate
+- The maintainer signs a dated go/no-go record linked to the exact candidate
   installer and source-manifest hashes.

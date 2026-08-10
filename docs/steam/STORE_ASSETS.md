@@ -21,6 +21,7 @@ marks, or text other than the product name. The hero and page background
 contain no text. Before upload, review every asset in the current Steamworks
 template and capture at least five real 1920 x 1080 product screenshots.
 
-The original key art was generated with the built-in OpenAI image generator.
-`scripts/generate_steam_assets.py` performs deterministic crops, logo placement,
-and size validation.
+The source artwork is an original composition built from the ApriReader
+open-book mark, page geometry, and project palette.
+`scripts/generate_steam_assets.py` draws the source, performs deterministic
+crops and logo placement, and validates every output size.

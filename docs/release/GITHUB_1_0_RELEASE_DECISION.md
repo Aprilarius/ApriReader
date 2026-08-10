@@ -27,7 +27,7 @@ Public release:
   production build, Rust formatting, Clippy, Rust test, release security, SBOM,
   and third-party-license gates.
 - All 40 UI tests and 48 Rust tests passed.
-- The product owner installed and tested the functionally equivalent RC1 build
+- The maintainer installed and tested the functionally equivalent RC1 build
   on Windows 10 and reported no bugs on 2026-07-30.
 - The 1.0 changes after RC1 are limited to version and public-release metadata,
   documentation, provenance, and license-report generation.

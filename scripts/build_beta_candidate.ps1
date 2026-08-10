@@ -245,7 +245,7 @@ try {
         "release\aprireader-sbom.cdx.json",
         "release\THIRD_PARTY_LICENSES.md",
         "docs\legal\ASSET_PROVENANCE.md",
-        "docs\release\AI_DISCLOSURE.md",
+        "docs\release\CLOUD_SPEECH_DISCLOSURE.md",
         "docs\release\DISTRIBUTION_CLAIMS.md",
         "docs\steam\TEST_CHECKLIST.md",
         "docs\testing\MANUAL_TESTS.md"
@@ -288,7 +288,7 @@ try {
         releaseScope = if ($Channel -eq "github-release" -and $isSigned) {
             "Signed public GitHub build without Steamworks."
         } elseif ($Channel -eq "github-release") {
-            "Public GitHub build without Steamworks; unsigned installer accepted by product owner."
+            "Public GitHub build without Steamworks; installer published with an unsigned-build notice."
         } else {
             "Pre-release validation artifact."
         }

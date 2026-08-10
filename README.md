@@ -3,6 +3,8 @@
 ApriReader is a privacy-first desktop reader and personal digital library for
 Windows 10/11 x64.
 
+Designed and maintained by [Aprilarius](https://github.com/Aprilarius).
+
 It reads DRM-free EPUB, PDF, FB2, TXT, HTML, Markdown, CBZ, CBR, and DOCX files
 and plays local audiobooks through the Windows media stack.
 Books remain in their original locations, reading data stays local, and network
@@ -119,7 +121,7 @@ Generated installers and evidence archives are written to
 - [Dependency policy](docs/legal/DEPENDENCY_POLICY.md)
 - [Privacy policy / Политика конфиденциальности](PRIVACY.md)
 - [Release claim matrix](docs/release/DISTRIBUTION_CLAIMS.md)
-- [AI disclosure](docs/release/AI_DISCLOSURE.md)
+- [Cloud speech disclosure](docs/release/CLOUD_SPEECH_DISCLOSURE.md)
 - [Asset provenance](docs/legal/ASSET_PROVENANCE.md)
 - [Windows release signing](docs/release/WINDOWS_SIGNING.md)
 - [Changelog](CHANGELOG.md)

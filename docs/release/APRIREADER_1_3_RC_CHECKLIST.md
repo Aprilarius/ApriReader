@@ -45,7 +45,7 @@ Date: 2026-08-08
 - [x] Audiobook player layout correction accepted.
 - [x] Light-theme action contrast correction accepted.
 - [x] Local Windows TTS continues beyond the short section title.
-- [x] Product owner reported the implemented A0-A13 build working without known
+- [x] The maintainer reported the implemented A0-A13 build working without known
       bugs before promotion to 1.3.0.
 
 ## Final external verification

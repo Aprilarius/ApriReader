@@ -11,7 +11,7 @@ contains no Steamworks SDK, bridge, App ID, credentials, or protected binary.
 
 ## Unsigned installer decision
 
-The product owner requested publication before a code-signing certificate is
+The maintainer requested publication before a code-signing certificate is
 available. The release page must identify the NSIS installer as unsigned and
 publish its SHA-256 checksum. Users should download it only from the official
 `Aprilarius/ApriReader` release.

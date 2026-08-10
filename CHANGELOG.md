@@ -425,7 +425,7 @@
 ## 0.1.0 — Unreleased
 
 - Added the Stage 0 Tauri 2, React, strict TypeScript, and Rust foundation.
-- Added the approved design tokens and responsive empty AppShell.
+- Added the core design tokens and responsive empty AppShell.
 - Added RU/EN localization with persisted preference.
 - Added the Stage 1 local SQLite library, file/folder import, SHA-256 duplicate
   detection, availability refresh, and rolling backups.

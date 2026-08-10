@@ -6,7 +6,7 @@ Windows build: 10.0.22631
 Candidate SHA-256:
 `2DF3AA1A9B5EF50F6BBCF75749AB1D614C78DB46F07EE5BA86B78DACAD978ABA`
 
-This was an automation-assisted smoke test of the installed product-owner
+This was a scripted smoke test of the installed maintainer-approved
 library. It did not import, remove, rename, or modify a source book.
 
 ## Passed observations

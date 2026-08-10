@@ -10,7 +10,7 @@ Installer SHA-256:
 **HOLD for public promotion. Continue external release validation.**
 
 The standard current-user installation was verified as ApriReader
-`0.9.0-beta.5`. The product owner installed and manually tested this candidate
+`0.9.0-beta.5`. The maintainer installed and manually tested this candidate
 and reported no critical defects.
 
 This is a successful product-owner smoke pass. It does not claim completion of
@@ -25,7 +25,7 @@ protected Steamworks matrix cells.
   matches the candidate record.
 - The full repository gate passed with 34 frontend tests and 48 Rust tests.
 - Initial keyboard focus is covered for reflow and fixed-layout readers.
-- The product owner reported no critical defects after installing and testing
+- The maintainer reported no critical defects after installing and testing
   beta.5.
 - The public candidate contains no protected Steamworks file.
 
