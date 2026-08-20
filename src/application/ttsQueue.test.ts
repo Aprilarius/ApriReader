@@ -10,14 +10,22 @@ const sections: DocumentSection[] = [
   {
     id: "one",
     title: "First section",
+    source: "",
+    anchors: [],
     blocks: [
-      { kind: "paragraph", text: "One short sentence. Another sentence!" },
+      {
+        kind: "paragraph",
+        text: "One short sentence. Another sentence!",
+        links: [],
+      },
     ],
   },
   {
     id: "two",
     title: "Second section",
-    blocks: [{ kind: "paragraph", text: "Final words here." }],
+    source: "",
+    anchors: [],
+    blocks: [{ kind: "paragraph", text: "Final words here.", links: [] }],
   },
 ];
 
@@ -29,7 +37,9 @@ describe("TTS queue", () => {
         {
           id: "long",
           title: "Title",
-          blocks: [{ kind: "paragraph", text: `${longWord}. End.` }],
+          source: "",
+          anchors: [],
+          blocks: [{ kind: "paragraph", text: `${longWord}. End.`, links: [] }],
         },
       ],
       0,

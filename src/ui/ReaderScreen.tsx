@@ -8,6 +8,7 @@ import {
   type FormEvent,
   type MouseEvent,
   type ReactNode,
+  type TouchEvent,
 } from "react";
 import {
   chooseAndExportAnnotations,
@@ -24,6 +25,9 @@ import {
   saveReadingPosition,
   type DocumentBlock,
   type DocumentModel,
+  type InlineLink,
+  isExternalLink,
+  resolveLinkTarget,
 } from "../application/reader";
 import type { TtsHighlightRange } from "../application/ttsQueue";
 import {
@@ -41,6 +45,7 @@ import { Icon } from "./icons";
 import type { TranslationKey } from "./i18n";
 import { readLocalValue, writeLocalValue } from "./localStorage";
 import { TextToSpeechPanel } from "./TextToSpeechPanel";
+import { readerSwipeDirection } from "./readerGestures";
 import { useReadingSession } from "./useReadingSession";
 
 type Translator = (key: TranslationKey) => string;
@@ -108,6 +113,12 @@ type PendingPositionSave = {
   section: number;
   sectionProgress: number;
   progress: number;
+};
+
+type SwipeStart = {
+  identifier: number;
+  x: number;
+  y: number;
 };
 
 const preferenceKey = "aprireader.reader.preferences";
@@ -203,6 +214,7 @@ export function ReaderScreen({
   onProgress,
   language,
   screenReaderSupport = true,
+  allowCloudTts = true,
 }: {
   document: DocumentModel;
   t: Translator;
@@ -210,6 +222,7 @@ export function ReaderScreen({
   onProgress: (progress: number) => void;
   language?: string;
   screenReaderSupport?: boolean;
+  allowCloudTts?: boolean;
 }) {
   const [sectionIndex, setSectionIndex] = useState(document.lastSection);
   const [panel, setPanel] = useState<ReaderPanel>(null);
@@ -231,6 +244,11 @@ export function ReaderScreen({
   const [searching, setSearching] = useState(false);
   const [searchSubmitted, setSearchSubmitted] = useState(false);
   const [message, setMessage] = useState("");
+  const [contentsLimit, setContentsLimit] = useState(200);
+  const [returnMark, setReturnMark] = useState<{
+    section: number;
+    progress: number;
+  } | null>(null);
   const [ttsHighlight, setTtsHighlight] = useState<TtsHighlightRange | null>(
     null,
   );
@@ -245,6 +263,7 @@ export function ReaderScreen({
   const pendingPositionSave = useRef<PendingPositionSave | null>(null);
   const pendingSectionProgress = useRef<number | null>(null);
   const lastWheelPage = useRef(Number.NEGATIVE_INFINITY);
+  const swipeStart = useRef<SwipeStart | null>(null);
   const changeSectionRef = useRef<(direction: number) => void>(() => undefined);
   const initialPosition = useRef({
     section: document.lastSection,
@@ -274,8 +293,12 @@ export function ReaderScreen({
       ),
     [document.sections],
   );
+  const compactReader = readerViewport.width > 0 && readerViewport.width <= 700;
+  const readerLayout: ReaderLayout = compactReader
+    ? "continuous"
+    : preferences.layout;
   const pagesPerSpread =
-    preferences.layout === "spread" &&
+    readerLayout === "spread" &&
     (readerViewport.width === 0 || readerViewport.width > 980)
       ? 2
       : 1;
@@ -293,7 +316,7 @@ export function ReaderScreen({
         bookId: document.bookId,
         width: Math.round(readerViewport.width),
         height: Math.round(readerViewport.height),
-        layout: preferences.layout,
+        layout: readerLayout,
         fontSize: preferences.fontSize,
         lineHeight: preferences.lineHeight,
         columnWidth: preferences.columnWidth,
@@ -312,6 +335,7 @@ export function ReaderScreen({
       document.bookId,
       fontRevision,
       preferences,
+      readerLayout,
       readerViewport.height,
       readerViewport.width,
     ],
@@ -331,7 +355,7 @@ export function ReaderScreen({
     pageMeasurement.counts,
     sectionIndex,
     sectionProgress,
-    preferences.layout === "spread" ? pagesPerSpread : 1,
+    readerLayout === "spread" ? pagesPerSpread : 1,
   );
   useReadingSession({
     bookId: document.bookId,
@@ -361,7 +385,7 @@ export function ReaderScreen({
     pendingSectionProgress.current = null;
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        const spread = preferences.layout === "spread";
+        const spread = readerLayout === "spread";
         const range = readerScrollRange(container, spread);
         setSectionProgress(restored);
         if (spread) {
@@ -373,7 +397,7 @@ export function ReaderScreen({
         }
       });
     });
-  }, [preferences.layout, sectionIndex]);
+  }, [readerLayout, sectionIndex]);
 
   useEffect(() => {
     if (!ttsHighlight) return;
@@ -408,12 +432,23 @@ export function ReaderScreen({
     };
     updateViewport();
     if (typeof ResizeObserver === "undefined") return;
+    /*
+     * Every viewport change invalidates the page measurement and restarts the
+     * walk over the whole book. Applying it on each observed frame would throw
+     * that work away hundreds of times while a window is being dragged, so
+     * settle first and measure once the size stops moving.
+     */
+    let settleTimer = 0;
+    const scheduleViewportUpdate = () => {
+      window.clearTimeout(settleTimer);
+      settleTimer = window.setTimeout(updateViewport, 150);
+    };
     let previousWidth = container.clientWidth;
     const observer = new ResizeObserver(() => {
       const nextWidth = container.clientWidth;
-      const spread = preferences.layout === "spread";
+      const spread = readerLayout === "spread";
       const progress = readerSectionProgress(container, spread);
-      updateViewport();
+      scheduleViewportUpdate();
       if (
         !spread ||
         nextWidth <= 0 ||
@@ -428,8 +463,11 @@ export function ReaderScreen({
       });
     });
     observer.observe(container);
-    return () => observer.disconnect();
-  }, [preferences.layout]);
+    return () => {
+      window.clearTimeout(settleTimer);
+      observer.disconnect();
+    };
+  }, [readerLayout]);
 
   useEffect(() => {
     setPageMeasurement(
@@ -454,31 +492,42 @@ export function ReaderScreen({
     if (!measurer) return;
     const measured = measureRenderedPages(
       measurer,
-      preferences.layout,
+      readerLayout,
       pagesPerSpread,
     );
-    setPageMeasurement((value) => {
-      if (
-        value.key !== pageMeasurementKey ||
-        value.index >= document.sections.length
-      ) {
-        return value;
-      }
-      const counts = [...value.counts];
-      counts[value.index] = measured;
-      return {
-        key: value.key,
-        index: value.index + 1,
-        counts,
-      };
+    /*
+     * Advancing the cursor straight from this layout effect chains one
+     * synchronous re-render per section. Past roughly fifty chapters React
+     * aborts the cascade with "Maximum update depth exceeded", the reader
+     * unmounts into the crash fallback and the book never becomes visible.
+     * Hand every step to the next frame so each measurement gets its own
+     * commit and long books keep paginating in the background.
+     */
+    const frame = requestAnimationFrame(() => {
+      setPageMeasurement((value) => {
+        if (
+          value.key !== pageMeasurementKey ||
+          value.index >= document.sections.length
+        ) {
+          return value;
+        }
+        const counts = [...value.counts];
+        counts[value.index] = measured;
+        return {
+          key: value.key,
+          index: value.index + 1,
+          counts,
+        };
+      });
     });
+    return () => cancelAnimationFrame(frame);
   }, [
     document.sections.length,
     pageMeasurement.index,
     pageMeasurement.key,
     pageMeasurementKey,
     pagesPerSpread,
-    preferences.layout,
+    readerLayout,
     readerViewport.height,
     readerViewport.width,
   ]);
@@ -608,12 +657,50 @@ export function ReaderScreen({
     if (index >= 0) selectSection(index, blockIndex);
   };
 
+  /*
+   * Following a footnote is a detour, not a page turn: remember where the
+   * reader was so the way back is one click, the way a printed book lets you
+   * keep a finger on the page.
+   */
+  const followLink = (href: string) => {
+    /*
+     * Books are untrusted content, and the opener capability deliberately
+     * allows only the two translation services. A link that leaves the book is
+     * reported rather than handed to the system browser.
+     */
+    if (isExternalLink(href)) {
+      setMessage(`${t("linkLeavesBook")}: ${href}`);
+      return;
+    }
+    const target = resolveLinkTarget(href, document.sections, section.source);
+    if (target === null) {
+      setMessage(t("linkNotFound"));
+      return;
+    }
+    const container = scrollRef.current;
+    setReturnMark({
+      section: sectionIndex,
+      progress: container
+        ? readerSectionProgress(container, readerLayout === "spread")
+        : sectionProgress,
+    });
+    selectSection(target);
+  };
+
+  const returnFromLink = () => {
+    const mark = returnMark;
+    if (!mark) return;
+    setReturnMark(null);
+    pendingSectionProgress.current = mark.progress;
+    selectSection(mark.section);
+  };
+
   const changeLayout = (layout: ReaderLayout) => {
     const container = scrollRef.current;
     if (container) {
       pendingSectionProgress.current = readerSectionProgress(
         container,
-        preferences.layout === "spread",
+        readerLayout === "spread",
       );
     }
     setSelection(null);
@@ -630,9 +717,37 @@ export function ReaderScreen({
   };
   changeSectionRef.current = changeSection;
 
+  const handleTouchStart = (event: TouchEvent<HTMLElement>) => {
+    if (event.touches.length !== 1) return;
+    const touch = event.touches[0];
+    if (!touch) return;
+    swipeStart.current = {
+      identifier: touch.identifier,
+      x: touch.clientX,
+      y: touch.clientY,
+    };
+  };
+
+  const handleTouchEnd = (event: TouchEvent<HTMLElement>) => {
+    const start = swipeStart.current;
+    swipeStart.current = null;
+    if (!start) return;
+    const touch = Array.from(event.changedTouches).find(
+      (candidate) => candidate.identifier === start.identifier,
+    );
+    if (!touch) return;
+    const direction = readerSwipeDirection(
+      start.x,
+      start.y,
+      touch.clientX,
+      touch.clientY,
+    );
+    if (direction !== 0) changeSection(direction);
+  };
+
   useEffect(() => {
     const container = scrollRef.current;
-    const spread = preferences.layout === "spread";
+    const spread = readerLayout === "spread";
     if (!container || (!spread && !preferences.pageWheel)) return;
     const handlePageWheel = (event: WheelEvent) => {
       if (event.ctrlKey || Math.abs(event.deltaY) < 12) return;
@@ -677,7 +792,7 @@ export function ReaderScreen({
     return () => container.removeEventListener("wheel", handlePageWheel);
   }, [
     document.sections.length,
-    preferences.layout,
+    readerLayout,
     preferences.pageWheel,
     sectionIndex,
   ]);
@@ -685,9 +800,7 @@ export function ReaderScreen({
   const handleScroll = () => {
     const container = scrollRef.current;
     if (!container) return;
-    savePosition(
-      readerSectionProgress(container, preferences.layout === "spread"),
-    );
+    savePosition(readerSectionProgress(container, readerLayout === "spread"));
   };
 
   const captureSelection = (event: MouseEvent<HTMLElement>) => {
@@ -1030,20 +1143,36 @@ export function ReaderScreen({
         closeLabel={t("closeContents")}
         onClose={() => setPanel(null)}
       >
-        <nav className="reader-location-list">
-          {document.sections.map((item, index) => (
-            <button
-              type="button"
-              className={index === sectionIndex ? "active" : ""}
-              key={item.id}
-              onClick={() => selectSection(index)}
-              aria-current={index === sectionIndex ? "location" : undefined}
-            >
-              <span>{String(index + 1).padStart(2, "0")}</span>
-              {item.title}
-            </button>
-          ))}
-        </nav>
+        {panel === "contents" && (
+          <nav className="reader-location-list">
+            {/*
+              A converted book can carry thousands of sections, and mounting a
+              button for every one of them freezes the window while the panel
+              opens. Reveal them in batches, the way the library list does.
+            */}
+            {document.sections.slice(0, contentsLimit).map((item, index) => (
+              <button
+                type="button"
+                className={index === sectionIndex ? "active" : ""}
+                key={item.id}
+                onClick={() => selectSection(index)}
+                aria-current={index === sectionIndex ? "location" : undefined}
+              >
+                <span>{String(index + 1).padStart(2, "0")}</span>
+                {item.title}
+              </button>
+            ))}
+            {document.sections.length > contentsLimit && (
+              <button
+                type="button"
+                className="reader-contents-more"
+                onClick={() => setContentsLimit((limit) => limit + 200)}
+              >
+                {t("showMoreBooks")}
+              </button>
+            )}
+          </nav>
+        )}
       </ReaderSidePanel>
 
       <ReaderSidePanel
@@ -1053,41 +1182,47 @@ export function ReaderScreen({
         closeLabel={t("closeSearch")}
         onClose={() => setPanel(null)}
       >
-        <form
-          className="reader-search-form"
-          onSubmit={(event) => void runSearch(event)}
-        >
-          <input
-            type="search"
-            value={searchQuery}
-            onChange={(event) => {
-              setSearchQuery(event.target.value);
-              setSearchSubmitted(false);
-            }}
-            placeholder={t("searchBookPlaceholder")}
-            aria-label={t("searchInBook")}
-          />
-          <button type="submit">{t("find")}</button>
-        </form>
-        <p className="reader-panel-meta" role="status">
-          {searching
-            ? t("searching")
-            : searchSubmitted && searchResults.length === 0
-              ? t("nothingFound")
-              : `${searchResults.length} ${t("searchResults")}`}
-        </p>
-        <div className="reader-result-list">
-          {searchResults.map((result, index) => (
-            <button
-              type="button"
-              key={`${result.sectionId}-${result.blockIndex}-${index}`}
-              onClick={() => navigateTo(result.sectionId, result.blockIndex)}
-            >
-              <strong>{result.sectionTitle}</strong>
-              <span>{result.excerpt}</span>
-            </button>
-          ))}
-        </div>
+        {panel === "search" && (
+          <form
+            className="reader-search-form"
+            onSubmit={(event) => void runSearch(event)}
+          >
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(event) => {
+                setSearchQuery(event.target.value);
+                setSearchSubmitted(false);
+              }}
+              placeholder={t("searchBookPlaceholder")}
+              aria-label={t("searchInBook")}
+            />
+            <button type="submit">{t("find")}</button>
+          </form>
+        )}
+        {panel === "search" && (
+          <p className="reader-panel-meta" role="status">
+            {searching
+              ? t("searching")
+              : searchSubmitted && searchResults.length === 0
+                ? t("nothingFound")
+                : `${searchResults.length} ${t("searchResults")}`}
+          </p>
+        )}
+        {panel === "search" && (
+          <div className="reader-result-list">
+            {searchResults.map((result, index) => (
+              <button
+                type="button"
+                key={`${result.sectionId}-${result.blockIndex}-${index}`}
+                onClick={() => navigateTo(result.sectionId, result.blockIndex)}
+              >
+                <strong>{result.sectionTitle}</strong>
+                <span>{result.excerpt}</span>
+              </button>
+            ))}
+          </div>
+        )}
       </ReaderSidePanel>
 
       <ReaderSidePanel
@@ -1097,35 +1232,38 @@ export function ReaderScreen({
         closeLabel={t("closeAnnotations")}
         onClose={() => setPanel(null)}
       >
-        <button
-          className="reader-export-button"
-          type="button"
-          disabled={annotations.length === 0}
-          onClick={() => void exportNotes()}
-        >
-          {t("exportAnnotations")}
-        </button>
-        {annotations.length === 0 ? (
-          <p className="reader-empty-panel">{t("noAnnotations")}</p>
-        ) : (
-          <div className="annotation-list">
-            {annotations.map((annotation) => (
-              <AnnotationCard
-                annotation={annotation}
-                key={annotation.id}
-                t={t}
-                onNavigate={() =>
-                  navigateTo(
-                    annotation.locator.sectionId,
-                    annotation.locator.blockIndex,
-                  )
-                }
-                onDelete={() => void removeAnnotation(annotation.id)}
-                onSaveNote={(note) => void saveEditedNote(annotation, note)}
-              />
-            ))}
-          </div>
+        {panel === "annotations" && (
+          <button
+            className="reader-export-button"
+            type="button"
+            disabled={annotations.length === 0}
+            onClick={() => void exportNotes()}
+          >
+            {t("exportAnnotations")}
+          </button>
         )}
+        {panel === "annotations" &&
+          (annotations.length === 0 ? (
+            <p className="reader-empty-panel">{t("noAnnotations")}</p>
+          ) : (
+            <div className="annotation-list">
+              {annotations.map((annotation) => (
+                <AnnotationCard
+                  annotation={annotation}
+                  key={annotation.id}
+                  t={t}
+                  onNavigate={() =>
+                    navigateTo(
+                      annotation.locator.sectionId,
+                      annotation.locator.blockIndex,
+                    )
+                  }
+                  onDelete={() => void removeAnnotation(annotation.id)}
+                  onSaveNote={(note) => void saveEditedNote(annotation, note)}
+                />
+              ))}
+            </div>
+          ))}
       </ReaderSidePanel>
 
       <ReaderSidePanel
@@ -1144,6 +1282,7 @@ export function ReaderScreen({
             t={t}
             onNavigate={(index) => selectSection(index, undefined, true)}
             onHighlight={setTtsHighlight}
+            allowCloudProviders={allowCloudTts}
           />
         )}
       </ReaderSidePanel>
@@ -1155,239 +1294,250 @@ export function ReaderScreen({
         closeLabel={t("closeSettings")}
         onClose={() => setPanel(null)}
       >
-        <fieldset className="reader-choice-group reader-layout-choice">
-          <legend>{t("readingLayout")}</legend>
-          <button
-            type="button"
-            className={preferences.layout === "continuous" ? "active" : ""}
-            aria-pressed={preferences.layout === "continuous"}
-            onClick={() => changeLayout("continuous")}
-          >
-            <strong>{t("layoutContinuous")}</strong>
-            <small>{t("layoutContinuousHint")}</small>
-          </button>
-          <button
-            type="button"
-            className={preferences.layout === "spread" ? "active" : ""}
-            aria-pressed={preferences.layout === "spread"}
-            onClick={() => changeLayout("spread")}
-          >
-            <strong>{t("layoutSpread")}</strong>
-            <small>{t("layoutSpreadHint")}</small>
-          </button>
-        </fieldset>
-        <label className="reader-select">
-          <span>{t("readerFont")}</span>
-          <select
-            value={preferences.fontChoice}
-            onChange={(event) => {
-              const fontChoice = event.target.value as ReaderFontChoice;
-              setPreferences((value) => ({
-                ...value,
-                fontChoice,
-                fontWeight: closestFontWeight(
-                  value.fontWeight,
-                  fontWeightsForChoice(fontChoice),
-                ),
-              }));
-            }}
-          >
-            <option value="literary">{t("fontLiterary")}</option>
-            <option value="book">{t("fontBook")}</option>
-            <option value="classic">{t("fontClassic")}</option>
-            <option value="clear">{t("fontClear")}</option>
-            <option value="literata">Literata</option>
-            <option value="lora">Lora</option>
-            <option value="merriweather">Merriweather</option>
-            <option value="sourceSerif">Source Serif 4</option>
-            <option value="charis">Charis SIL</option>
-            <option value="ibmPlex">IBM Plex Serif</option>
-            {preferences.customFont && (
-              <option value="custom">{preferences.customFont.name}</option>
-            )}
-          </select>
-        </label>
-        <div className="reader-font-variants">
-          <label className="reader-select">
-            <span>{t("fontStyle")}</span>
-            <select
-              value={preferences.fontStyle}
-              onChange={(event) =>
-                setPreferences((value) => ({
-                  ...value,
-                  fontStyle: event.target.value as ReaderFontStyle,
-                }))
-              }
-            >
-              <option value="normal">{t("fontStyleNormal")}</option>
-              <option value="italic">{t("fontStyleItalic")}</option>
-            </select>
-          </label>
-          <label className="reader-select">
-            <span>{t("fontWeight")}</span>
-            <select
-              value={preferences.fontWeight}
-              onChange={(event) =>
-                setPreferences((value) => ({
-                  ...value,
-                  fontWeight: Number(event.target.value),
-                }))
-              }
-            >
-              {availableFontWeights.map((weight) => (
-                <option value={weight} key={weight}>
-                  {fontWeightLabel(weight, t)}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-        <p className="reader-font-preview">{t("fontPreview")}</p>
-        <button
-          className="reader-import-font"
-          type="button"
-          disabled={fontBusy}
-          onClick={() => void importFont()}
-        >
-          {fontBusy ? t("fontImporting") : t("importFont")}
-        </button>
-        <p className="reader-setting-hint">{t("fontImportHint")}</p>
-        <ReaderRange
-          label={t("fontSize")}
-          value={preferences.fontSize}
-          min={14}
-          max={36}
-          step={1}
-          onChange={(fontSize) =>
-            setPreferences((value) => ({ ...value, fontSize }))
-          }
-        />
-        <ReaderRange
-          label={t("lineHeight")}
-          value={preferences.lineHeight}
-          min={1.2}
-          max={2.4}
-          step={0.05}
-          onChange={(lineHeight) =>
-            setPreferences((value) => ({ ...value, lineHeight }))
-          }
-        />
-        <ReaderRange
-          label={t("columnWidth")}
-          value={preferences.columnWidth}
-          min={480}
-          max={1000}
-          step={20}
-          onChange={(columnWidth) =>
-            setPreferences((value) => ({ ...value, columnWidth }))
-          }
-        />
-        <ReaderRange
-          label={t("letterSpacing")}
-          value={preferences.letterSpacing}
-          min={-0.02}
-          max={0.12}
-          step={0.01}
-          onChange={(letterSpacing) =>
-            setPreferences((value) => ({ ...value, letterSpacing }))
-          }
-        />
-        <ReaderRange
-          label={t("wordSpacing")}
-          value={preferences.wordSpacing}
-          min={0}
-          max={0.3}
-          step={0.02}
-          onChange={(wordSpacing) =>
-            setPreferences((value) => ({ ...value, wordSpacing }))
-          }
-        />
-        <ReaderRange
-          label={t("paragraphSpacing")}
-          value={preferences.paragraphSpacing}
-          min={0.5}
-          max={2}
-          step={0.05}
-          onChange={(paragraphSpacing) =>
-            setPreferences((value) => ({ ...value, paragraphSpacing }))
-          }
-        />
-        <fieldset className="reader-choice-group">
-          <legend>{t("textAlignment")}</legend>
-          <button
-            type="button"
-            className={preferences.textAlign === "left" ? "active" : ""}
-            aria-pressed={preferences.textAlign === "left"}
-            onClick={() =>
-              setPreferences((value) => ({ ...value, textAlign: "left" }))
-            }
-          >
-            {t("alignLeft")}
-          </button>
-          <button
-            type="button"
-            className={preferences.textAlign === "justify" ? "active" : ""}
-            aria-pressed={preferences.textAlign === "justify"}
-            onClick={() =>
-              setPreferences((value) => ({ ...value, textAlign: "justify" }))
-            }
-          >
-            {t("alignJustify")}
-          </button>
-        </fieldset>
-        <label className="reader-toggle">
-          <input
-            type="checkbox"
-            checked={preferences.bionicReading}
-            onChange={(event) =>
-              setPreferences((value) => ({
-                ...value,
-                bionicReading: event.target.checked,
-              }))
-            }
-          />
-          <span>
-            <strong>{t("bionicReading")}</strong>
-            <small>{t("bionicReadingHint")}</small>
-          </span>
-        </label>
-        <label className="reader-toggle">
-          <input
-            type="checkbox"
-            checked={preferences.pageWheel}
-            onChange={(event) =>
-              setPreferences((value) => ({
-                ...value,
-                pageWheel: event.target.checked,
-              }))
-            }
-          />
-          <span>
-            <strong>{t("pageWheel")}</strong>
-            <small>{t("pageWheelHint")}</small>
-          </span>
-        </label>
-        <fieldset className="theme-choices">
-          <legend>{t("readerTheme")}</legend>
-          {(
-            [
-              ["paper", t("themePaper")],
-              ["sepia", t("themeSepia")],
-              ["night", t("themeNight")],
-            ] as const
-          ).map(([theme, label]) => (
+        {panel === "settings" && (
+          <>
+            <fieldset className="reader-choice-group reader-layout-choice">
+              <legend>{t("readingLayout")}</legend>
+              <button
+                type="button"
+                className={preferences.layout === "continuous" ? "active" : ""}
+                aria-pressed={preferences.layout === "continuous"}
+                onClick={() => changeLayout("continuous")}
+              >
+                <strong>{t("layoutContinuous")}</strong>
+                <small>{t("layoutContinuousHint")}</small>
+              </button>
+              {!compactReader && (
+                <button
+                  type="button"
+                  className={preferences.layout === "spread" ? "active" : ""}
+                  aria-pressed={preferences.layout === "spread"}
+                  onClick={() => changeLayout("spread")}
+                >
+                  <strong>{t("layoutSpread")}</strong>
+                  <small>{t("layoutSpreadHint")}</small>
+                </button>
+              )}
+            </fieldset>
+            <label className="reader-select">
+              <span>{t("readerFont")}</span>
+              <select
+                value={preferences.fontChoice}
+                onChange={(event) => {
+                  const fontChoice = event.target.value as ReaderFontChoice;
+                  setPreferences((value) => ({
+                    ...value,
+                    fontChoice,
+                    fontWeight: closestFontWeight(
+                      value.fontWeight,
+                      fontWeightsForChoice(fontChoice),
+                    ),
+                  }));
+                }}
+              >
+                <option value="literary">{t("fontLiterary")}</option>
+                <option value="book">{t("fontBook")}</option>
+                <option value="classic">{t("fontClassic")}</option>
+                <option value="clear">{t("fontClear")}</option>
+                <option value="literata">Literata</option>
+                <option value="lora">Lora</option>
+                <option value="merriweather">Merriweather</option>
+                <option value="sourceSerif">Source Serif 4</option>
+                <option value="charis">Charis SIL</option>
+                <option value="ibmPlex">IBM Plex Serif</option>
+                {preferences.customFont && (
+                  <option value="custom">{preferences.customFont.name}</option>
+                )}
+              </select>
+            </label>
+            <div className="reader-font-variants">
+              <label className="reader-select">
+                <span>{t("fontStyle")}</span>
+                <select
+                  value={preferences.fontStyle}
+                  onChange={(event) =>
+                    setPreferences((value) => ({
+                      ...value,
+                      fontStyle: event.target.value as ReaderFontStyle,
+                    }))
+                  }
+                >
+                  <option value="normal">{t("fontStyleNormal")}</option>
+                  <option value="italic">{t("fontStyleItalic")}</option>
+                </select>
+              </label>
+              <label className="reader-select">
+                <span>{t("fontWeight")}</span>
+                <select
+                  value={preferences.fontWeight}
+                  onChange={(event) =>
+                    setPreferences((value) => ({
+                      ...value,
+                      fontWeight: Number(event.target.value),
+                    }))
+                  }
+                >
+                  {availableFontWeights.map((weight) => (
+                    <option value={weight} key={weight}>
+                      {fontWeightLabel(weight, t)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <p className="reader-font-preview">{t("fontPreview")}</p>
             <button
+              className="reader-import-font"
               type="button"
-              className={preferences.theme === theme ? "active" : ""}
-              aria-pressed={preferences.theme === theme}
-              key={theme}
-              onClick={() => setPreferences((value) => ({ ...value, theme }))}
+              disabled={fontBusy}
+              onClick={() => void importFont()}
             >
-              <span className={`theme-swatch ${theme}`} />
-              {label}
+              {fontBusy ? t("fontImporting") : t("importFont")}
             </button>
-          ))}
-        </fieldset>
+            <p className="reader-setting-hint">{t("fontImportHint")}</p>
+            <ReaderRange
+              label={t("fontSize")}
+              value={preferences.fontSize}
+              min={14}
+              max={36}
+              step={1}
+              onChange={(fontSize) =>
+                setPreferences((value) => ({ ...value, fontSize }))
+              }
+            />
+            <ReaderRange
+              label={t("lineHeight")}
+              value={preferences.lineHeight}
+              min={1.2}
+              max={2.4}
+              step={0.05}
+              onChange={(lineHeight) =>
+                setPreferences((value) => ({ ...value, lineHeight }))
+              }
+            />
+            <ReaderRange
+              label={t("columnWidth")}
+              value={preferences.columnWidth}
+              min={480}
+              max={1000}
+              step={20}
+              onChange={(columnWidth) =>
+                setPreferences((value) => ({ ...value, columnWidth }))
+              }
+            />
+            <ReaderRange
+              label={t("letterSpacing")}
+              value={preferences.letterSpacing}
+              min={-0.02}
+              max={0.12}
+              step={0.01}
+              onChange={(letterSpacing) =>
+                setPreferences((value) => ({ ...value, letterSpacing }))
+              }
+            />
+            <ReaderRange
+              label={t("wordSpacing")}
+              value={preferences.wordSpacing}
+              min={0}
+              max={0.3}
+              step={0.02}
+              onChange={(wordSpacing) =>
+                setPreferences((value) => ({ ...value, wordSpacing }))
+              }
+            />
+            <ReaderRange
+              label={t("paragraphSpacing")}
+              value={preferences.paragraphSpacing}
+              min={0.5}
+              max={2}
+              step={0.05}
+              onChange={(paragraphSpacing) =>
+                setPreferences((value) => ({ ...value, paragraphSpacing }))
+              }
+            />
+            <fieldset className="reader-choice-group">
+              <legend>{t("textAlignment")}</legend>
+              <button
+                type="button"
+                className={preferences.textAlign === "left" ? "active" : ""}
+                aria-pressed={preferences.textAlign === "left"}
+                onClick={() =>
+                  setPreferences((value) => ({ ...value, textAlign: "left" }))
+                }
+              >
+                {t("alignLeft")}
+              </button>
+              <button
+                type="button"
+                className={preferences.textAlign === "justify" ? "active" : ""}
+                aria-pressed={preferences.textAlign === "justify"}
+                onClick={() =>
+                  setPreferences((value) => ({
+                    ...value,
+                    textAlign: "justify",
+                  }))
+                }
+              >
+                {t("alignJustify")}
+              </button>
+            </fieldset>
+            <label className="reader-toggle">
+              <input
+                type="checkbox"
+                checked={preferences.bionicReading}
+                onChange={(event) =>
+                  setPreferences((value) => ({
+                    ...value,
+                    bionicReading: event.target.checked,
+                  }))
+                }
+              />
+              <span>
+                <strong>{t("bionicReading")}</strong>
+                <small>{t("bionicReadingHint")}</small>
+              </span>
+            </label>
+            <label className="reader-toggle">
+              <input
+                type="checkbox"
+                checked={preferences.pageWheel}
+                onChange={(event) =>
+                  setPreferences((value) => ({
+                    ...value,
+                    pageWheel: event.target.checked,
+                  }))
+                }
+              />
+              <span>
+                <strong>{t("pageWheel")}</strong>
+                <small>{t("pageWheelHint")}</small>
+              </span>
+            </label>
+            <fieldset className="theme-choices">
+              <legend>{t("readerTheme")}</legend>
+              {(
+                [
+                  ["paper", t("themePaper")],
+                  ["sepia", t("themeSepia")],
+                  ["night", t("themeNight")],
+                ] as const
+              ).map(([theme, label]) => (
+                <button
+                  type="button"
+                  className={preferences.theme === theme ? "active" : ""}
+                  aria-pressed={preferences.theme === theme}
+                  key={theme}
+                  onClick={() =>
+                    setPreferences((value) => ({ ...value, theme }))
+                  }
+                >
+                  <span className={`theme-swatch ${theme}`} />
+                  {label}
+                </button>
+              ))}
+            </fieldset>
+          </>
+        )}
       </ReaderSidePanel>
 
       <p
@@ -1402,14 +1552,17 @@ export function ReaderScreen({
       </p>
 
       <main
-        className={`reader-scroll layout-${preferences.layout}`}
+        className={`reader-scroll layout-${readerLayout}`}
         ref={scrollRef}
         onScroll={handleScroll}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={() => {
+          swipeStart.current = null;
+        }}
         tabIndex={0}
       >
-        <article
-          className={`reader-document reader-document-${preferences.layout}`}
-        >
+        <article className={`reader-document reader-document-${readerLayout}`}>
           <p className="reader-kicker">
             {sectionIndex + 1} / {document.sections.length}
           </p>
@@ -1443,6 +1596,7 @@ export function ReaderScreen({
                     ? ttsHighlight
                     : null
                 }
+                onFollowLink={followLink}
                 key={`${section.id}-${index}-${block.kind}`}
               />
             ))}
@@ -1466,19 +1620,29 @@ export function ReaderScreen({
         </article>
       </main>
 
+      {returnMark ? (
+        <button
+          type="button"
+          className="reader-return-to-text"
+          onClick={returnFromLink}
+        >
+          ← {t("returnFromNote")}
+        </button>
+      ) : null}
+
       <p
         className="reader-page-status"
         role="status"
         aria-live={screenReaderSupport ? "polite" : "off"}
         aria-atomic="true"
       >
-        {preferences.layout === "spread"
+        {readerLayout === "spread"
           ? `${t("pages")} ${pagePosition.start}–${pagePosition.end} ${t("pageOf")} ${pagePosition.total}`
           : `${t("page")} ${pagePosition.start} ${t("pageOf")} ${pagePosition.total}`}
       </p>
 
       <div
-        className={`reader-page-measurer reader-scroll layout-${preferences.layout}`}
+        className={`reader-page-measurer reader-scroll layout-${readerLayout}`}
         ref={measurementRef}
         aria-hidden="true"
         style={{
@@ -1486,9 +1650,7 @@ export function ReaderScreen({
           height: readerViewport.height,
         }}
       >
-        <article
-          className={`reader-document reader-document-${preferences.layout}`}
-        >
+        <article className={`reader-document reader-document-${readerLayout}`}>
           <p className="reader-kicker">
             {Math.min(pageMeasurement.index + 1, document.sections.length)} /{" "}
             {document.sections.length}
@@ -1760,12 +1922,14 @@ function ReaderBlock({
   annotations,
   bionic,
   speechRange,
+  onFollowLink,
 }: {
   block: DocumentBlock;
   blockIndex: number;
   annotations: AnnotationRecord[];
   bionic: boolean;
   speechRange: Pick<TtsHighlightRange, "startOffset" | "endOffset"> | null;
+  onFollowLink?: (href: string) => void;
 }) {
   const text = (
     <AnnotatedText
@@ -1773,6 +1937,8 @@ function ReaderBlock({
       annotations={annotations}
       bionic={bionic}
       speechRange={speechRange}
+      links={block.links}
+      onFollowLink={onFollowLink}
     />
   );
   const data = { "data-reader-block": blockIndex };
@@ -1801,11 +1967,15 @@ function AnnotatedText({
   annotations,
   bionic,
   speechRange = null,
+  links = [],
+  onFollowLink,
 }: {
   text: string;
   annotations: AnnotationRecord[];
   bionic: boolean;
   speechRange?: Pick<TtsHighlightRange, "startOffset" | "endOffset"> | null;
+  links?: InlineLink[];
+  onFollowLink?: (href: string) => void;
 }) {
   const ranges = annotations
     .map((annotation) => ({
@@ -1821,8 +1991,25 @@ function AnnotatedText({
         end: Math.min(text.length, speechRange.endOffset),
       }
     : null;
+  /*
+   * Links join annotations and speech as one more range layer over the same
+   * string. Slicing on the union of every boundary is what lets the three
+   * overlap without any of them having to know about the others.
+   */
+  const linkRanges = (onFollowLink ? links : [])
+    .map((link) => ({
+      link,
+      start: Math.max(0, Math.min(text.length, link.start)),
+      end: Math.max(0, Math.min(text.length, link.end)),
+    }))
+    .filter((range) => range.end > range.start)
+    .sort((left, right) => left.start - right.start);
   const boundaries = new Set([0, text.length]);
   for (const range of ranges) {
+    boundaries.add(range.start);
+    boundaries.add(range.end);
+  }
+  for (const range of linkRanges) {
     boundaries.add(range.start);
     boundaries.add(range.end);
   }
@@ -1853,6 +2040,23 @@ function AnnotatedText({
         >
           {content}
         </mark>
+      );
+    }
+    const link = linkRanges.find(
+      (range) => range.start <= start && range.end >= end,
+    )?.link;
+    if (link && onFollowLink) {
+      content = (
+        <button
+          type="button"
+          className="reader-inline-link"
+          onClick={(event) => {
+            event.stopPropagation();
+            onFollowLink(link.href);
+          }}
+        >
+          {content}
+        </button>
       );
     }
     return <span key={`${start}-${end}`}>{content}</span>;

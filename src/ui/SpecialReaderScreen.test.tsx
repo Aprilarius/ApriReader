@@ -100,4 +100,51 @@ describe("SpecialReaderScreen", () => {
       screen.getByRole("button", { name: "Right to left" }),
     ).toBeInTheDocument();
   });
+
+  it("uses a horizontal touch swipe to change comic pages", () => {
+    const { container } = render(
+      <SpecialReaderScreen
+        document={comic}
+        t={t}
+        onClose={vi.fn()}
+        onProgress={vi.fn()}
+      />,
+    );
+    const stage = container.querySelector(".comic-stage");
+    expect(stage).not.toBeNull();
+    fireEvent.touchStart(stage!, {
+      touches: [{ identifier: 1, clientX: 260, clientY: 120 }],
+    });
+    fireEvent.touchEnd(stage!, {
+      changedTouches: [{ identifier: 1, clientX: 120, clientY: 130 }],
+    });
+    expect(screen.getByAltText("Comic page 2")).toBeInTheDocument();
+  });
+
+  it("zooms a comic with a two-finger pinch", () => {
+    const { container } = render(
+      <SpecialReaderScreen
+        document={comic}
+        t={t}
+        onClose={vi.fn()}
+        onProgress={vi.fn()}
+      />,
+    );
+    const stage = container.querySelector(".comic-stage");
+    expect(stage).not.toBeNull();
+    fireEvent.touchStart(stage!, {
+      touches: [
+        { identifier: 1, clientX: 100, clientY: 100 },
+        { identifier: 2, clientX: 200, clientY: 100 },
+      ],
+    });
+    fireEvent.touchMove(stage!, {
+      touches: [
+        { identifier: 1, clientX: 50, clientY: 100 },
+        { identifier: 2, clientX: 250, clientY: 100 },
+      ],
+    });
+    expect(screen.getByText("200%")).toBeInTheDocument();
+    expect(stage).toHaveClass("zoomed");
+  });
 });

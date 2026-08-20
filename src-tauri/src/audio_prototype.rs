@@ -1,9 +1,13 @@
+#[cfg(any(windows, test))]
+use crate::audio_importer::validate_audio_path;
 use crate::audio_importer::{
-    validate_audio_path, BLOCKED_DRM_EXTENSIONS, MAX_AUDIO_FILE_BYTES, NATIVE_EXTENSIONS,
-    PLAYLIST_EXTENSIONS, SYSTEM_CODEC_EXTENSIONS,
+    BLOCKED_DRM_EXTENSIONS, MAX_AUDIO_FILE_BYTES, NATIVE_EXTENSIONS, PLAYLIST_EXTENSIONS,
+    SYSTEM_CODEC_EXTENSIONS,
 };
 use serde::Serialize;
-use std::path::{Path, PathBuf};
+#[cfg(any(windows, test))]
+use std::path::Path;
+use std::path::PathBuf;
 
 pub const MIN_PLAYBACK_RATE: f64 = 0.5;
 pub const MAX_PLAYBACK_RATE: f64 = 3.0;

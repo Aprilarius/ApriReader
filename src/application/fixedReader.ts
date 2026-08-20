@@ -23,7 +23,9 @@ export async function loadSpecialDocument(
   bookId: number,
 ): Promise<SpecialDocument> {
   if (!isTauri()) {
-    throw new Error("The fixed-layout reader is available in the desktop app.");
+    throw new Error(
+      "The fixed-layout reader is available in the ApriReader app.",
+    );
   }
   return invoke<SpecialDocument>("load_special_document", { bookId });
 }

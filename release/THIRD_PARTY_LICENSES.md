@@ -4,7 +4,7 @@ This deterministic report covers the installed production npm dependency
 graph and the locked Cargo dependency graph used to build ApriReader.
 Absolute local paths are intentionally omitted.
 
-- Components: 303
+- Components: 304
 - Unique license or notice texts: 178
 - Components without a packaged license file: 9
 
@@ -310,6 +310,7 @@ Absolute local paths are intentionally omitted.
 | `npm:@napi-rs/canvas-win32-x64-msvc@1.0.3` | MIT |  | https://github.com/Brooooooklyn/canvas#readme |
 | `npm:@tauri-apps/api@2.11.1` | Apache-2.0 OR MIT |  | https://github.com/tauri-apps/tauri#readme |
 | `npm:@tauri-apps/plugin-dialog@2.7.2` | MIT OR Apache-2.0 |  | https://github.com/tauri-apps/plugins-workspace#readme |
+| `npm:@tauri-apps/plugin-fs@2.5.1` | MIT OR Apache-2.0 |  | https://github.com/tauri-apps/plugins-workspace#readme |
 | `npm:@tauri-apps/plugin-opener@2.5.4` | MIT OR Apache-2.0 |  | https://github.com/tauri-apps/plugins-workspace#readme |
 | `npm:pdfjs-dist@6.2.108` | Apache-2.0 |  | https://mozilla.github.io/pdf.js/ |
 | `npm:react@19.1.1` | MIT |  | https://react.dev/ |
@@ -11276,6 +11277,7 @@ Applies to:
 - `cargo:tauri-plugin-opener@2.5.4`
 - `cargo:tauri-plugin-single-instance@2.4.3`
 - `npm:@tauri-apps/plugin-dialog@2.7.2`
+- `npm:@tauri-apps/plugin-fs@2.5.1`
 - `npm:@tauri-apps/plugin-opener@2.5.4`
 
 ```text

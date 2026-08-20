@@ -1,5 +1,5 @@
 use crate::tts_assets::persist_cache_file;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{fs, path::Path, sync::mpsc};
 
@@ -9,7 +9,7 @@ pub const MIN_TTS_RATE: f64 = 0.5;
 pub const MAX_TTS_RATE: f64 = 2.0;
 const MAX_CACHED_SEGMENTS: usize = 64;
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TtsVoice {
     pub id: String,

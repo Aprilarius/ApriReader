@@ -30,9 +30,9 @@ interface AudiobooksPageProps {
   t: Translator;
   onSelect: (id: number) => void;
   onImportFiles: () => void;
-  onImportFolder: () => void;
-  onWatchFolder: () => void;
-  onScan: () => void;
+  onImportFolder: (() => void) | null;
+  onWatchFolder: (() => void) | null;
+  onScan: (() => void) | null;
 }
 
 export function AudiobooksPage({
@@ -86,24 +86,28 @@ export function AudiobooksPage({
           <span>{visible.length}</span>
         </div>
         <div className="toolbar-actions">
-          <button
-            className="secondary-button"
-            type="button"
-            disabled={busy}
-            onClick={onImportFolder}
-          >
-            <Icon name="folder" />
-            {t("addAudioFolder")}
-          </button>
-          <button
-            className="secondary-button"
-            type="button"
-            disabled={busy}
-            onClick={onWatchFolder}
-          >
-            <Icon name="refresh" />
-            {t("watchAudioFolder")}
-          </button>
+          {onImportFolder && (
+            <button
+              className="secondary-button"
+              type="button"
+              disabled={busy}
+              onClick={onImportFolder}
+            >
+              <Icon name="folder" />
+              {t("addAudioFolder")}
+            </button>
+          )}
+          {onWatchFolder && (
+            <button
+              className="secondary-button"
+              type="button"
+              disabled={busy}
+              onClick={onWatchFolder}
+            >
+              <Icon name="refresh" />
+              {t("watchAudioFolder")}
+            </button>
+          )}
           <button
             className="primary-button"
             type="button"
@@ -188,15 +192,17 @@ export function AudiobooksPage({
             <h2 id="audio-folders-title">{t("audioSourceFolders")}</h2>
             <p>{t("audioSourceFoldersHint")}</p>
           </div>
-          <button
-            className="secondary-button"
-            type="button"
-            disabled={busy || folders.length === 0}
-            onClick={onScan}
-          >
-            <Icon name="refresh" />
-            {t("scanAudioFolders")}
-          </button>
+          {onScan && (
+            <button
+              className="secondary-button"
+              type="button"
+              disabled={busy || folders.length === 0}
+              onClick={onScan}
+            >
+              <Icon name="refresh" />
+              {t("scanAudioFolders")}
+            </button>
+          )}
         </div>
         {folders.length === 0 ? (
           <p className="audio-folders-empty">{t("audioFoldersEmpty")}</p>

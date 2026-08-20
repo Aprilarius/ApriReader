@@ -17,6 +17,7 @@ IGNORED_DIRS = {".git", "node_modules", "target", "dist"}
 APPROVED_NPM = {
     "@tauri-apps/api": "MIT OR Apache-2.0",
     "@tauri-apps/plugin-dialog": "MIT OR Apache-2.0",
+    "@tauri-apps/plugin-fs": "MIT OR Apache-2.0",
     "@tauri-apps/plugin-opener": "MIT OR Apache-2.0",
     "pdfjs-dist": "Apache-2.0",
     "react": "MIT",
@@ -176,6 +177,9 @@ def check_tauri_boundary() -> None:
     if simple_permissions != allowed or scoped_permissions != [expected_opener]:
         fail("desktop capability permissions changed without security review")
     scopes = set(security["assetProtocol"]["scope"])
+    # "$APPLOCALDATA/audio/**" was only ever written by the managed mobile
+    # import. With the Android build gone nothing produces that directory, so
+    # the WebView no longer needs read access to it.
     expected = {
         "$APPLOCALDATA/covers/**",
         "$APPLOCALDATA/fonts/**",

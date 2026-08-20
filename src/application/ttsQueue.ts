@@ -133,7 +133,7 @@ export function highlightAtPlaybackPosition(
           (value) => value.startOffset <= offset && value.endOffset > offset,
         ) ??
         chunk.words.find((value) => value.startOffset >= offset) ??
-        chunk.words.at(-1);
+        chunk.words[chunk.words.length - 1];
       if (word) {
         return {
           sectionIndex: chunk.sectionIndex,

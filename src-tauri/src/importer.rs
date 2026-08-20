@@ -384,8 +384,10 @@ fn inspect_fb2(path: &Path) -> Result<Metadata, ImportError> {
                 }
             }
             Ok(Event::Text(text)) => {
-                let value = decode_xml_text(&text);
-                record_fb2_metadata_fragment(&stack, &value, &mut metadata, &mut author_parts);
+                if is_fb2_metadata_text_path(&stack) {
+                    let value = decode_xml_text(&text);
+                    record_fb2_metadata_fragment(&stack, &value, &mut metadata, &mut author_parts);
+                }
                 if binary_id.is_some() && binary_id == cover_id {
                     append_base64_chunk(
                         text.as_ref(),
@@ -479,12 +481,14 @@ fn inspect_large_fb2(path: &Path) -> Result<Metadata, ImportError> {
                         .map(|value| value.trim_start_matches('#').to_owned());
                 }
             }
-            Ok(Event::Text(text)) => record_fb2_metadata_fragment(
-                &stack,
-                &decode_xml_text(&text),
-                &mut metadata,
-                &mut author_parts,
-            ),
+            Ok(Event::Text(text)) if is_fb2_metadata_text_path(&stack) => {
+                record_fb2_metadata_fragment(
+                    &stack,
+                    &decode_xml_text(&text),
+                    &mut metadata,
+                    &mut author_parts,
+                )
+            }
             Ok(Event::GeneralRef(reference)) => record_fb2_metadata_fragment(
                 &stack,
                 &decode_xml_reference(&reference),
@@ -585,6 +589,14 @@ fn record_fb2_metadata_fragment(
             genre.push_str(value);
         }
     }
+}
+
+fn is_fb2_metadata_text_path(stack: &[String]) -> bool {
+    path_ends_with(stack, &["title-info", "book-title"])
+        || path_ends_with(stack, &["title-info", "author", "first-name"])
+        || path_ends_with(stack, &["title-info", "author", "middle-name"])
+        || path_ends_with(stack, &["title-info", "author", "last-name"])
+        || path_ends_with(stack, &["title-info", "genre"])
 }
 
 fn join_author_parts(parts: &[String]) -> String {

@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Component,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import type { CSSProperties, ReactNode } from "react";
 import {
   chooseAndImportAudiobookFolder,
   chooseAndImportAudiobooks,
@@ -29,6 +37,7 @@ import {
   listBooks,
   listWatchedFolders,
   removeBooks,
+  removeWatchedFolder,
   scanWatchedFolders,
   setBookFavorite,
   type Book,
@@ -54,6 +63,10 @@ import {
 import { loadDocument, type DocumentModel } from "../application/reader";
 import { getStartupHealth, type StartupHealth } from "../application/health";
 import {
+  conservativePlatformCapabilities,
+  getPlatformCapabilities,
+} from "../application/platform";
+import {
   emptyStatistics,
   getStatistics,
   type StatisticsSnapshot,
@@ -61,12 +74,13 @@ import {
 import { syncSteamIfAvailable } from "../application/steam";
 import { Icon, type IconName } from "./icons";
 import { greetingKeyForHour } from "./greeting";
-import type { TranslationKey } from "./i18n";
+import { supportedLocales, type Locale, type TranslationKey } from "./i18n";
 import { ReaderScreen } from "./ReaderScreen";
 import { SpecialReaderScreen } from "./SpecialReaderScreen";
 import { AchievementsPage, StatisticsPage } from "./StatisticsPages";
 import { AudiobookDetails, AudiobooksPage } from "./AudiobooksPage";
 import { AudiobookPlayer } from "./AudiobookPlayer";
+import { readLocalValue, writeLocalValue } from "./localStorage";
 import { useLocale } from "./useLocale";
 import { useCurrentHour } from "./useCurrentHour";
 import {
@@ -93,8 +107,116 @@ const routes: Route[] = [
   { id: "settings", label: "settings", icon: "settings" },
 ];
 
+class ReaderCrashBoundary extends Component<
+  {
+    children: ReactNode;
+    t: ReturnType<typeof useLocale>["t"];
+    onClose: () => void;
+    document: DocumentModel;
+  },
+  { failed: boolean }
+> {
+  state = { failed: false };
+
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+
+  componentDidCatch(error: unknown) {
+    console.error("Reader render failed", error);
+  }
+
+  render() {
+    if (!this.state.failed) return this.props.children;
+    return <SafeReaderScreen {...this.props} />;
+  }
+}
+
+/**
+ * A deliberately dependency-free reader used only if the enhanced reader
+ * fails. It keeps a valid document readable instead of replacing it with an
+ * error page on a device-specific WebView failure.
+ */
+function SafeReaderScreen({
+  document,
+  t,
+  onClose,
+}: {
+  document: DocumentModel;
+  t: ReturnType<typeof useLocale>["t"];
+  onClose: () => void;
+}) {
+  const [sectionIndex, setSectionIndex] = useState(document.lastSection);
+  const section = document.sections[sectionIndex] ?? document.sections[0];
+  if (!section) return null;
+
+  return (
+    <div className="reader-screen theme-paper safe-reader-screen">
+      <header className="reader-toolbar">
+        <button
+          type="button"
+          className="reader-icon-button"
+          aria-label={t("readerBack")}
+          onClick={onClose}
+        >
+          ←
+        </button>
+        <div className="reader-book-title">
+          <strong>{document.title}</strong>
+          <span>{document.author}</span>
+        </div>
+      </header>
+      <main className="reader-scroll layout-continuous">
+        <article className="reader-document reader-document-continuous">
+          <p className="reader-kicker">
+            {sectionIndex + 1} / {document.sections.length}
+          </p>
+          <h1>{section.title}</h1>
+          <div className="reader-blocks">
+            {section.blocks.map((block, index) => (
+              <p
+                className={
+                  block.kind === "heading"
+                    ? "reader-block-heading"
+                    : block.kind === "quote"
+                      ? "reader-block-quote"
+                      : block.kind === "code"
+                        ? "reader-block-code"
+                        : block.kind === "listItem"
+                          ? "reader-block-list"
+                          : ""
+                }
+                key={`${section.id}-${index}`}
+              >
+                {block.text}
+              </p>
+            ))}
+          </div>
+          <footer className="reader-section-nav">
+            <button
+              type="button"
+              disabled={sectionIndex === 0}
+              onClick={() => setSectionIndex((value) => value - 1)}
+            >
+              ← {t("previousSection")}
+            </button>
+            <button
+              type="button"
+              disabled={sectionIndex === document.sections.length - 1}
+              onClick={() => setSectionIndex((value) => value + 1)}
+            >
+              {t("nextSection")} →
+            </button>
+          </footer>
+        </article>
+      </main>
+    </div>
+  );
+}
+
 export function App() {
-  const { locale, t, toggleLocale } = useLocale();
+  const { locale, t, selectLocale, confirmLocale, languageSelected } =
+    useLocale();
   const currentHour = useCurrentHour();
   const {
     onboardingComplete,
@@ -138,12 +260,16 @@ export function App() {
   const [startupHealth, setStartupHealth] = useState<StartupHealth | null>(
     null,
   );
+  const [platformCapabilities, setPlatformCapabilities] = useState(
+    conservativePlatformCapabilities,
+  );
   const mainRef = useRef<HTMLElement>(null);
   const previousRoute = useRef(route);
   const launchFileWork = useRef<Promise<void>>(Promise.resolve());
   const readerRequest = useRef(0);
   const audioRequest = useRef(0);
-  const current = routes.find((item) => item.id === route) ?? routes[0]!;
+  const visibleRoutes = routes;
+  const current = visibleRoutes.find((item) => item.id === route) ?? routes[0]!;
   const selected = books.find((book) => book.id === selectedId) ?? null;
   const selectedAudiobook =
     audiobooks.find((book) => book.id === selectedAudiobookId) ?? null;
@@ -191,15 +317,37 @@ export function App() {
 
   useEffect(() => {
     void refresh();
-    void syncSteamIfAvailable().catch(() => undefined);
+    void getPlatformCapabilities()
+      .then((capabilities) => {
+        setPlatformCapabilities(capabilities);
+        window.document.documentElement.dataset.platform =
+          capabilities.platform;
+        if (capabilities.steamIntegration) {
+          void syncSteamIfAvailable().catch((reason: unknown) =>
+            console.error("Steam achievement sync failed", reason),
+          );
+        }
+      })
+      /*
+       * Losing this leaves the app on the fail-closed capability set, which
+       * quietly hides watched folders and the tray. Report it rather than
+       * leaving a degraded window with no explanation anywhere.
+       */
+      .catch((reason: unknown) =>
+        console.error("Platform capability probe failed", reason),
+      );
     void getStartupHealth()
       .then(setStartupHealth)
-      .catch(() => undefined);
+      .catch((reason: unknown) =>
+        console.error("Startup health probe failed", reason),
+      );
   }, [refresh]);
 
   useEffect(() => {
-    void syncAudioCloseBehavior(audioCloseBehavior).catch(() => undefined);
-  }, [audioCloseBehavior]);
+    if (platformCapabilities.desktop) {
+      void syncAudioCloseBehavior(audioCloseBehavior).catch(() => undefined);
+    }
+  }, [audioCloseBehavior, platformCapabilities.desktop]);
 
   useEffect(() => {
     if (route === "audiobooks") void refreshAudiobooks();
@@ -340,6 +488,26 @@ export function App() {
     }
   };
 
+  const stopWatchingFolder = async (folder: WatchedFolder) => {
+    if (
+      !window.confirm(
+        t("stopWatchingFolderConfirm").replace("{path}", folder.path),
+      )
+    ) {
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      await removeWatchedFolder(folder.id);
+      setFolders(await listWatchedFolders());
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : String(reason));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const confirmAndRemoveBooks = async (targets: Book[]): Promise<boolean> => {
     const uniqueTargets = [
       ...new Map(targets.map((book) => [book.id, book])).values(),
@@ -473,12 +641,16 @@ export function App() {
     };
   }, [openBook, refresh, refreshAudiobooks, t]);
 
+  if (!languageSelected) {
+    return <LanguageWelcomeScreen locale={locale} onConfirm={confirmLocale} />;
+  }
+
   if (!onboardingComplete) {
     return (
       <WelcomeScreen
         locale={locale}
         t={t}
-        onToggleLocale={toggleLocale}
+        onSelectLocale={selectLocale}
         onContinue={completeOnboarding}
         onSkip={() => completeOnboarding()}
       />
@@ -487,20 +659,28 @@ export function App() {
 
   if (document) {
     return (
-      <ReaderScreen
+      <ReaderCrashBoundary
+        key={document.bookId}
         document={document}
         t={t}
-        language={readerLanguage}
-        screenReaderSupport={screenReaderSupport}
         onClose={closeReader}
-        onProgress={(progress) => {
-          setBooks((items) =>
-            items.map((book) =>
-              book.id === document.bookId ? { ...book, progress } : book,
-            ),
-          );
-        }}
-      />
+      >
+        <ReaderScreen
+          document={document}
+          t={t}
+          language={readerLanguage}
+          screenReaderSupport={screenReaderSupport}
+          allowCloudTts={platformCapabilities.protectedCloudCredentials}
+          onClose={closeReader}
+          onProgress={(progress) => {
+            setBooks((items) =>
+              items.map((book) =>
+                book.id === document.bookId ? { ...book, progress } : book,
+              ),
+            );
+          }}
+        />
+      </ReaderCrashBoundary>
     );
   }
 
@@ -536,7 +716,7 @@ export function App() {
   }
 
   return (
-    <div className="app-shell">
+    <div className="app-shell" data-platform={platformCapabilities.platform}>
       <a className="skip-link" href="#main-content">
         {t("skipToContent")}
       </a>
@@ -548,7 +728,7 @@ export function App() {
           <span className="brand-name">{t("appName")}</span>
         </div>
         <nav className="nav-list" aria-label={t("library")}>
-          {routes.map((item) => (
+          {visibleRoutes.map((item) => (
             <button
               className={`nav-item ${route === item.id ? "active" : ""}`}
               type="button"
@@ -568,17 +748,12 @@ export function App() {
           ))}
         </nav>
         <div className="sidebar-foot">
-          <button
-            className="language-button"
-            type="button"
-            onClick={toggleLocale}
-            aria-label={t("switchLanguage")}
-          >
-            <span aria-hidden="true">{locale === "ru" ? "RU" : "EN"}</span>
-            <span className="nav-label">
-              {locale === "ru" ? "Русский" : "English"}
-            </span>
-          </button>
+          <LanguageSelect
+            className="sidebar-language"
+            locale={locale}
+            t={t}
+            onSelect={selectLocale}
+          />
         </div>
       </aside>
 
@@ -589,7 +764,7 @@ export function App() {
         tabIndex={-1}
         aria-labelledby="page-title"
       >
-        <section className="page">
+        <section className="page route-page" key={route}>
           <header className="page-header">
             <div>
               <p className="eyebrow">{t("personalLibrary")}</p>
@@ -654,7 +829,11 @@ export function App() {
               onFavorite={(book) => void toggleFavorite(book)}
               onRemove={confirmAndRemoveBooks}
               onImport={() => void runImport(chooseAndImportBooks)}
-              onWatch={() => void runImport(chooseAndWatchFolder)}
+              onWatch={
+                platformCapabilities.watchedFolders
+                  ? () => void runImport(chooseAndWatchFolder)
+                  : null
+              }
             />
           ) : route === "audiobooks" ? (
             <AudiobooksPage
@@ -669,14 +848,21 @@ export function App() {
               onImportFiles={() =>
                 void runAudioImport(chooseAndImportAudiobooks)
               }
-              onImportFolder={() =>
-                void runAudioImport(chooseAndImportAudiobookFolder)
+              onImportFolder={
+                platformCapabilities.watchedFolders
+                  ? () => void runAudioImport(chooseAndImportAudiobookFolder)
+                  : null
               }
-              onWatchFolder={() =>
-                void runAudioImport(chooseAndWatchAudioFolder)
+              onWatchFolder={
+                platformCapabilities.watchedFolders
+                  ? () => void runAudioImport(chooseAndWatchAudioFolder)
+                  : null
               }
-              onScan={() =>
-                void runAudioImport(async () => scanWatchedAudioFolders())
+              onScan={
+                platformCapabilities.watchedFolders
+                  ? () =>
+                      void runAudioImport(async () => scanWatchedAudioFolders())
+                  : null
               }
             />
           ) : route === "reading" ? (
@@ -698,6 +884,7 @@ export function App() {
               t={t}
               onWatch={() => void runImport(chooseAndWatchFolder)}
               onScan={() => void runImport(async () => scanWatchedFolders())}
+              onUnwatch={(folder) => void stopWatchingFolder(folder)}
             />
           ) : route === "settings" ? (
             <SettingsPage
@@ -779,7 +966,7 @@ export function App() {
         <BookDetails
           key={selected?.id ?? "empty-details"}
           book={selected}
-          locale={locale}
+          locale={locale === "ru" ? "ru" : "en"}
           t={t}
           busy={readerLoading}
           onRead={(book) => void openBook(book)}
@@ -813,16 +1000,130 @@ export function App() {
   );
 }
 
+const languageIntroductions: Record<Locale, string> = {
+  ru: "Добро пожаловать",
+  en: "Welcome",
+  az: "Xoş gəlmisiniz",
+  it: "Benvenuto",
+  de: "Willkommen",
+  tr: "Hoş geldiniz",
+};
+
+function LanguageWelcomeScreen({
+  locale,
+  onConfirm,
+}: {
+  locale: Locale;
+  onConfirm: (locale: Locale) => void;
+}) {
+  const [selected, setSelected] = useState(locale);
+  const [leaving, setLeaving] = useState(false);
+
+  const confirm = () => {
+    if (leaving) return;
+    setLeaving(true);
+    window.setTimeout(() => onConfirm(selected), 260);
+  };
+
+  return (
+    <main
+      className={`language-welcome-screen ${leaving ? "is-leaving" : ""}`}
+      aria-labelledby="language-welcome-title"
+    >
+      <div className="language-welcome-glow" aria-hidden="true" />
+      <section className="language-welcome-card">
+        <header className="language-welcome-header">
+          <span className="language-welcome-mark" aria-hidden="true">
+            <Icon name="reading" />
+          </span>
+          <p className="language-welcome-brand">ApriReader</p>
+          <h1 id="language-welcome-title">Choose your reading language</h1>
+          <p>Выберите язык · Dilinizi seçin · Scegli la lingua</p>
+        </header>
+
+        <div className="language-cards" role="radiogroup" aria-label="Language">
+          {supportedLocales.map((language, index) => (
+            <button
+              type="button"
+              role="radio"
+              aria-checked={selected === language.id}
+              className={`language-card ${selected === language.id ? "selected" : ""}`}
+              key={language.id}
+              style={
+                { animationDelay: `${100 + index * 48}ms` } as CSSProperties
+              }
+              onClick={() => setSelected(language.id)}
+              onDoubleClick={confirm}
+            >
+              <span className="language-card-code">{language.code}</span>
+              <span className="language-card-copy">
+                <strong>{language.label}</strong>
+                <small>{languageIntroductions[language.id]}</small>
+              </span>
+              <span className="language-card-check" aria-hidden="true">
+                ✓
+              </span>
+            </button>
+          ))}
+        </div>
+
+        <button
+          className="language-confirm-button"
+          type="button"
+          onClick={confirm}
+          disabled={leaving}
+        >
+          <span>{languageIntroductions[selected]}</span>
+          <span aria-hidden="true">→</span>
+        </button>
+        <p className="language-welcome-footnote">
+          You can change this later in the library.
+        </p>
+      </section>
+    </main>
+  );
+}
+
+function LanguageSelect({
+  className,
+  locale,
+  t,
+  onSelect,
+}: {
+  className?: string;
+  locale: Locale;
+  t: Translator;
+  onSelect: (locale: Locale) => void;
+}) {
+  return (
+    <label className={`language-select ${className ?? ""}`.trim()}>
+      <span className="visually-hidden">{t("switchLanguage")}</span>
+      <select
+        value={locale}
+        aria-label={t("switchLanguage")}
+        title={t("switchLanguage")}
+        onChange={(event) => onSelect(event.currentTarget.value as Locale)}
+      >
+        {supportedLocales.map((language) => (
+          <option value={language.id} key={language.id}>
+            {language.code} · {language.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 function WelcomeScreen({
   locale,
   t,
-  onToggleLocale,
+  onSelectLocale,
   onContinue,
   onSkip,
 }: {
-  locale: "ru" | "en";
+  locale: Locale;
   t: Translator;
-  onToggleLocale: () => void;
+  onSelectLocale: (locale: Locale) => void;
   onContinue: (displayName: string) => void;
   onSkip: () => void;
 }) {
@@ -831,14 +1132,12 @@ function WelcomeScreen({
 
   return (
     <main className="welcome-screen">
-      <button
+      <LanguageSelect
         className="welcome-language"
-        type="button"
-        onClick={onToggleLocale}
-        aria-label={t("switchLanguage")}
-      >
-        {locale === "ru" ? "RU" : "EN"}
-      </button>
+        locale={locale}
+        t={t}
+        onSelect={onSelectLocale}
+      />
       <section className="welcome-card" aria-labelledby="welcome-title">
         <span className="welcome-mark" aria-hidden="true">
           <Icon name="reading" />
@@ -1006,6 +1305,17 @@ export function SettingsPage({
 }
 
 type Translator = ReturnType<typeof useLocale>["t"];
+type LibraryView = "grid" | "list";
+const libraryViewPreferenceKey = "aprireader.library.view";
+/** The key this preference used before the mobile build was dropped. */
+const legacyLibraryViewPreferenceKey = "aprireader.library.mobileView";
+
+function readLibraryView(): LibraryView {
+  const stored =
+    readLocalValue(libraryViewPreferenceKey) ??
+    readLocalValue(legacyLibraryViewPreferenceKey);
+  return stored === "list" ? "list" : "grid";
+}
 
 function LibraryPage({
   books,
@@ -1040,10 +1350,11 @@ function LibraryPage({
   onFavorite: (book: Book) => void;
   onRemove: (books: Book[]) => Promise<boolean>;
   onImport: () => void;
-  onWatch: () => void;
+  onWatch: (() => void) | null;
 }) {
   const [renderLimit, setRenderLimit] = useState(120);
   const [selectionMode, setSelectionMode] = useState(false);
+  const [libraryView, setLibraryView] = useState<LibraryView>(readLibraryView);
   const [selectedBookIds, setSelectedBookIds] = useState<Set<number>>(
     () => new Set(),
   );
@@ -1072,6 +1383,10 @@ function LibraryPage({
     const selectedBooks = books.filter((book) => selectedBookIds.has(book.id));
     if (await onRemove(selectedBooks)) cancelSelection();
   };
+  const chooseLibraryView = (view: LibraryView) => {
+    setLibraryView(view);
+    writeLocalValue(libraryViewPreferenceKey, view);
+  };
 
   return (
     <>
@@ -1097,6 +1412,30 @@ function LibraryPage({
         <div className="section-heading">
           <h2>{t("library")}</h2>
           <span>{visibleBooks.length}</span>
+          <div
+            className="library-view-switch"
+            role="group"
+            aria-label={t("libraryDisplayMode")}
+          >
+            <button
+              className={libraryView === "grid" ? "active" : ""}
+              type="button"
+              aria-label={t("libraryGridView")}
+              aria-pressed={libraryView === "grid"}
+              onClick={() => chooseLibraryView("grid")}
+            >
+              <span aria-hidden="true" className="view-grid-icon" />
+            </button>
+            <button
+              className={libraryView === "list" ? "active" : ""}
+              type="button"
+              aria-label={t("libraryListView")}
+              aria-pressed={libraryView === "list"}
+              onClick={() => chooseLibraryView("list")}
+            >
+              <span aria-hidden="true" className="view-list-icon" />
+            </button>
+          </div>
         </div>
         <div className="toolbar-actions">
           {selectionMode ? (
@@ -1146,15 +1485,17 @@ function LibraryPage({
               >
                 {t("selectBooks")}
               </button>
-              <button
-                className="secondary-button"
-                type="button"
-                disabled={busy}
-                onClick={onWatch}
-              >
-                <Icon name="folder" />
-                {t("watchFolder")}
-              </button>
+              {onWatch && (
+                <button
+                  className="secondary-button"
+                  type="button"
+                  disabled={busy}
+                  onClick={onWatch}
+                >
+                  <Icon name="folder" />
+                  {t("watchFolder")}
+                </button>
+              )}
               <button
                 className="primary-button"
                 type="button"
@@ -1198,7 +1539,10 @@ function LibraryPage({
           hint={t("noSearchResultsHint")}
         />
       ) : (
-        <section className="book-grid" aria-label={t("library")}>
+        <section
+          className={`book-grid library-shelf shelf-${libraryView}`}
+          aria-label={t("library")}
+        >
           {renderedBooks.map((book) => (
             <BookCard
               key={book.id}
@@ -1769,6 +2113,7 @@ function CollectionsPage({
   t,
   onWatch,
   onScan,
+  onUnwatch,
 }: {
   folders: WatchedFolder[];
   formats: string[];
@@ -1776,6 +2121,7 @@ function CollectionsPage({
   t: Translator;
   onWatch: () => void;
   onScan: () => void;
+  onUnwatch: (folder: WatchedFolder) => void;
 }) {
   return (
     <>
@@ -1821,6 +2167,14 @@ function CollectionsPage({
                 <strong>{folder.path}</strong>
                 <small>{folder.lastScannedAt ?? "—"}</small>
               </div>
+              <button
+                type="button"
+                className="secondary-button folder-unwatch"
+                disabled={busy}
+                onClick={() => onUnwatch(folder)}
+              >
+                {t("stopWatchingFolder")}
+              </button>
             </article>
           ))}
         </div>

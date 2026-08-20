@@ -115,7 +115,8 @@ export async function chooseAndImportAudiobooks(): Promise<AudioImportSummary | 
     filters: [{ name: "Audiobooks", extensions: audioExtensions }],
   });
   if (!selected) return null;
-  return importAudiobooks(Array.isArray(selected) ? selected : [selected]);
+  const paths = Array.isArray(selected) ? selected : [selected];
+  return importAudiobooks(paths);
 }
 
 export async function chooseAndImportAudiobookFolder(): Promise<AudioImportSummary | null> {

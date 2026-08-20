@@ -22,7 +22,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; img-src 'self' asset: http://asset.localhost data: blob:; style-src 'self' 'unsafe-inline'; worker-src 'self' blob:; connect-src 'self' ipc: http://ipc.localhost asset: http://asset.localhost",
+      "csp": "default-src 'self'; img-src 'self' asset: http://asset.localhost data: blob:; media-src 'self' asset: http://asset.localhost; style-src 'self' 'unsafe-inline'; worker-src 'self' blob:; connect-src 'self' ipc: http://ipc.localhost asset: http://asset.localhost",
       "capabilities": ["default"],
       "assetProtocol": {
         "enable": true,
@@ -36,6 +36,7 @@
   },
   "bundle": {
     "active": true,
+    "icon": ["icons/icon.png"],
     "targets": ["nsis"],
     "fileAssociations": [
       {
@@ -96,6 +97,11 @@
     "shortDescription": "Privacy-first desktop reader and personal library",
     "longDescription": "ApriReader is a local-first reader and personal library for DRM-free books on Windows.",
     "windows": {
+      "webviewInstallMode": {
+        "type": "embedBootstrapper",
+        "silent": false
+      },
+      "minimumWebview2Version": "109.0.1518.0",
       "nsis": {
         "installMode": "currentUser",
         "languages": ["English", "Russian"],

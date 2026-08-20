@@ -54,6 +54,7 @@ const bookExtensions = [
   "cbz",
   "cbr",
   "docx",
+  "zip",
 ];
 
 export const coverUrl = (path: string) => convertFileSrc(path);
@@ -83,6 +84,11 @@ export async function chooseAndWatchFolder(): Promise<ImportSummary | null> {
 export async function listWatchedFolders(): Promise<WatchedFolder[]> {
   if (!isTauri()) return [];
   return invoke<WatchedFolder[]>("list_watched_folders");
+}
+
+export async function removeWatchedFolder(folderId: number): Promise<boolean> {
+  if (!isTauri()) return false;
+  return invoke<boolean>("remove_watched_folder", { folderId });
 }
 
 export async function scanWatchedFolders(): Promise<ImportSummary> {

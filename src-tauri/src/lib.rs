@@ -2,6 +2,7 @@ mod audio_importer;
 mod audio_prototype;
 mod audio_statistics;
 mod azure_tts;
+mod book_archive;
 mod cloud_tts;
 mod database;
 mod fonts;
@@ -42,12 +43,15 @@ use std::{
     sync::Mutex,
 };
 use steam::{SteamIntegrationStatus, SteamSyncResult};
-use tauri::{Emitter, Manager, State};
-use tts::{PreparedTtsAudio, TtsService, TtsVoice};
+use tauri::{Manager, State};
+use tts::TtsService;
+use tts::{PreparedTtsAudio, TtsVoice};
 use tts_assets::{
     TtsAssetService, TtsCacheSummary, TtsExportPart, TtsExportResult, TtsExportStarted,
 };
 
+#[cfg(desktop)]
+use tauri::Emitter;
 #[cfg(desktop)]
 use tauri::{
     menu::{Menu, MenuItem},
@@ -56,6 +60,41 @@ use tauri::{
 };
 
 const MAX_PENDING_LAUNCH_FILES: usize = 32;
+
+#[derive(Clone, Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PlatformCapabilities {
+    platform: &'static str,
+    desktop: bool,
+    filesystem_paths: bool,
+    watched_folders: bool,
+    launch_file_arguments: bool,
+    system_tray: bool,
+    steam_integration: bool,
+    native_audiobook_playback: bool,
+    background_audio: bool,
+    audio_output_selection: bool,
+    local_text_to_speech: bool,
+    protected_cloud_credentials: bool,
+}
+
+#[tauri::command]
+fn get_platform_capabilities() -> PlatformCapabilities {
+    PlatformCapabilities {
+        platform: std::env::consts::OS,
+        desktop: cfg!(desktop),
+        filesystem_paths: cfg!(desktop),
+        watched_folders: cfg!(desktop),
+        launch_file_arguments: cfg!(desktop),
+        system_tray: cfg!(desktop),
+        steam_integration: cfg!(all(desktop, windows)),
+        native_audiobook_playback: cfg!(windows),
+        background_audio: cfg!(windows),
+        audio_output_selection: cfg!(windows),
+        local_text_to_speech: cfg!(windows),
+        protected_cloud_credentials: cfg!(windows),
+    }
+}
 
 struct LibraryState {
     database: Mutex<Database>,
@@ -103,6 +142,7 @@ impl AudioCloseBehavior {
     }
 }
 
+#[cfg(desktop)]
 fn audio_is_active(state: &AudioPrototypeState) -> bool {
     state
         .service
@@ -661,10 +701,30 @@ fn get_startup_health(state: State<'_, LibraryState>) -> Result<StartupHealth, S
 #[tauri::command]
 fn import_books(
     paths: Vec<String>,
+    app: tauri::AppHandle,
     state: State<'_, LibraryState>,
 ) -> Result<ImportSummary, String> {
     let paths = paths.into_iter().map(PathBuf::from).collect::<Vec<_>>();
-    with_database(&state, |database| database.import_paths(&paths))
+    import_book_inputs(paths, &app, &state)
+}
+
+fn import_book_inputs(
+    paths: Vec<PathBuf>,
+    app: &tauri::AppHandle,
+    state: &State<'_, LibraryState>,
+) -> Result<ImportSummary, String> {
+    let cache = app
+        .path()
+        .app_local_data_dir()
+        .map_err(|error| error.to_string())?
+        .join("archive-books");
+    let expanded = book_archive::expand_book_inputs(&paths, &cache);
+    with_database(state, |database| {
+        let mut summary = database.import_paths(&expanded.paths)?;
+        summary.failed += expanded.errors.len();
+        summary.errors.extend(expanded.errors);
+        Ok(summary)
+    })
 }
 
 #[tauri::command]
@@ -710,6 +770,11 @@ fn add_watched_folder(
     with_database(&state, |database| {
         database.add_watched_folder(PathBuf::from(path).as_path())
     })
+}
+
+#[tauri::command]
+fn remove_watched_folder(folder_id: i64, state: State<'_, LibraryState>) -> Result<bool, String> {
+    with_database(&state, |database| database.remove_watched_folder(folder_id))
 }
 
 #[tauri::command]
@@ -998,7 +1063,6 @@ fn export_annotations(
     })
 }
 
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let initial_cwd = std::env::current_dir().unwrap_or_default();
     let initial_paths = collect_launch_paths(std::env::args_os().skip(1), &initial_cwd);
@@ -1156,6 +1220,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            get_platform_capabilities,
             audio_prototype_capabilities,
             audio_probe_file,
             audio_load_file,
@@ -1218,6 +1283,7 @@ pub fn run() {
             open_launch_path,
             add_watched_folder,
             list_watched_folders,
+            remove_watched_folder,
             scan_watched_folders,
             update_book_metadata,
             set_book_favorite,

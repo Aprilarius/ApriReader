@@ -90,6 +90,7 @@ export function AudiobookPlayer({
   const [sleepRemaining, setSleepRemaining] = useState(0);
   const [closePrompt, setClosePrompt] = useState(false);
   const [rememberCloseChoice, setRememberCloseChoice] = useState(false);
+
   const [outputDevices, setOutputDevices] = useState<AudioOutputDevice[]>([]);
   const [outputDeviceId, setOutputDeviceId] = useState(
     () => readLocalValue(audioOutputDeviceKey) ?? "",

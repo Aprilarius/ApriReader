@@ -182,6 +182,7 @@ export function TextToSpeechPanel({
   t,
   onNavigate,
   onHighlight,
+  allowCloudProviders = true,
 }: {
   title: string;
   sections: DocumentSection[];
@@ -190,10 +191,13 @@ export function TextToSpeechPanel({
   t: Translator;
   onNavigate: (sectionIndex: number) => void;
   onHighlight: (range: TtsHighlightRange | null) => void;
+  allowCloudProviders?: boolean;
 }) {
   const [voices, setVoices] = useState<TtsVoice[]>([]);
   const [voiceId, setVoiceId] = useState(readLocalValue(voiceKey) ?? "");
-  const [provider, setProvider] = useState<TtsProvider>(readProvider);
+  const [provider, setProvider] = useState<TtsProvider>(() =>
+    allowCloudProviders ? readProvider() : "local",
+  );
   const [cloudConfigured, setCloudConfigured] = useState(false);
   const [cloudVoices, setCloudVoices] = useState<CloudTtsVoice[]>([]);
   const [cloudVoiceId, setCloudVoiceId] = useState(
@@ -343,6 +347,7 @@ export function TextToSpeechPanel({
   }, [language]);
 
   useEffect(() => {
+    if (!allowCloudProviders) return;
     let disposed = false;
     void getCloudTtsStatus()
       .then((status) => {
@@ -352,7 +357,7 @@ export function TextToSpeechPanel({
     return () => {
       disposed = true;
     };
-  }, []);
+  }, [allowCloudProviders]);
 
   useEffect(() => {
     void getTtsCacheSummary()
@@ -361,6 +366,7 @@ export function TextToSpeechPanel({
   }, []);
 
   useEffect(() => {
+    if (!allowCloudProviders) return;
     let disposed = false;
     void getGoogleTtsStatus()
       .then((status) => {
@@ -370,9 +376,10 @@ export function TextToSpeechPanel({
     return () => {
       disposed = true;
     };
-  }, []);
+  }, [allowCloudProviders]);
 
   useEffect(() => {
+    if (!allowCloudProviders) return;
     let disposed = false;
     void Promise.all([getAzureTtsStatus(), listAzureTtsRegions()])
       .then(([status, regions]) => {
@@ -391,7 +398,7 @@ export function TextToSpeechPanel({
     return () => {
       disposed = true;
     };
-  }, []);
+  }, [allowCloudProviders]);
 
   useEffect(() => {
     if (provider !== "elevenlabs" || !cloudConfigured) return;
@@ -836,7 +843,8 @@ export function TextToSpeechPanel({
     const preset = preferences.presets.find(
       (value) => value.id === selectedPresetId,
     );
-    if (!preset) return;
+    if (!preset || (!allowCloudProviders && preset.provider !== "local"))
+      return;
     resetSession();
     setProvider(preset.provider);
     setRate(preset.rate);
@@ -1139,45 +1147,47 @@ export function TextToSpeechPanel({
               ? t("ttsGooglePrivacy")
               : t("ttsAzurePrivacy")}
       </p>
-      <fieldset className="tts-scope tts-provider">
-        <legend>{t("ttsProvider")}</legend>
-        <label>
-          <input
-            type="radio"
-            name="tts-provider"
-            checked={provider === "local"}
-            onChange={() => chooseProvider("local")}
-          />
-          {t("ttsProviderWindows")}
-        </label>
-        <label>
-          <input
-            type="radio"
-            name="tts-provider"
-            checked={provider === "elevenlabs"}
-            onChange={() => chooseProvider("elevenlabs")}
-          />
-          {t("ttsProviderElevenLabs")}
-        </label>
-        <label>
-          <input
-            type="radio"
-            name="tts-provider"
-            checked={provider === "google"}
-            onChange={() => chooseProvider("google")}
-          />
-          {t("ttsProviderGoogle")}
-        </label>
-        <label>
-          <input
-            type="radio"
-            name="tts-provider"
-            checked={provider === "azure"}
-            onChange={() => chooseProvider("azure")}
-          />
-          {t("ttsProviderAzure")}
-        </label>
-      </fieldset>
+      {allowCloudProviders && (
+        <fieldset className="tts-scope tts-provider">
+          <legend>{t("ttsProvider")}</legend>
+          <label>
+            <input
+              type="radio"
+              name="tts-provider"
+              checked={provider === "local"}
+              onChange={() => chooseProvider("local")}
+            />
+            {t("ttsProviderWindows")}
+          </label>
+          <label>
+            <input
+              type="radio"
+              name="tts-provider"
+              checked={provider === "elevenlabs"}
+              onChange={() => chooseProvider("elevenlabs")}
+            />
+            {t("ttsProviderElevenLabs")}
+          </label>
+          <label>
+            <input
+              type="radio"
+              name="tts-provider"
+              checked={provider === "google"}
+              onChange={() => chooseProvider("google")}
+            />
+            {t("ttsProviderGoogle")}
+          </label>
+          <label>
+            <input
+              type="radio"
+              name="tts-provider"
+              checked={provider === "azure"}
+              onChange={() => chooseProvider("azure")}
+            />
+            {t("ttsProviderAzure")}
+          </label>
+        </fieldset>
+      )}
       <details className="tts-preferences">
         <summary>{t("ttsVoicePresets")}</summary>
         <div className="tts-preferences-body">
@@ -1195,11 +1205,16 @@ export function TextToSpeechPanel({
               }}
             >
               <option value="">{t("ttsNewPreset")}</option>
-              {preferences.presets.map((preset) => (
-                <option key={preset.id} value={preset.id}>
-                  {preset.name}
-                </option>
-              ))}
+              {preferences.presets
+                .filter(
+                  (preset) =>
+                    allowCloudProviders || preset.provider === "local",
+                )
+                .map((preset) => (
+                  <option key={preset.id} value={preset.id}>
+                    {preset.name}
+                  </option>
+                ))}
             </select>
           </label>
           <label>

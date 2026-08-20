@@ -142,6 +142,7 @@ function bookFixture(overrides: Partial<Book>): Book {
 describe("App", () => {
   beforeEach(() => {
     localStorage.clear();
+    localStorage.setItem("aprireader.languageSelected", "true");
     localStorage.setItem(
       localProfileKey,
       JSON.stringify({ onboardingComplete: true, displayName: "" }),
@@ -157,6 +158,23 @@ describe("App", () => {
     launchPaths = [];
     listenMock.mockResolvedValue(vi.fn());
     invokeMock.mockImplementation((command: string, invokeArgs?: unknown) => {
+      if (command === "get_platform_capabilities") {
+        return Promise.resolve({
+          platform: "windows",
+          desktop: true,
+          filesystemPaths: true,
+          managedDocumentImport: false,
+          watchedFolders: true,
+          launchFileArguments: true,
+          systemTray: true,
+          steamIntegration: false,
+          nativeAudiobookPlayback: true,
+          backgroundAudio: true,
+          audioOutputSelection: true,
+          localTextToSpeech: true,
+          protectedCloudCredentials: true,
+        });
+      }
       if (command === "list_books") return Promise.resolve(mockBooks);
       if (command === "list_audiobooks") return Promise.resolve(mockAudiobooks);
       if (command === "list_audiobook_parts")
@@ -547,6 +565,26 @@ describe("App", () => {
     expect(greetingKeyForHour(18)).toBe("greetingEvening");
   });
 
+  it("opens with an authentic language choice and continues in that language", async () => {
+    localStorage.removeItem("aprireader.languageSelected");
+    localStorage.removeItem(localProfileKey);
+    render(<App />);
+
+    expect(
+      screen.getByRole("heading", { name: "Choose your reading language" }),
+    ).toBeInTheDocument();
+    expect(screen.getAllByRole("radio")).toHaveLength(6);
+
+    fireEvent.click(screen.getByRole("radio", { name: /Italiano/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Benvenuto/ }));
+
+    expect(
+      await screen.findByRole("heading", { name: "Come possiamo chiamarti?" }),
+    ).toBeInTheDocument();
+    expect(localStorage.getItem("aprireader.locale")).toBe("it");
+    expect(localStorage.getItem("aprireader.languageSelected")).toBe("true");
+  });
+
   it("creates an optional local profile on first launch", async () => {
     localStorage.setItem("aprireader.locale", "en");
     localStorage.removeItem(localProfileKey);
@@ -640,6 +678,19 @@ describe("App", () => {
       await screen.findByRole("heading", { name: "No books found" }),
     ).toBeInTheDocument();
     expect(screen.queryByText("Your library is empty")).not.toBeInTheDocument();
+  });
+
+  it("remembers the selected library presentation", async () => {
+    mockBooks = [bookFixture({ title: "Shelf fixture" })];
+    render(<App />);
+
+    const listView = await screen.findByRole("button", {
+      name: "Список книг",
+    });
+    fireEvent.click(listView);
+
+    expect(listView).toHaveAttribute("aria-pressed", "true");
+    expect(localStorage.getItem("aprireader.library.view")).toBe("list");
   });
 
   it("imports and opens a book passed by a Windows file association", async () => {
@@ -1094,11 +1145,15 @@ describe("App", () => {
 
   it("persists the selected locale", async () => {
     render(<App />);
-    fireEvent.click(screen.getByRole("button", { name: "Switch to English" }));
+    fireEvent.change(
+      screen.getByRole("combobox", { name: "Язык интерфейса" }),
+      { target: { value: "it" } },
+    );
     expect(
-      await screen.findByRole("heading", { name: "Your library is empty" }),
+      await screen.findByRole("heading", { name: "La tua libreria è vuota" }),
     ).toBeInTheDocument();
-    expect(localStorage.getItem("aprireader.locale")).toBe("en");
+    expect(localStorage.getItem("aprireader.locale")).toBe("it");
+    expect(document.documentElement.lang).toBe("it");
   });
 
   it("persists the screen reader support preference", async () => {
@@ -1180,7 +1235,7 @@ describe("App", () => {
       ).toHaveAttribute("aria-label", label);
     }
     expect(
-      screen.getByRole("button", { name: "Переключить на русский" }),
+      screen.getByRole("combobox", { name: "Interface language" }),
     ).toBeInTheDocument();
   });
 

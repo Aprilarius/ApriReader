@@ -135,10 +135,10 @@ export function parseTtsPreferences(raw: string | null): TtsPreferences {
 }
 
 export function createTtsPreferenceId(): string {
-  return (
-    globalThis.crypto?.randomUUID().replaceAll("-", "") ??
-    `${Date.now()}_${Math.random().toString(36).slice(2)}`
-  );
+  const generatedId = window.crypto?.randomUUID?.();
+  return generatedId
+    ? generatedId.replace(/-/gu, "")
+    : `${Date.now()}_${Math.random().toString(36).slice(2)}`;
 }
 
 export function normalizeVoicePreset(
@@ -222,6 +222,11 @@ function escapeRegularExpression(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
 }
 
+function finalCharacter(value: string): string {
+  const characters = Array.from(value);
+  return characters[characters.length - 1] ?? "";
+}
+
 function hasWholeWordBoundaries(
   text: string,
   start: number,
@@ -229,9 +234,8 @@ function hasWholeWordBoundaries(
   source: string,
 ): boolean {
   const first = Array.from(source)[0] ?? "";
-  const last = Array.from(source).at(-1) ?? "";
-  const before =
-    start > 0 ? (Array.from(text.slice(0, start)).at(-1) ?? "") : "";
+  const last = finalCharacter(source);
+  const before = start > 0 ? finalCharacter(text.slice(0, start)) : "";
   const after = end < text.length ? (Array.from(text.slice(end))[0] ?? "") : "";
   return !(
     (wordCharacterPattern.test(first) && wordCharacterPattern.test(before)) ||

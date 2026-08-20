@@ -8,6 +8,7 @@ import {
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { DocumentModel } from "../application/reader";
 import { translations, type TranslationKey } from "./i18n";
+import { readerSwipeDirection } from "./readerGestures";
 import { ReaderScreen } from "./ReaderScreen";
 
 const { openUrl } = vi.hoisted(() => ({
@@ -119,20 +120,36 @@ const document: DocumentModel = {
     {
       id: "opening",
       title: "Opening",
+      source: "",
+      anchors: [],
       blocks: [
-        { kind: "paragraph", text: "Only safe text is rendered." },
-        { kind: "quote", text: "A quoted thought." },
+        { kind: "paragraph", text: "Only safe text is rendered.", links: [] },
+        { kind: "quote", text: "A quoted thought.", links: [] },
       ],
     },
     {
       id: "ending",
       title: "Ending",
-      blocks: [{ kind: "paragraph", text: "The end." }],
+      source: "",
+      anchors: [],
+      blocks: [{ kind: "paragraph", text: "The end.", links: [] }],
     },
   ],
 };
 
 const t = (key: TranslationKey) => translations.en[key];
+
+describe("readerSwipeDirection", () => {
+  it("maps deliberate horizontal swipes to section navigation", () => {
+    expect(readerSwipeDirection(240, 100, 120, 112)).toBe(1);
+    expect(readerSwipeDirection(120, 100, 240, 88)).toBe(-1);
+  });
+
+  it("ignores short and predominantly vertical gestures", () => {
+    expect(readerSwipeDirection(100, 100, 50, 102)).toBe(0);
+    expect(readerSwipeDirection(100, 100, 30, 220)).toBe(0);
+  });
+});
 
 describe("ReaderScreen", () => {
   beforeEach(() => {
@@ -238,6 +255,28 @@ describe("ReaderScreen", () => {
     ttsMocks.pause.mockResolvedValue({ ...ready, phase: "paused" });
     ttsMocks.snapshot.mockResolvedValue({ ...ready, phase: "playing" });
     ttsMocks.stop.mockResolvedValue({ ...ready, phase: "idle" });
+  });
+
+  it("hides cloud providers when credentials cannot be protected", async () => {
+    render(
+      <ReaderScreen
+        document={document}
+        language="en"
+        t={t}
+        onClose={vi.fn()}
+        onProgress={vi.fn()}
+        allowCloudTts={false}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Read aloud" }));
+    expect(
+      await screen.findByRole("combobox", { name: "Windows voice" }),
+    ).toHaveValue("windows-en-voice");
+    expect(screen.queryByRole("radio", { name: "ElevenLabs" })).toBeNull();
+    expect(cloudTtsMocks.status).not.toHaveBeenCalled();
+    expect(googleTtsMocks.status).not.toHaveBeenCalled();
+    expect(azureTtsMocks.status).not.toHaveBeenCalled();
   });
 
   it("starts a bounded local narration queue with an installed Windows voice", async () => {
@@ -1043,6 +1082,132 @@ describe("ReaderScreen", () => {
     expect(
       screen.getByRole("button", { name: "Export as Markdown" }),
     ).toBeEnabled();
+  });
+
+  it("renders a long book instead of exhausting React's update depth", () => {
+    /*
+     * The page measurer walks one section per commit. While it advanced from
+     * inside its own layout effect the walk was a single synchronous cascade,
+     * so a book with more than a few dozen chapters tripped React's nested
+     * update limit and tore the whole reader down. jsdom reports every element
+     * as zero-sized, which parks the measurer before it starts, so the
+     * viewport has to be faked for the regression to be observable at all.
+     */
+    const width = vi
+      .spyOn(HTMLElement.prototype, "clientWidth", "get")
+      .mockReturnValue(800);
+    const height = vi
+      .spyOn(HTMLElement.prototype, "clientHeight", "get")
+      .mockReturnValue(600);
+    const longBook: DocumentModel = {
+      ...document,
+      sections: Array.from({ length: 200 }, (_, index) => ({
+        id: `chapter-${index}`,
+        title: `Chapter ${index + 1}`,
+        source: "",
+        anchors: [],
+        blocks: [
+          { kind: "paragraph" as const, text: `Body ${index + 1}.`, links: [] },
+        ],
+      })),
+    };
+
+    try {
+      render(
+        <ReaderScreen
+          document={longBook}
+          t={t}
+          onClose={vi.fn()}
+          onProgress={vi.fn()}
+        />,
+      );
+
+      expect(screen.getByRole("main")).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Table of contents" }),
+      ).toBeInTheDocument();
+      expect(screen.getAllByText("1 / 200").length).toBeGreaterThan(0);
+    } finally {
+      width.mockRestore();
+      height.mockRestore();
+    }
+  });
+
+  it("follows a footnote marker to the note and back to the text", () => {
+    const linkedDocument: DocumentModel = {
+      ...document,
+      sections: [
+        {
+          id: "section-1",
+          title: "Chapter",
+          source: "OPS/ch1-15.xhtml",
+          anchors: [],
+          blocks: [
+            {
+              kind: "paragraph",
+              text: "He called it [85] a myth.",
+              links: [{ start: 13, end: 17, href: "ch2-85.xhtml#id45" }],
+            },
+          ],
+        },
+        {
+          id: "section-2",
+          title: "85",
+          source: "OPS/ch2-85.xhtml",
+          anchors: ["id45"],
+          blocks: [{ kind: "paragraph", text: "The note body.", links: [] }],
+        },
+      ],
+    };
+    render(
+      <ReaderScreen
+        document={linkedDocument}
+        t={t}
+        onClose={vi.fn()}
+        onProgress={vi.fn()}
+      />,
+    );
+
+    // The marker is its own control; the words around it stay plain text.
+    const marker = screen.getByRole("button", { name: "[85]" });
+    fireEvent.click(marker);
+    expect(screen.getAllByText("The note body.").length).toBeGreaterThan(0);
+
+    fireEvent.click(screen.getByRole("button", { name: /Back to reading/ }));
+    expect(screen.getAllByText(/He called it/).length).toBeGreaterThan(0);
+  });
+
+  it("keeps annotation offsets addressing the same text as before", () => {
+    // Links are an overlay on the string, so a highlight stored over the same
+    // range has to keep rendering in exactly the same place.
+    const linkedDocument: DocumentModel = {
+      ...document,
+      sections: [
+        {
+          id: "section-1",
+          title: "Chapter",
+          source: "OPS/ch1-15.xhtml",
+          anchors: [],
+          blocks: [
+            {
+              kind: "paragraph",
+              text: "He called it [85] a myth.",
+              links: [{ start: 13, end: 17, href: "ch2-85.xhtml#id45" }],
+            },
+          ],
+        },
+      ],
+    };
+    render(
+      <ReaderScreen
+        document={linkedDocument}
+        t={t}
+        onClose={vi.fn()}
+        onProgress={vi.fn()}
+      />,
+    );
+    const paragraph = screen.getAllByText(/He called it/)[0]!.closest("p");
+    expect(paragraph?.textContent).toBe("He called it [85] a myth.");
   });
 
   it("opens the full-text search panel without leaving the reader", () => {

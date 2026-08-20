@@ -2,6 +2,32 @@
 
 ## Unreleased
 
+## 1.5.0 - 2026-08-20
+
+- Fixed the blank reader page. Page measurement advanced from inside its own
+  layout effect, so a book with more than roughly fifty chapters exhausted
+  React's nested update limit and tore the reader down; the crash fallback then
+  inherited the reader's grid and clipped the recovered text to three pixels.
+- Chapter names are read from styled title wrappers and from `h4`-`h6`, so
+  books converted from FB2 no longer fall back to "Section 1", "Section 2".
+  A horizontal rule is no longer mistaken for a heading.
+- Footnote and cross-reference markers such as `[85]` are clickable. Following
+  one remembers the reading position and offers a single click back. Links are
+  carried beside the block text rather than inside it, so stored highlights and
+  notes keep addressing the same characters.
+- Library recovery now restores the backup that holds the most books instead of
+  the most recent one. An intact but empty backup could previously replace a
+  full library.
+- A watched folder can be removed. The books it imported stay in the library.
+- The table of contents is rendered in batches, so a book with very many
+  sections no longer freezes the window when the panel opens.
+- Links that leave the book are reported instead of being handed to the system
+  browser, matching the deliberately narrow opener allow-list.
+- Removed the unfinished Android build: mobile audio, managed document import,
+  the system back button, and the mobile capability flags. The asset protocol
+  no longer exposes the directory that only the mobile import wrote to, and
+  `tauri-plugin-fs`, which no longer had a consumer, is gone.
+
 ## 1.3.1 - 2026-08-09
 
 - Fixed FB2 imports that fell back to filenames or missed embedded covers,

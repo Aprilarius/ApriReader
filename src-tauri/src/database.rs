@@ -639,6 +639,27 @@ impl Database {
         Ok(connection)
     }
 
+    /// Counts the books a backup would restore, or `None` if it is unusable.
+    ///
+    /// Integrity alone is a poor test: a backup taken right after the library
+    /// was emptied passes `quick_check` just as well as one taken while it was
+    /// full, and restoring it would replace the user's library with nothing.
+    fn backup_book_count(path: &Path) -> Option<i64> {
+        let connection =
+            Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_ONLY).ok()?;
+        let check = connection
+            .query_row("PRAGMA quick_check", [], |row| row.get::<_, String>(0))
+            .ok()?;
+        if check != "ok" {
+            return None;
+        }
+        connection
+            .query_row("SELECT COUNT(*) FROM books", [], |row| row.get::<_, i64>(0))
+            .ok()
+    }
+
+    /// Picks the backup that recovers the most books, preferring the newest one
+    /// when several hold the same number.
     fn latest_valid_backup(backup_dir: &Path) -> Option<PathBuf> {
         let mut backups = fs::read_dir(backup_dir)
             .ok()?
@@ -650,13 +671,14 @@ impl Database {
             .map(|entry| entry.path())
             .collect::<Vec<_>>();
         backups.sort();
-        backups.into_iter().rev().find(|path| {
-            Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_ONLY)
-                .and_then(|connection| {
-                    connection.query_row("PRAGMA quick_check", [], |row| row.get::<_, String>(0))
-                })
-                .is_ok_and(|check| check == "ok")
-        })
+        backups
+            .into_iter()
+            .enumerate()
+            .filter_map(|(order, path)| {
+                Self::backup_book_count(&path).map(|books| (books, order, path))
+            })
+            .max_by_key(|(books, order, _)| (*books, *order))
+            .map(|(_, _, path)| path)
     }
 
     fn quarantine_database(database_path: &Path) -> Result<PathBuf, DatabaseError> {
@@ -2094,8 +2116,17 @@ impl Database {
             last_section,
             section_progress: record.6,
         };
-        self.index_document(&document)?;
-        self.mark_book_opened(book_id)?;
+        // Reading must not depend on the optional full-text index. An old,
+        // partially migrated library can reject an FTS write even though the
+        // source document was parsed successfully. Returning that indexing error here made every
+        // reflow format look unreadable while PDF/comics (which use another
+        // reader path) continued to work.
+        if let Err(error) = self.index_document(&document) {
+            eprintln!("ApriReader: could not index book {book_id}: {error}");
+        }
+        if let Err(error) = self.mark_book_opened(book_id) {
+            eprintln!("ApriReader: could not record opening book {book_id}: {error}");
+        }
         Ok(document)
     }
 
@@ -2685,6 +2716,16 @@ impl Database {
         Ok(summary)
     }
 
+    /// Stops watching a folder without touching the books already imported
+    /// from it. Removing the watch is a change of intent, not a request to
+    /// discard a library the user has been reading.
+    pub fn remove_watched_folder(&mut self, folder_id: i64) -> Result<bool, DatabaseError> {
+        let removed = self
+            .connection
+            .execute("DELETE FROM watched_folders WHERE id = ?1", [folder_id])?;
+        Ok(removed > 0)
+    }
+
     pub fn list_watched_folders(&self) -> Result<Vec<WatchedFolder>, DatabaseError> {
         let mut statement = self.connection.prepare(
             "SELECT id, path, last_scanned_at FROM watched_folders ORDER BY path COLLATE NOCASE",
@@ -3267,6 +3308,32 @@ mod tests {
 
         let database = test_database(directory.path());
         assert!(!database.startup_health().previous_exit_unclean);
+    }
+
+    #[test]
+    fn never_recovers_into_an_emptier_library_than_a_backup_holds() {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let source = directory.path().join("Recovery fixture.txt");
+        fs::write(&source, "safe recovery fixture").expect("fixture");
+        let mut database = test_database(directory.path());
+        database
+            .import_paths(std::slice::from_ref(&source))
+            .expect("import and backup");
+        let book_id = database.list_books().expect("books")[0].id;
+        // Emptying the library writes a newer backup that holds nothing. It is
+        // just as intact as the one before it, so picking by recency alone
+        // would restore an empty library over a recoverable one.
+        database.remove_books(&[book_id]).expect("remove");
+        drop(database);
+
+        fs::write(
+            directory.path().join("library.db"),
+            b"not a sqlite database",
+        )
+        .expect("corrupt database");
+        let mut recovered = test_database(directory.path());
+        assert!(recovered.startup_health().recovered_from_backup);
+        assert_eq!(recovered.list_books().expect("restored books").len(), 1);
     }
 
     #[test]
@@ -3937,6 +4004,29 @@ mod tests {
     }
 
     #[test]
+    fn opens_reflow_books_when_the_optional_search_index_is_unavailable() {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let source = directory.path().join("Readable.fb2");
+        fs::write(
+            &source,
+            r#"<?xml version="1.0"?><FictionBook><body><section><p>Safe FB2 text.</p></section></body></FictionBook>"#,
+        )
+        .expect("fixture");
+        let mut database = test_database(directory.path());
+        database
+            .import_paths(std::slice::from_ref(&source))
+            .expect("import");
+        let book_id = database.list_books().expect("books")[0].id;
+        database
+            .connection
+            .execute_batch("DROP TABLE book_search")
+            .expect("remove optional index");
+
+        let document = database.load_document(book_id).expect("document");
+        assert_eq!(document.sections[0].blocks[0].text, "Safe FB2 text.");
+    }
+
+    #[test]
     fn failed_open_does_not_add_a_book_to_reading_now() {
         let directory = tempfile::tempdir().expect("temporary directory");
         let source = directory.path().join("Unavailable.txt");
@@ -4047,6 +4137,27 @@ mod tests {
         let summary = database.add_watched_folder(&watched).expect("scan");
         assert_eq!(summary.imported, 1);
         assert_eq!(database.list_watched_folders().expect("folders").len(), 1);
+    }
+
+    #[test]
+    fn unwatching_a_folder_keeps_the_books_it_imported() {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let watched = directory.path().join("watched");
+        fs::create_dir_all(&watched).expect("watched folder");
+        fs::write(watched.join("Kept.txt"), "still readable").expect("fixture");
+        let mut database = test_database(directory.path());
+        database.add_watched_folder(&watched).expect("scan");
+        assert_eq!(database.list_books().expect("books").len(), 1);
+
+        let folder_id = database.list_watched_folders().expect("folders")[0].id;
+        assert!(database.remove_watched_folder(folder_id).expect("remove"));
+
+        assert!(database.list_watched_folders().expect("folders").is_empty());
+        // Dropping the watch must not take the library with it.
+        assert_eq!(database.list_books().expect("books").len(), 1);
+        assert!(!database
+            .remove_watched_folder(folder_id)
+            .expect("idempotent"));
     }
 
     #[test]

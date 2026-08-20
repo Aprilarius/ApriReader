@@ -1,17 +1,31 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type TouchEvent } from "react";
+import { readFile } from "@tauri-apps/plugin-fs";
 import type { PDFDocumentProxy, RenderTask } from "pdfjs-dist";
-import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+import pdfWorkerUrl from "pdfjs-dist/legacy/build/pdf.worker.min.mjs?url";
 import {
   localAssetUrl,
   type SpecialDocument,
 } from "../application/fixedReader";
 import { saveReadingPosition } from "../application/reader";
 import type { TranslationKey } from "./i18n";
+import {
+  clampReaderZoom,
+  fixedReaderSwipeDirection,
+  touchDistance,
+  type TouchPoint,
+} from "./fixedReaderGestures";
+import { ensurePdfWebViewCompatibility } from "./pdfCompatibility";
 import { useReadingSession } from "./useReadingSession";
 
 type Translator = (key: TranslationKey) => string;
 type ComicLayout = "single" | "double";
 type ReadingDirection = "ltr" | "rtl";
+
+type FixedTouchGesture = {
+  point: TouchPoint | null;
+  pinchDistance: number;
+  pinchZoom: number;
+};
 
 export function SpecialReaderScreen({
   document,
@@ -67,13 +81,21 @@ function PdfReader({
   language?: string;
   screenReaderSupport: boolean;
 }) {
+  const stageRef = useRef<HTMLElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const pdfRef = useRef<PDFDocumentProxy | null>(null);
   const renderRef = useRef<RenderTask | null>(null);
+  const gestureRef = useRef<FixedTouchGesture>({
+    point: null,
+    pinchDistance: 0,
+    pinchZoom: 1,
+  });
   const onProgressRef = useRef(onProgress);
   const [page, setPage] = useState(Math.max(1, document.lastPage + 1));
   const [pageCount, setPageCount] = useState(0);
-  const [zoom, setZoom] = useState(1.15);
+  const [zoom, setZoom] = useState(1);
+  const [stageWidth, setStageWidth] = useState(0);
+  const [rendering, setRendering] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   useReadingSession({
@@ -88,6 +110,16 @@ function PdfReader({
   }, [onProgress]);
 
   useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    const updateWidth = () => setStageWidth(stage.clientWidth);
+    updateWidth();
+    const observer = new ResizeObserver(updateWidth);
+    observer.observe(stage);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
     if (!document.sourcePath) {
       setError(t("fixedReaderError"));
       return;
@@ -95,11 +127,15 @@ function PdfReader({
     const sourcePath = document.sourcePath;
     let active = true;
     let destroy: (() => Promise<void>) | undefined;
-    void import("pdfjs-dist")
-      .then(({ GlobalWorkerOptions, getDocument }) => {
+    ensurePdfWebViewCompatibility();
+    void Promise.all([
+      import("pdfjs-dist/legacy/build/pdf.mjs"),
+      readFile(sourcePath),
+    ])
+      .then(([{ GlobalWorkerOptions, getDocument }, data]) => {
         GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
         const task = getDocument({
-          url: localAssetUrl(sourcePath),
+          data,
           useWorkerFetch: false,
         });
         destroy = () => task.destroy();
@@ -136,7 +172,10 @@ function PdfReader({
       .getPage(page)
       .then((pdfPage) => {
         if (!active) return;
-        const viewport = pdfPage.getViewport({ scale: zoom });
+        const naturalViewport = pdfPage.getViewport({ scale: 1 });
+        const availableWidth = Math.max(240, stageWidth - 24);
+        const fitScale = Math.min(1.6, availableWidth / naturalViewport.width);
+        const viewport = pdfPage.getViewport({ scale: fitScale * zoom });
         const pixelRatio = Math.min(2, window.devicePixelRatio || 1);
         canvas.width = Math.floor(viewport.width * pixelRatio);
         canvas.height = Math.floor(viewport.height * pixelRatio);
@@ -144,6 +183,7 @@ function PdfReader({
         canvas.style.height = `${viewport.height}px`;
         const context = canvas.getContext("2d");
         if (!context) throw new Error("Canvas rendering is unavailable.");
+        setRendering(true);
         const renderTask = pdfPage.render({
           canvasContext: context,
           canvas,
@@ -152,7 +192,7 @@ function PdfReader({
             pixelRatio === 1 ? undefined : [pixelRatio, 0, 0, pixelRatio, 0, 0],
         });
         renderRef.current = renderTask;
-        return renderTask.promise;
+        return renderTask.promise.then(() => setRendering(false));
       })
       .catch((reason: unknown) => {
         if (
@@ -163,13 +203,14 @@ function PdfReader({
           )
         ) {
           setError(reason instanceof Error ? reason.message : String(reason));
+          setRendering(false);
         }
       });
     return () => {
       active = false;
       renderRef.current?.cancel();
     };
-  }, [page, pageCount, zoom]);
+  }, [page, pageCount, stageWidth, zoom]);
 
   useEffect(() => {
     if (pageCount === 0) return;
@@ -180,6 +221,12 @@ function PdfReader({
 
   const changePage = (next: number) =>
     setPage(Math.min(pageCount, Math.max(1, next)));
+  const touchHandlers = fixedTouchHandlers(
+    gestureRef,
+    zoom,
+    setZoom,
+    (direction) => changePage(page + direction),
+  );
 
   return (
     <div
@@ -215,14 +262,21 @@ function PdfReader({
           +
         </button>
       </ReaderHeader>
-      <main className="fixed-reader-stage" tabIndex={0}>
+      <main
+        ref={stageRef}
+        className={`fixed-reader-stage${rendering ? " rendering" : ""}`}
+        tabIndex={0}
+        {...touchHandlers}
+      >
         {loading && <p className="fixed-reader-state">{t("readerLoading")}</p>}
         {error && (
           <p className="fixed-reader-state error-message" role="alert">
             {t("fixedReaderError")}: {error}
           </p>
         )}
-        <canvas ref={canvasRef} aria-label={t("pdfPage")} />
+        <div className="pdf-page-surface">
+          <canvas ref={canvasRef} aria-label={t("pdfPage")} />
+        </div>
       </main>
       <PageControls
         page={page}
@@ -255,6 +309,13 @@ function ComicReader({
   );
   const [layout, setLayout] = useState<ComicLayout>("single");
   const [direction, setDirection] = useState<ReadingDirection>("ltr");
+  const [zoom, setZoom] = useState(1);
+  const compact = useCompactFixedReader();
+  const gestureRef = useRef<FixedTouchGesture>({
+    point: null,
+    pinchDistance: 0,
+    pinchZoom: 1,
+  });
   const onProgressRef = useRef(onProgress);
   const pageCount = document.pages.length;
   useReadingSession({
@@ -280,9 +341,16 @@ function ComicReader({
     void saveReadingPosition(document.bookId, page - 1, 0, progress);
   }, [document.bookId, page, pageCount]);
 
+  useEffect(() => {
+    if (compact) setLayout("single");
+  }, [compact]);
+
   const step = layout === "double" ? 2 : 1;
   const changePage = (next: number) =>
     setPage(Math.min(pageCount, Math.max(1, next)));
+  const touchHandlers = fixedTouchHandlers(gestureRef, zoom, setZoom, (swipe) =>
+    changePage(page + (direction === "rtl" ? -swipe * step : swipe * step)),
+  );
 
   return (
     <div
@@ -310,14 +378,16 @@ function ComicReader({
         >
           {t("singlePage")}
         </button>
-        <button
-          type="button"
-          className={layout === "double" ? "active" : ""}
-          aria-pressed={layout === "double"}
-          onClick={() => setLayout("double")}
-        >
-          {t("doublePage")}
-        </button>
+        {!compact && (
+          <button
+            type="button"
+            className={layout === "double" ? "active" : ""}
+            aria-pressed={layout === "double"}
+            onClick={() => setLayout("double")}
+          >
+            {t("doublePage")}
+          </button>
+        )}
         <button
           type="button"
           onClick={() =>
@@ -326,11 +396,27 @@ function ComicReader({
         >
           {direction === "ltr" ? t("leftToRight") : t("rightToLeft")}
         </button>
+        <button
+          type="button"
+          aria-label={t("zoomOut")}
+          onClick={() => setZoom((value) => clampReaderZoom(value - 0.15))}
+        >
+          −
+        </button>
+        <output>{Math.round(zoom * 100)}%</output>
+        <button
+          type="button"
+          aria-label={t("zoomIn")}
+          onClick={() => setZoom((value) => clampReaderZoom(value + 0.15))}
+        >
+          +
+        </button>
       </ReaderHeader>
       <main
-        className={`comic-stage layout-${layout}`}
+        className={`comic-stage layout-${layout} ${zoom > 1 ? "zoomed" : ""}`}
         data-direction={direction}
         tabIndex={0}
+        {...touchHandlers}
       >
         {visible.map((index) => {
           const comicPage = document.pages[index];
@@ -340,6 +426,15 @@ function ComicReader({
               alt={`${t("comicPage")} ${index + 1}`}
               key={comicPage.path}
               draggable={false}
+              style={
+                zoom === 1
+                  ? undefined
+                  : {
+                      width: `${zoom * 100}%`,
+                      maxWidth: "none",
+                      maxHeight: "none",
+                    }
+              }
             />
           ) : null;
         })}
@@ -354,6 +449,72 @@ function ComicReader({
       />
     </div>
   );
+}
+
+function useCompactFixedReader() {
+  const [compact, setCompact] = useState(
+    () => typeof window !== "undefined" && window.innerWidth <= 700,
+  );
+  useEffect(() => {
+    const update = () => setCompact(window.innerWidth <= 700);
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
+  return compact;
+}
+
+function fixedTouchHandlers(
+  gestureRef: React.MutableRefObject<FixedTouchGesture>,
+  zoom: number,
+  setZoom: React.Dispatch<React.SetStateAction<number>>,
+  onSwipe: (direction: number) => void,
+) {
+  return {
+    onTouchStart(event: TouchEvent<HTMLElement>) {
+      if (event.touches.length === 1) {
+        const touch = event.touches[0];
+        gestureRef.current.point = touch
+          ? { clientX: touch.clientX, clientY: touch.clientY }
+          : null;
+        gestureRef.current.pinchDistance = 0;
+      } else if (event.touches.length === 2) {
+        const first = event.touches[0];
+        const second = event.touches[1];
+        if (!first || !second) return;
+        gestureRef.current.point = null;
+        gestureRef.current.pinchDistance = touchDistance(first, second);
+        gestureRef.current.pinchZoom = zoom;
+      }
+    },
+    onTouchMove(event: TouchEvent<HTMLElement>) {
+      if (event.touches.length !== 2) return;
+      const first = event.touches[0];
+      const second = event.touches[1];
+      const startDistance = gestureRef.current.pinchDistance;
+      if (!first || !second || startDistance <= 0) return;
+      event.preventDefault();
+      setZoom(
+        clampReaderZoom(
+          gestureRef.current.pinchZoom *
+            (touchDistance(first, second) / startDistance),
+        ),
+      );
+    },
+    onTouchEnd(event: TouchEvent<HTMLElement>) {
+      const start = gestureRef.current.point;
+      gestureRef.current.point = null;
+      gestureRef.current.pinchDistance = 0;
+      if (!start || event.changedTouches.length !== 1) return;
+      const touch = event.changedTouches[0];
+      if (!touch) return;
+      const direction = fixedReaderSwipeDirection(start, touch);
+      if (direction !== 0) onSwipe(direction);
+    },
+    onTouchCancel() {
+      gestureRef.current.point = null;
+      gestureRef.current.pinchDistance = 0;
+    },
+  };
 }
 
 function ReaderHeader({
@@ -416,10 +577,11 @@ function PageControls({
       </p>
       <button
         type="button"
+        aria-label={t("previousPage")}
         disabled={page <= 1}
         onClick={() => onChange(page - step)}
       >
-        ← {t("previousPage")}
+        ‹ <span>{t("previousPage")}</span>
       </button>
       <label>
         <span className="sr-only">{t("currentPage")}</span>
@@ -434,10 +596,11 @@ function PageControls({
       </label>
       <button
         type="button"
+        aria-label={t("nextPage")}
         disabled={page >= pageCount}
         onClick={() => onChange(page + step)}
       >
-        {t("nextPage")} →
+        › <span>{t("nextPage")}</span>
       </button>
     </footer>
   );
