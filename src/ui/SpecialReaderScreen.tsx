@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState, type TouchEvent } from "react";
-import { readFile } from "@tauri-apps/plugin-fs";
 import type { PDFDocumentProxy, RenderTask } from "pdfjs-dist";
 import pdfWorkerUrl from "pdfjs-dist/legacy/build/pdf.worker.min.mjs?url";
 import {
@@ -130,7 +129,12 @@ function PdfReader({
     ensurePdfWebViewCompatibility();
     void Promise.all([
       import("pdfjs-dist/legacy/build/pdf.mjs"),
-      readFile(sourcePath),
+      fetch(localAssetUrl(sourcePath)).then((response) => {
+        if (!response.ok) {
+          throw new Error(t("fixedReaderError"));
+        }
+        return response.arrayBuffer().then((buffer) => new Uint8Array(buffer));
+      }),
     ])
       .then(([{ GlobalWorkerOptions, getDocument }, data]) => {
         GlobalWorkerOptions.workerSrc = pdfWorkerUrl;

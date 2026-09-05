@@ -17,7 +17,6 @@ IGNORED_DIRS = {".git", "node_modules", "target", "dist"}
 APPROVED_NPM = {
     "@tauri-apps/api": "MIT OR Apache-2.0",
     "@tauri-apps/plugin-dialog": "MIT OR Apache-2.0",
-    "@tauri-apps/plugin-fs": "MIT OR Apache-2.0",
     "@tauri-apps/plugin-opener": "MIT OR Apache-2.0",
     "pdfjs-dist": "Apache-2.0",
     "react": "MIT",

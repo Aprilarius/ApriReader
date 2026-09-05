@@ -1,7 +1,7 @@
 {
   "name": "aprireader",
   "private": true,
-  "version": "1.5.0",
+  "version": "2.0.0",
   "description": "Privacy-first desktop reader and personal library for Windows",
   "license": "Apache-2.0",
   "repository": "https://github.com/Aprilarius/ApriReader",
@@ -29,7 +29,6 @@
   "dependencies": {
     "@tauri-apps/api": "2.11.1",
     "@tauri-apps/plugin-dialog": "2.7.2",
-    "@tauri-apps/plugin-fs": "2.5.1",
     "@tauri-apps/plugin-opener": "2.5.4",
     "pdfjs-dist": "6.2.108",
     "react": "19.1.1",
@@ -52,7 +51,7 @@
     "typescript": "~5.8.3",
     "typescript-eslint": "8.39.0",
     "vite": "7.3.6",
-    "vitest": "3.2.4"
+    "vitest": "3.2.7"
   },
   "packageManager": "pnpm@11.9.0"
 }

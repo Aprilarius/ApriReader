@@ -1,8 +1,22 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { SpecialDocument } from "../application/fixedReader";
 import { translations, type TranslationKey } from "./i18n";
 import { SpecialReaderScreen } from "./SpecialReaderScreen";
+
+vi.mock("pdfjs-dist/legacy/build/pdf.mjs", () => ({
+  GlobalWorkerOptions: {},
+  getDocument: () => ({
+    promise: Promise.resolve({
+      numPages: 1,
+      getPage: () => Promise.reject(new Error("no canvas in tests")),
+    }),
+    destroy: () => Promise.resolve(),
+  }),
+}));
+vi.mock("pdfjs-dist/legacy/build/pdf.worker.min.mjs?url", () => ({
+  default: "pdf.worker.mjs",
+}));
 
 const t = (key: TranslationKey) => translations.en[key];
 
@@ -22,7 +36,54 @@ const comic: SpecialDocument = {
   ],
 };
 
+const pdf: SpecialDocument = {
+  bookId: 9,
+  title: "A synthetic PDF",
+  author: "",
+  format: "PDF",
+  kind: "pdf",
+  sourcePath: "C:\\cache\\readers\\deadbeef.pdf",
+  progress: 0,
+  lastPage: 0,
+  pages: [],
+};
+
 describe("SpecialReaderScreen", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("loads the PDF through the scoped asset protocol, never a raw filesystem read", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      arrayBuffer: () => Promise.resolve(new ArrayBuffer(4)),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+
+    render(
+      <SpecialReaderScreen
+        document={pdf}
+        t={t}
+        onClose={vi.fn()}
+        onProgress={vi.fn()}
+      />,
+    );
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    // Outside a real Tauri webview, localAssetUrl() passes the path through
+    // unchanged, so the fetched target is exactly the cached PDF's own path
+    // rather than any plugin-fs read or a different, unscoped location.
+    expect(fetchMock).toHaveBeenCalledWith(pdf.sourcePath);
+  });
+
   it("places initial keyboard focus on the fixed reader toolbar", () => {
     render(
       <SpecialReaderScreen

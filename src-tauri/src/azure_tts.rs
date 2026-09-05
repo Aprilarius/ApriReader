@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{fs, path::Path};
 
-const USER_AGENT: &str = "ApriReader/1.3.0-rc.2";
+const USER_AGENT: &str = concat!("ApriReader/", env!("CARGO_PKG_VERSION"));
 const MAX_AZURE_TEXT_CHARACTERS: usize = 2_000;
 const MAX_AZURE_SSML_BYTES: usize = 16 * 1024;
 const MAX_VOICES_RESPONSE_BYTES: u64 = 4 * 1024 * 1024;

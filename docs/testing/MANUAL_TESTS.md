@@ -362,3 +362,25 @@ manual oversized-input and external-request checks.
     Test 5,001 parts, a part over 64 MiB, aggregate data over 6 GiB, a cache path
     escape, offline/401/429, and an existing playlist. Each must fail visibly,
     with no silent cloud fallback or unbounded/quota-obscuring retry.
+
+## Shell appearance (UI skins)
+
+1. For each of the six skins (Default, Classic, Bookish, Glass, Liquid Glass,
+   Neumorphism) in both Light and Dark mode (12 passes total), open Settings,
+   select the skin and mode, then check the library, a confirmation dialog,
+   the Settings page itself, the Statistics page, and the audiobook player.
+   Text must stay readable against its background in every pass; Glass and
+   Liquid Glass must show a visible blur/translucency behind panels, with
+   Liquid Glass additionally showing a diagonal highlight sheen; Neumorphism
+   panels must show a soft dual shadow with no hard border, and the sidebar
+   must stay visibly darker than the page background.
+2. Confirm the reader page's own Paper/Sepia/Night theme is unaffected by any
+   shell skin or mode choice, in both directions: change the shell skin while
+   a book is open, then change the reader theme and confirm the shell keeps
+   its own selection.
+3. Restart the app after selecting a non-default skin and mode and confirm
+   both restore without visiting Settings again.
+4. Enable Windows Settings → Accessibility → Contrast themes (forced colors)
+   once per skin and confirm the shell falls back to the existing
+   high-contrast appearance identically across all six skins — no blur,
+   translucency, or dual shadow should remain visible.

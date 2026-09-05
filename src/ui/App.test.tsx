@@ -1184,6 +1184,34 @@ describe("App", () => {
     ).not.toBeChecked();
   });
 
+  it("persists the selected shell skin and mode", async () => {
+    localStorage.setItem("aprireader.locale", "en");
+    const { unmount } = render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+
+    const glassSwatch = await screen.findByRole("button", { name: "Glass" });
+    fireEvent.click(glassSwatch);
+    expect(localStorage.getItem("aprireader.ui-theme")).toBe("glass");
+    expect(document.documentElement.getAttribute("data-ui-theme")).toBe(
+      "glass",
+    );
+
+    const darkModeButton = screen.getByRole("button", { name: "Dark" });
+    fireEvent.click(darkModeButton);
+    expect(localStorage.getItem("aprireader.ui-mode")).toBe("dark");
+    expect(document.documentElement.getAttribute("data-ui-mode")).toBe("dark");
+
+    unmount();
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    expect(
+      await screen.findByRole("button", { name: "Glass", pressed: true }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Dark", pressed: true }),
+    ).toBeInTheDocument();
+  });
+
   it("persists the close behavior for active audiobook playback", async () => {
     localStorage.setItem("aprireader.locale", "en");
     render(<App />);
