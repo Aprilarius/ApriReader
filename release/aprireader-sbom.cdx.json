@@ -1,13 +1,13 @@
 {
   "bomFormat": "CycloneDX",
   "specVersion": "1.5",
-  "serialNumber": "urn:uuid:17e66483-19d5-5726-943e-de0ab4e31c20",
+  "serialNumber": "urn:uuid:db644bd6-cf19-5815-888e-69418806ecaf",
   "version": 1,
   "metadata": {
     "component": {
       "type": "application",
       "name": "ApriReader",
-      "version": "1.5.0",
+      "version": "2.0.0",
       "licenses": [
         {
           "license": {
@@ -19,7 +19,7 @@
     "properties": [
       {
         "name": "aprireader:lockfiles-sha256",
-        "value": "677724e98786e7948d024db159b039e21a1cc0cb64e3249620a71476a4b6825a"
+        "value": "2b14aa82cfa3bc2784e17e55cb0476006dba722e77333619cb64daf6d6490b4c"
       },
       {
         "name": "aprireader:scope",
@@ -4553,13 +4553,6 @@
     {
       "type": "library",
       "group": "npm",
-      "name": "@tauri-apps/plugin-fs",
-      "version": "2.5.1",
-      "purl": "pkg:npm/%40tauri-apps/plugin-fs@2.5.1"
-    },
-    {
-      "type": "library",
-      "group": "npm",
       "name": "@tauri-apps/plugin-opener",
       "version": "2.5.4",
       "purl": "pkg:npm/%40tauri-apps/plugin-opener@2.5.4"
@@ -4743,22 +4736,15 @@
       "type": "library",
       "group": "npm",
       "name": "@vitest/expect",
-      "version": "3.2.4",
-      "purl": "pkg:npm/%40vitest/expect@3.2.4"
+      "version": "3.2.7",
+      "purl": "pkg:npm/%40vitest/expect@3.2.7"
     },
     {
       "type": "library",
       "group": "npm",
       "name": "@vitest/mocker",
-      "version": "3.2.4",
-      "purl": "pkg:npm/%40vitest/mocker@3.2.4"
-    },
-    {
-      "type": "library",
-      "group": "npm",
-      "name": "@vitest/pretty-format",
-      "version": "3.2.4",
-      "purl": "pkg:npm/%40vitest/pretty-format@3.2.4"
+      "version": "3.2.7",
+      "purl": "pkg:npm/%40vitest/mocker@3.2.7"
     },
     {
       "type": "library",
@@ -4771,29 +4757,29 @@
       "type": "library",
       "group": "npm",
       "name": "@vitest/runner",
-      "version": "3.2.4",
-      "purl": "pkg:npm/%40vitest/runner@3.2.4"
+      "version": "3.2.7",
+      "purl": "pkg:npm/%40vitest/runner@3.2.7"
     },
     {
       "type": "library",
       "group": "npm",
       "name": "@vitest/snapshot",
-      "version": "3.2.4",
-      "purl": "pkg:npm/%40vitest/snapshot@3.2.4"
+      "version": "3.2.7",
+      "purl": "pkg:npm/%40vitest/snapshot@3.2.7"
     },
     {
       "type": "library",
       "group": "npm",
       "name": "@vitest/spy",
-      "version": "3.2.4",
-      "purl": "pkg:npm/%40vitest/spy@3.2.4"
+      "version": "3.2.7",
+      "purl": "pkg:npm/%40vitest/spy@3.2.7"
     },
     {
       "type": "library",
       "group": "npm",
       "name": "@vitest/utils",
-      "version": "3.2.4",
-      "purl": "pkg:npm/%40vitest/utils@3.2.4"
+      "version": "3.2.7",
+      "purl": "pkg:npm/%40vitest/utils@3.2.7"
     },
     {
       "type": "library",
@@ -4890,15 +4876,15 @@
       "type": "library",
       "group": "npm",
       "name": "brace-expansion",
-      "version": "1.1.16",
-      "purl": "pkg:npm/brace-expansion@1.1.16"
+      "version": "1.1.18",
+      "purl": "pkg:npm/brace-expansion@1.1.18"
     },
     {
       "type": "library",
       "group": "npm",
       "name": "brace-expansion",
-      "version": "2.1.2",
-      "purl": "pkg:npm/brace-expansion@2.1.2"
+      "version": "2.1.4",
+      "purl": "pkg:npm/brace-expansion@2.1.4"
     },
     {
       "type": "library",
@@ -5450,8 +5436,8 @@
       "type": "library",
       "group": "npm",
       "name": "js-yaml",
-      "version": "4.3.0",
-      "purl": "pkg:npm/js-yaml@4.3.0"
+      "version": "4.3.2",
+      "purl": "pkg:npm/js-yaml@4.3.2"
     },
     {
       "type": "library",
@@ -5604,8 +5590,8 @@
       "type": "library",
       "group": "npm",
       "name": "nanoid",
-      "version": "3.3.16",
-      "purl": "pkg:npm/nanoid@3.3.16"
+      "version": "3.3.18",
+      "purl": "pkg:npm/nanoid@3.3.18"
     },
     {
       "type": "library",
@@ -6080,8 +6066,8 @@
       "type": "library",
       "group": "npm",
       "name": "vitest",
-      "version": "3.2.4",
-      "purl": "pkg:npm/vitest@3.2.4"
+      "version": "3.2.7",
+      "purl": "pkg:npm/vitest@3.2.7"
     },
     {
       "type": "library",

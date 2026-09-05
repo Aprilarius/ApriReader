@@ -92,6 +92,7 @@ import {
   normalizeBookLanguage,
   useScreenReaderSupport,
 } from "./useScreenReaderSupport";
+import { uiThemes, useUiTheme, type UiMode, type UiTheme } from "./useUiTheme";
 
 type Route = { id: string; label: TranslationKey; icon: IconName };
 const routes: Route[] = [
@@ -226,6 +227,7 @@ export function App() {
   } = useLocalProfile();
   const { screenReaderSupport, setScreenReaderSupport } =
     useScreenReaderSupport();
+  const { uiTheme, uiMode, setUiTheme, setUiMode } = useUiTheme();
   const [audioCloseBehavior, setAudioCloseBehaviorState] =
     useState<AudioCloseBehavior>(readAudioCloseBehavior);
   const [route, setRoute] = useState("library");
@@ -893,6 +895,10 @@ export function App() {
               onDisplayNameChange={saveDisplayName}
               screenReaderSupport={screenReaderSupport}
               onScreenReaderSupportChange={setScreenReaderSupport}
+              uiTheme={uiTheme}
+              onUiThemeChange={setUiTheme}
+              uiMode={uiMode}
+              onUiModeChange={setUiMode}
               audioCloseBehavior={audioCloseBehavior}
               onAudioCloseBehaviorChange={(behavior) => {
                 setAudioCloseBehaviorState(behavior);
@@ -1186,6 +1192,10 @@ export function SettingsPage({
   onDisplayNameChange,
   screenReaderSupport,
   onScreenReaderSupportChange,
+  uiTheme,
+  onUiThemeChange,
+  uiMode,
+  onUiModeChange,
   audioCloseBehavior,
   onAudioCloseBehaviorChange,
 }: {
@@ -1194,6 +1204,10 @@ export function SettingsPage({
   onDisplayNameChange: (displayName: string) => void;
   screenReaderSupport: boolean;
   onScreenReaderSupportChange: (enabled: boolean) => void;
+  uiTheme: UiTheme;
+  onUiThemeChange: (theme: UiTheme) => void;
+  uiMode: UiMode;
+  onUiModeChange: (mode: UiMode) => void;
   audioCloseBehavior: AudioCloseBehavior;
   onAudioCloseBehaviorChange: (behavior: AudioCloseBehavior) => void;
 }) {
@@ -1300,8 +1314,62 @@ export function SettingsPage({
           </span>
         </label>
       </section>
+      <section className="ui-theme-settings settings-section">
+        <p className="eyebrow">{t("uiThemeEyebrow")}</p>
+        <h2>{t("uiThemeSectionTitle")}</h2>
+        <p className="settings-hint">{t("uiThemeSectionHint")}</p>
+        <fieldset className="theme-choices ui-theme-choices">
+          <legend>{t("uiThemeStyleLabel")}</legend>
+          {uiThemes.map((theme) => (
+            <button
+              type="button"
+              className={uiTheme === theme ? "active" : ""}
+              aria-pressed={uiTheme === theme}
+              key={theme}
+              onClick={() => onUiThemeChange(theme)}
+            >
+              <span className={`theme-swatch ui-theme-swatch-${theme}`} />
+              {t(uiThemeLabelKey(theme))}
+            </button>
+          ))}
+        </fieldset>
+        <div
+          className="ui-mode-choices"
+          role="group"
+          aria-label={t("uiThemeModeLabel")}
+        >
+          <button
+            type="button"
+            className={uiMode === "light" ? "active" : ""}
+            aria-pressed={uiMode === "light"}
+            onClick={() => onUiModeChange("light")}
+          >
+            {t("uiThemeLight")}
+          </button>
+          <button
+            type="button"
+            className={uiMode === "dark" ? "active" : ""}
+            aria-pressed={uiMode === "dark"}
+            onClick={() => onUiModeChange("dark")}
+          >
+            {t("uiThemeDark")}
+          </button>
+        </div>
+      </section>
     </div>
   );
+}
+
+function uiThemeLabelKey(theme: UiTheme): TranslationKey {
+  const keys: Record<UiTheme, TranslationKey> = {
+    default: "uiThemeDefault",
+    classic: "uiThemeClassic",
+    bookish: "uiThemeBookish",
+    glass: "uiThemeGlass",
+    "liquid-glass": "uiThemeLiquidGlass",
+    neumorphism: "uiThemeNeumorphism",
+  };
+  return keys[theme];
 }
 
 type Translator = ReturnType<typeof useLocale>["t"];

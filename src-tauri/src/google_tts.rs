@@ -6,7 +6,7 @@ use std::{fs, path::Path};
 
 const GOOGLE_VOICES: &str = "https://texttospeech.googleapis.com/v1/voices";
 const GOOGLE_SYNTHESIZE: &str = "https://texttospeech.googleapis.com/v1/text:synthesize";
-const USER_AGENT: &str = "ApriReader/1.3.0-rc.2";
+const USER_AGENT: &str = concat!("ApriReader/", env!("CARGO_PKG_VERSION"));
 const MAX_GOOGLE_TEXT_CHARACTERS: usize = 2_000;
 const MAX_GOOGLE_TEXT_BYTES: usize = 4_800;
 const MAX_VOICES_RESPONSE_BYTES: u64 = 4 * 1024 * 1024;

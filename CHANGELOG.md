@@ -2,6 +2,46 @@
 
 ## Unreleased
 
+## 2.0.0 - 2026-09-05
+
+Big update this time. New look for the app, and one fix I'm genuinely a bit
+embarrassed about — see below.
+
+- **You can finally reskin the app.** Settings now has 6 whole vibes to pick
+  from — Default, Classic, Bookish, Glass, Liquid Glass, and Neumorphism —
+  each with its own light and dark mode, so that's 12 combos total. This only
+  changes the shell around your books (library, sidebar, dialogs, settings,
+  stats, the audiobook player) — your actual reading page keeps its own
+  Paper/Sepia/Night switch exactly like before, completely separate. And if
+  you've got Windows high-contrast mode on, every single one of these skins
+  gets out of the way automatically and falls back to the accessible look.
+- **Fixed: PDFs were completely broken.** Yeah. Turns out when I cleaned up
+  some leftover mobile-build code back in 1.5.0, I ripped out a plugin that
+  the PDF reader was quietly still using to read the file bytes, and never
+  noticed because nothing caught it before release. So since 1.5.0, opening
+  literally any PDF just threw an error. If that was you — I'm sorry, that's
+  on me. It's fixed now: PDFs load through the same safe local-file path the
+  comic reader already used, so it can't happen again the same way.
+- **Fixed: the cloud voice providers (ElevenLabs/Google/Azure) were telling
+  on themselves with the wrong version number** in every request — stuck on
+  an old release-candidate build no matter what you actually had installed.
+  Harmless, but sloppy, so it's fixed.
+- **Fixed a pile of "text disappears in dark mode" bugs.** Building 6 new
+  themes was a great way to discover that a bunch of colors across the app
+  only ever worked because there used to be exactly one theme and it was
+  always light. Once dark modes existed for real, things like the name field
+  in Settings, several buttons, the empty-library card, achievement badges,
+  and footnote links inside the reader could end up with white-on-white or
+  otherwise unreadable text depending on which theme you picked. I went
+  through every screen × every theme × every light/dark combo with an actual
+  contrast-ratio checker this time (not just eyeballing it), fixed everything
+  it flagged, and wrote an automated test that checks contrast on every theme
+  combo going forward — so this class of bug can't quietly sneak back in.
+- Dropped an unused dependency the PDF fix made unnecessary, and patched a
+  handful of security advisories in the dev tooling (linter/test runner
+  stuff) — none of it was ever reachable from the app you actually install,
+  just good hygiene.
+
 ## 1.5.0 - 2026-08-20
 
 - Fixed the blank reader page. Page measurement advanced from inside its own
